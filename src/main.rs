@@ -52,14 +52,16 @@ enum InspectSubcommand {
     },
 }
 
-/// Print items as `project_relative_path:item` lines.
-fn print_items(project: &Path, items: &[String]) -> Result<()> {
+/// Print items with a header and numbered list.
+fn print_items(project: &Path, items: &[String], label: &str) -> Result<()> {
     let cwd = std::env::current_dir()?;
     let project_abs = std::path::absolute(project)?;
     let project_rel = project_abs.strip_prefix(&cwd).unwrap_or(&project_abs);
 
-    for line in items {
-        println!("{}", project_rel.join(line).display());
+    println!("found {} {}\n", items.len(), label);
+
+    for (i, line) in items.iter().enumerate() {
+        println!("{}. {}", i + 1, project_rel.join(line).display());
     }
     Ok(())
 }
@@ -71,19 +73,19 @@ fn main() -> Result<()> {
         Command::Inspect(args) => match args.subcommand {
             InspectSubcommand::Abstracts { project } => {
                 let items = hawk::commands::abstracts::list(&project)?;
-                print_items(&project, &items)?;
+                print_items(&project, &items, "abstracts")?;
             }
             InspectSubcommand::Contracts { project } => {
                 let items = hawk::commands::contracts::list(&project)?;
-                print_items(&project, &items)?;
+                print_items(&project, &items, "contracts")?;
             }
             InspectSubcommand::Interfaces { project } => {
                 let items = hawk::commands::interfaces::list(&project)?;
-                print_items(&project, &items)?;
+                print_items(&project, &items, "interfaces")?;
             }
             InspectSubcommand::Libraries { project } => {
                 let items = hawk::commands::libraries::list(&project)?;
-                print_items(&project, &items)?;
+                print_items(&project, &items, "libraries")?;
             }
         },
     }
