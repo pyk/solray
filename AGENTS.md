@@ -52,3 +52,18 @@ cargo txt show serde
 # View serde::Deserialize trait documentation
 cargo txt show serde::Deserialize
 ```
+
+## checkrs
+
+To suppress the lint use the `// checkrs: allow(<name>)` for example:
+
+```rust
+// checkrs: allow(clone_in_loops)
+let mut fresh_chain = self.chain.clone();
+```
+
+or
+
+```rust
+let mut fresh_chain = self.chain.clone(); // checkrs: allow(clone_in_loops)
+```

@@ -10,7 +10,7 @@ use std::path::PathBuf;
 ///
 /// Each node represents a function call that may contain child calls.
 #[derive(Debug, Clone)]
-pub struct CallNode {
+pub struct CallGraphNode {
     /// Human-readable signature, e.g. `Main::execute(uint256)`
     pub signature: String,
     /// The contract name that defines this function
@@ -22,20 +22,20 @@ pub struct CallNode {
     /// Source location range for the function (for the Sources section)
     pub src: String,
     /// Calls made within this function
-    pub children: Vec<CallNode>,
+    pub children: Vec<CallGraphNode>,
 }
 
-impl CallNode {
-    /// Create a new function call node.
+impl CallGraphNode {
+    /// Create a new call graph node.
     pub fn new(
         signature: &str,
         contract_name: &str,
         file: PathBuf,
         visibility: &str,
         src: &str,
-        children: Vec<CallNode>,
+        children: Vec<CallGraphNode>,
     ) -> Self {
-        CallNode {
+        CallGraphNode {
             signature: signature.to_string(),
             contract_name: contract_name.to_string(),
             file,
@@ -61,14 +61,18 @@ impl CallNode {
     }
 }
 
-impl fmt::Display for CallNode {
+impl fmt::Display for CallGraphNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{} ({})", self.signature, self.visibility)?;
         fmt_children(&self.children, f, "")
     }
 }
 
-fn fmt_children(children: &[CallNode], f: &mut fmt::Formatter<'_>, prefix: &str) -> fmt::Result {
+fn fmt_children(
+    children: &[CallGraphNode],
+    f: &mut fmt::Formatter<'_>,
+    prefix: &str,
+) -> fmt::Result {
     let len = children.len();
     for (i, child) in children.iter().enumerate() {
         let is_last = i == len - 1;
@@ -98,7 +102,7 @@ mod tests {
 
     #[test]
     fn display_simple_function() {
-        let node = CallNode::new(
+        let node = CallGraphNode::new(
             "Main::execute(uint256)",
             "Main",
             PathBuf::from("src/Main.sol"),
@@ -111,14 +115,14 @@ mod tests {
 
     #[test]
     fn display_nested_function_calls() {
-        let node = CallNode::new(
+        let node = CallGraphNode::new(
             "Main::execute(uint256)",
             "Main",
             PathBuf::from("src/Main.sol"),
             "public",
             "276:110",
             vec![
-                CallNode::new(
+                CallGraphNode::new(
                     "Helper::assist(uint256)",
                     "Helper",
                     PathBuf::from("src/Helper.sol"),
@@ -126,13 +130,13 @@ mod tests {
                     "109:72",
                     vec![],
                 ),
-                CallNode::new(
+                CallGraphNode::new(
                     "Main::internalWork()",
                     "Main",
                     PathBuf::from("src/Main.sol"),
                     "internal",
                     "392:79",
-                    vec![CallNode::new(
+                    vec![CallGraphNode::new(
                         "Base::baseWork()",
                         "Base",
                         PathBuf::from("src/Main.sol"),
@@ -154,13 +158,13 @@ mod tests {
 
     #[test]
     fn flatten_sources_collects_depth_first() {
-        let node = CallNode::new(
+        let node = CallGraphNode::new(
             "Main::execute(uint256)",
             "Main",
             PathBuf::from("src/Main.sol"),
             "public",
             "276:110",
-            vec![CallNode::new(
+            vec![CallGraphNode::new(
                 "Helper::assist(uint256)",
                 "Helper",
                 PathBuf::from("src/Helper.sol"),

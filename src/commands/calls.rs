@@ -1,7 +1,7 @@
 //! Show the call graph of a Solidity function.
 //!
 //! This module is the CLI-facing layer for the `hawk inspect calls` command.
-//! The core logic lives in [`crate::project::Project`].
+//! The core logic lives in [`crate::call_graph::CallGraphLoader`].
 
 use std::collections::HashMap;
 use std::fs;
@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 
-use crate::callgraph::CallNode;
+use crate::call_graph::{CallGraphLoader, CallGraphNode};
 use crate::project::Project;
 
 /// Run the call graph inspection for the given function ID.
@@ -22,11 +22,12 @@ use crate::project::Project;
 /// is overloaded.
 pub fn run(function_id: &str, path: impl AsRef<Path>) -> Result<String> {
     let project = Project::open(path.as_ref())?;
-    let node = project.call_graph(function_id)?;
+    let loader = CallGraphLoader::new(project.path(), project.out_dir());
+    let node = loader.call_graph(function_id)?;
     format_output(node, project.path())
 }
 
-fn format_output(tree: CallNode, project_root: &Path) -> Result<String> {
+fn format_output(tree: CallGraphNode, project_root: &Path) -> Result<String> {
     let sources = tree.flatten_sources();
     let cwd = std::env::current_dir()?;
     let project_abs = std::path::absolute(project_root)?;

@@ -14,7 +14,7 @@ use solc::ast::{
 use solc::ast::{FunctionDefinition, StateMutability, VariableDeclaration};
 use walkdir::WalkDir;
 
-use crate::callgraph::CallNode;
+use crate::call_graph::CallGraphNode;
 use crate::inheritance::InheritanceNode;
 
 /// A single Solidity source-level declaration.
@@ -108,6 +108,11 @@ impl Project {
     /// Return the project root path.
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// Return the output directory path.
+    pub fn out_dir(&self) -> &Path {
+        &self.out
     }
 
     /// Collect all JSON artifact paths from the output directory,
@@ -264,7 +269,7 @@ impl Project {
     ///
     /// Resolves the contract and function, then recursively traverses the AST
     /// to find all function calls.
-    pub fn call_graph(&self, function_id: &str) -> Result<CallNode> {
+    pub fn call_graph(&self, function_id: &str) -> Result<CallGraphNode> {
         let (contract_name, function_name) = parse_function_id(function_id)?;
 
         let decls = self.find_declarations_by_name(contract_name)?;
@@ -335,13 +340,13 @@ impl Project {
         Ok(node)
     }
 
-    /// Build a CallNode for a given function info, recursively.
+    /// Build a CallGraphNode for a given function info, recursively.
     fn build_call_node(
         &self,
         info: &FunctionInfo,
         by_id: &HashMap<i64, &FunctionInfo>,
         visited: &mut HashSet<i64>,
-    ) -> Result<CallNode> {
+    ) -> Result<CallGraphNode> {
         if !visited.insert(info.id) {
             // Recursive call detected; return a stub to avoid infinite recursion.
             let sig = build_signature(info);
@@ -350,7 +355,7 @@ impl Project {
                 "{}:{}",
                 info.definition.src.offset, info.definition.src.length
             );
-            return Ok(CallNode::new(
+            return Ok(CallGraphNode::new(
                 &sig,
                 &info.contract_name,
                 info.file.clone(),
@@ -373,7 +378,7 @@ impl Project {
             info.definition.src.offset, info.definition.src.length
         );
 
-        Ok(CallNode::new(
+        Ok(CallGraphNode::new(
             &sig,
             &info.contract_name,
             info.file.clone(),
@@ -389,7 +394,7 @@ impl Project {
         statements: &[solc::ast::Statement],
         by_id: &HashMap<i64, &FunctionInfo>,
         visited: &mut HashSet<i64>,
-    ) -> Result<Vec<CallNode>> {
+    ) -> Result<Vec<CallGraphNode>> {
         let mut nodes = Vec::new();
         for stmt in statements {
             self.collect_calls_from_statement(stmt, by_id, visited, &mut nodes)?;
@@ -403,7 +408,7 @@ impl Project {
         stmt: &solc::ast::Statement,
         by_id: &HashMap<i64, &FunctionInfo>,
         visited: &mut HashSet<i64>,
-        nodes: &mut Vec<CallNode>,
+        nodes: &mut Vec<CallGraphNode>,
     ) -> Result<()> {
         match stmt {
             solc::ast::Statement::ExpressionStatement(es) => {
@@ -460,7 +465,7 @@ impl Project {
         expr: &Expression,
         by_id: &HashMap<i64, &FunctionInfo>,
         visited: &mut HashSet<i64>,
-        nodes: &mut Vec<CallNode>,
+        nodes: &mut Vec<CallGraphNode>,
     ) -> Result<()> {
         match expr {
             Expression::FunctionCall(fc) => {
