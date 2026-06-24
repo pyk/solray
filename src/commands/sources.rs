@@ -35,7 +35,7 @@ mod tests {
         let result = run(fixture_path(), "Main::execute").unwrap();
         assert_eq!(
             result,
-            include_str!("../../fixtures/sources/expected/execute.txt")
+            include_str!("../../fixtures/sources/expected/run_shows_source_for_execute.txt")
         );
     }
 
@@ -44,7 +44,9 @@ mod tests {
         let result = run(fixture_path(), "Main::_processData").unwrap();
         assert_eq!(
             result,
-            include_str!("../../fixtures/sources/expected/process_data.txt")
+            include_str!(
+                "../../fixtures/sources/expected/run_shows_source_with_recursive_refs.txt"
+            )
         );
     }
 
@@ -57,7 +59,9 @@ mod tests {
         .unwrap();
         assert_eq!(
             result,
-            include_str!("../../fixtures/sources/expected/overloaded_exact.txt")
+            include_str!(
+                "../../fixtures/sources/expected/run_shows_source_for_overloaded_with_params.txt"
+            )
         );
     }
 
@@ -65,7 +69,10 @@ mod tests {
     fn run_errors_for_unknown_contract() {
         let result = run(fixture_path(), "Unknown::function");
         let err = result.unwrap_err().to_string();
-        assert_eq!(err, "\"Unknown\" not found.");
+        assert_eq!(
+            err,
+            include_str!("../../fixtures/sources/expected/run_errors_for_unknown_contract.txt")
+        );
     }
 
     #[test]
@@ -74,7 +81,7 @@ mod tests {
         let err = result.unwrap_err().to_string();
         assert_eq!(
             err,
-            "\"unknownFunction\" not found in \"Main\".\n\nAvailable functions in \"Main\": _compute, _processData, execute",
+            include_str!("../../fixtures/sources/expected/run_errors_for_unknown_function.txt")
         );
     }
 
@@ -84,7 +91,7 @@ mod tests {
         let err = result.unwrap_err().to_string();
         assert_eq!(
             err,
-            "found 2 \"Overloaded::beforeTokenTransfer\"\n\nSelect one of the following:\n\nhawk inspect sources \"Overloaded::beforeTokenTransfer(address,address)\"\nhawk inspect sources \"Overloaded::beforeTokenTransfer(address,address,uint256)\"\n",
+            include_str!("../../fixtures/sources/expected/run_errors_for_overloaded_function.txt")
         );
     }
 
@@ -97,7 +104,7 @@ mod tests {
         let result = run(fixture_path(), "NatspecBlock::compute").unwrap();
         assert_eq!(
             result,
-            include_str!("../../fixtures/sources/expected/natspec_block.txt")
+            include_str!("../../fixtures/sources/expected/run_shows_natspec_block_comment.txt")
         );
     }
 
@@ -110,7 +117,9 @@ mod tests {
         let result = run(fixture_path(), "TypeRefs::passThrough").unwrap();
         assert_eq!(
             result,
-            include_str!("../../fixtures/sources/expected/type_refs.txt")
+            include_str!(
+                "../../fixtures/sources/expected/run_resolves_user_defined_types_in_variable_declarations.txt"
+            )
         );
     }
 
@@ -123,7 +132,9 @@ mod tests {
         let result = run(fixture_path(), "CrossFileConsumer::translate").unwrap();
         assert_eq!(
             result,
-            include_str!("../../fixtures/sources/expected/cross_file.txt")
+            include_str!(
+                "../../fixtures/sources/expected/run_resolves_cross_file_type_references.txt"
+            )
         );
     }
 
@@ -136,7 +147,9 @@ mod tests {
         let result = run(fixture_path(), "IndexAccessTest::getItem").unwrap();
         assert_eq!(
             result,
-            include_str!("../../fixtures/sources/expected/index_access.txt")
+            include_str!(
+                "../../fixtures/sources/expected/run_resolves_index_access_expressions.txt"
+            )
         );
     }
 
@@ -147,12 +160,11 @@ mod tests {
     #[test]
     fn incremental_build_does_not_leak_symbols() {
         let result = run(fixture_path(), "Main::execute").unwrap();
-        assert!(!result.contains("Incremental"), "Incremental leaked");
-        assert!(!result.contains("// symbol: Item"), "Item leaked");
-        assert!(result.contains("// symbol: Data"), "Data missing");
-        assert!(
-            result.contains("// symbol: Main::_compute"),
-            "_compute missing"
+        assert_eq!(
+            result,
+            include_str!(
+                "../../fixtures/sources/expected/incremental_build_does_not_leak_symbols.txt"
+            )
         );
     }
 }

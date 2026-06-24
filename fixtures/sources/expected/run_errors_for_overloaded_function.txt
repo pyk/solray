@@ -1,0 +1,6 @@
+found 2 "Overloaded::beforeTokenTransfer"
+
+Select one of the following:
+
+hawk inspect sources "Overloaded::beforeTokenTransfer(address,address)"
+hawk inspect sources "Overloaded::beforeTokenTransfer(address,address,uint256)"

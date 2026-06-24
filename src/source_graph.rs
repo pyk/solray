@@ -941,7 +941,7 @@ mod tests {
         let result = run(fixture_path(), "Main::execute").unwrap();
         assert_eq!(
             result,
-            include_str!("../fixtures/sources/expected/execute.txt")
+            include_str!("../fixtures/sources/expected/run_shows_source_for_execute.txt")
         );
     }
 
