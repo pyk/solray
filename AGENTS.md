@@ -1,13 +1,34 @@
 You are working on a `hawk` project.
 
-## Non-negoitable rules
+## Non-negotiable rules
+
+List of CRITICAL rules that you must follow every time. Failing to do so will have a
+severe negative impact on the project and the user.
+
+### General Rules
 
 - You must run `make check` and `make test` before finishing a task.
-- You must follow the [project guidelines](docs/project-guidelines.md).
 - You must use `cargo txt` to view crate documentation.
-- You must separate I/O from a logic.
-- You must not create fixture artifact manually, run `forge build` to generate the
-  artifact.
+- You must separate I/O from logic.
+- You must not create fixture artifacts manually. Run `forge build` to generate them.
+- You must not add comment block header.
+
+### Code Design Rules
+
+- You must design the public API around types, not functions.
+- You must organize modules around domain concepts.
+- You must keep one primary type per module (`project.rs` -> Project).
+- You must re-export public types at the module level.
+- You must keep implementation details private.
+- You must not create `utils.rs`, `helpers.rs`, or `common.rs`.
+- You must put behavior on the type that owns the state.
+- You must use constructors as entry points (e.g. `Project::open(path)`).
+- You must not prefix function names with the type name (bad: `build_project`).
+- You must use free functions only when there is no natural owner.
+- You must use option structs for methods with many parameters.
+- You must use operation types (Analyzer, Linker, Builder) for complex workflows.
+- You must use context objects for internal workflows to prevent parameter explosion.
+- You must avoid deep module hierarchies.
 
 ## Project Overview
 
