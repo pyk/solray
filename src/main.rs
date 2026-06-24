@@ -95,7 +95,7 @@ fn main() -> Result<()> {
                 function_id,
                 project,
             } => {
-                let output = hawk::commands::calls::run(&function_id, &project)?;
+                let output = hawk::commands::calls::run(&project, &function_id)?;
                 print!("{output}");
             }
             InspectSubcommand::Contracts { project } => {

@@ -15,13 +15,8 @@ use crate::project::Project;
 /// Run the call graph inspection for the given function ID.
 ///
 /// `function_id` should be in the format `Contract::function`.
-///
-/// Returns the formatted output on success. Returns an error with a
-/// user-friendly message when the declaration is not found, when
-/// multiple declarations share the same name, or when the function
-/// is overloaded.
-pub fn run(function_id: &str, path: impl AsRef<Path>) -> Result<String> {
-    let project = Project::open(path.as_ref())?;
+pub fn run(project_path: impl AsRef<Path>, function_id: &str) -> Result<String> {
+    let project = Project::open(project_path.as_ref())?;
     let loader = CallGraphLoader::new(project.path(), project.out_dir());
     let node = loader.call_graph(function_id)?;
     format_output(node, project.path())
@@ -137,28 +132,28 @@ mod tests {
 
     #[test]
     fn run_shows_call_graph_for_readonly() {
-        let result = run("Main::readOnly", fixture_path()).unwrap();
+        let result = run(fixture_path(), "Main::readOnly").unwrap();
         assert!(result.contains("Call graph:"));
         assert!(result.contains("Main::readOnly()"));
     }
 
     #[test]
     fn run_shows_call_graph_for_execute() {
-        let result = run("Main::execute", fixture_path()).unwrap();
+        let result = run(fixture_path(), "Main::execute").unwrap();
         assert!(result.contains("Call graph:"));
         assert!(result.contains("Main::execute(uint256)"));
     }
 
     #[test]
     fn run_errors_for_unknown_contract() {
-        let result = run("Unknown::function", fixture_path());
+        let result = run(fixture_path(), "Unknown::function");
         let err = result.unwrap_err().to_string();
         assert!(err.contains("\"Unknown\" not found"));
     }
 
     #[test]
     fn run_errors_for_unknown_function() {
-        let result = run("Main::unknownFunction", fixture_path());
+        let result = run(fixture_path(), "Main::unknownFunction");
         let err = result.unwrap_err().to_string();
         assert!(err.contains("\"unknownFunction\" not found in \"Main\""));
     }
