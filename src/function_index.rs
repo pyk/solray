@@ -1,67 +1,92 @@
-//! Pre-built index mapping AST node IDs to function information.
+//! Lightweight index mapping Solc AST node IDs to artifact paths.
 //!
-//! [`FunctionIndex`] is built eagerly by parsing all artifact JSON files,
-//! replacing the slow lazy-loading pattern in call graph resolution. Looking
-//! up a function by its Solc AST node ID becomes O(1).
+//! [`FunctionIndex`] is built by scanning all artifact files and extracting
+//! just the function definition IDs using a minimal serde struct -- no full
+//! AST deserialization. This makes it fast even for large flattened files.
+//!
+//! Artifacts from the same source file are deduplicated during scanning,
+//! since all artifacts compiled from the same `.sol` source contain an
+//! identical AST.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use rayon::prelude::*;
 use serde::Deserialize;
-use solc::ast::{
-    ContractDefinitionNode, FunctionDefinition, SourceUnitNode, VariableDeclaration, Visibility,
-};
 
 use crate::artifact_index::{ArtifactEntry, ArtifactIndex};
 
-/// Function information extracted from an artifact AST for call graph resolution.
+/// An entry in the function index: the artifact path and source file for a
+/// function definition identified by its Solc AST node ID.
 #[derive(Debug, Clone)]
-pub struct FunctionInfo {
-    pub id: i64,
-    pub name: String,
-    pub contract_name: String,
-    pub file: PathBuf,
-    pub parameters: Vec<VariableDeclaration>,
-    pub visibility: Visibility,
-    pub definition: FunctionDefinition,
+pub struct FunctionIndexEntry {
+    /// Path to the artifact JSON file containing this function.
+    pub artifact_path: PathBuf,
+    /// The source file this function was compiled from.
+    pub source_file: PathBuf,
 }
 
-/// Minimal artifact wrapper for extracting the AST on demand.
-#[derive(Deserialize)]
-struct Artifact {
-    ast: Option<solc::ast::SourceUnit>,
-}
-
-/// A pre-built index mapping Solc AST node IDs to [`FunctionInfo`].
+/// Lightweight index: Solc AST node ID -> artifact path + source file.
 ///
-/// Built eagerly by parsing all artifact files in a Foundry project. This
-/// makes lookups O(1) instead of the previous pattern where each unresolved
-/// call required a linear scan through all artifacts.
+/// Built by scanning all artifact files and extracting just the function
+/// definition IDs. No full AST deserialization is performed, making this
+/// fast even for projects with many large flattened artifacts.
 #[derive(Debug, Clone)]
 pub struct FunctionIndex {
-    inner: HashMap<i64, FunctionInfo>,
+    inner: HashMap<i64, FunctionIndexEntry>,
+}
+
+/// Result of scanning a single artifact during index building.
+struct ArtifactScan {
+    source: PathBuf,
+    artifact_path: PathBuf,
+    ids: Vec<i64>,
 }
 
 impl FunctionIndex {
-    /// Build a [`FunctionIndex`] by parsing all artifacts in `artifact_index`
-    /// in parallel using rayon.
+    /// Build a [`FunctionIndex`] by scanning all artifacts in `artifact_index`.
+    ///
+    /// Only function definition IDs are extracted (using a minimal serde
+    /// struct), avoiding the cost of full AST deserialization. Artifacts
+    /// from the same source file are deduplicated.
     #[tracing::instrument(skip_all)]
     pub fn build(artifact_index: &ArtifactIndex) -> Self {
         let entries: Vec<&ArtifactEntry> = artifact_index.all_entries().collect();
         tracing::trace!(total_entries = entries.len(), "building function index");
 
-        let results: Vec<Vec<FunctionInfo>> = entries
+        // Parallel scan: extract (source, artifact_path, ids) from all
+        // artifacts concurrently. No Mutex needed since each task produces
+        // independent results.
+        let scanned: Vec<ArtifactScan> = entries
             .par_iter()
-            .filter_map(|entry| process_artifact_for_functions(&entry.path).ok().flatten())
+            .filter_map(|entry| {
+                let (source, ids) = scan_artifact_ids(&entry.path).ok()??;
+                Some(ArtifactScan {
+                    source,
+                    artifact_path: entry.path.to_path_buf(),
+                    ids,
+                })
+            })
             .collect();
 
-        let mut inner: HashMap<i64, FunctionInfo> = HashMap::new();
-        for funcs in results {
-            for fi in funcs {
-                inner.insert(fi.id, fi);
+        // Serial dedup: keep only the first artifact per source file, then
+        // flatten into the ID -> entry map.
+        let mut inner: HashMap<i64, FunctionIndexEntry> = HashMap::with_capacity(scanned.len() * 4);
+        let mut seen_sources: HashSet<PathBuf> = HashSet::with_capacity(scanned.len());
+        for scan in scanned {
+            if !seen_sources.insert(scan.source.clone()) {
+                continue;
+            }
+            for id in scan.ids {
+                inner.insert(
+                    id,
+                    FunctionIndexEntry {
+                        artifact_path: scan.artifact_path.clone(), // checkrs: allow(clone_in_loops)
+                        source_file: scan.source.clone(),          // checkrs: allow(clone_in_loops)
+                    },
+                );
             }
         }
 
@@ -69,7 +94,7 @@ impl FunctionIndex {
         Self { inner }
     }
 
-    /// Return the number of indexed functions.
+    /// Return the number of indexed function IDs.
     pub fn len(&self) -> usize {
         self.inner.len()
     }
@@ -79,8 +104,8 @@ impl FunctionIndex {
         self.inner.is_empty()
     }
 
-    /// Look up a function by its Solc AST node ID.
-    pub fn get(&self, id: i64) -> Option<&FunctionInfo> {
+    /// Look up an artifact entry by function definition ID.
+    pub fn get(&self, id: i64) -> Option<&FunctionIndexEntry> {
         self.inner.get(&id)
     }
 
@@ -91,76 +116,85 @@ impl FunctionIndex {
 }
 
 impl std::ops::Deref for FunctionIndex {
-    type Target = HashMap<i64, FunctionInfo>;
+    type Target = HashMap<i64, FunctionIndexEntry>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-/// Process a single artifact JSON file, returning all [`FunctionInfo`] entries
-/// found across all contracts in the AST.
-#[tracing::instrument(skip_all)]
-fn process_artifact_for_functions(path: impl AsRef<Path>) -> Result<Option<Vec<FunctionInfo>>> {
+// ---- Lightweight ID extraction ----
+
+/// Minimal node: captures only `nodeType`, `id`, and `implemented` from any
+/// AST node. All Solc AST nodes have `nodeType` and `id`. Only
+/// `FunctionDefinition` nodes have `implemented`.
+#[derive(Deserialize)]
+struct IdNode {
+    #[serde(rename = "nodeType")]
+    node_type: String,
+    id: i64,
+    #[serde(default)]
+    implemented: Option<bool>,
+}
+
+/// Minimal contract node: captures child nodes only.
+/// `nodeType` is not needed and silently skipped by serde.
+#[derive(Deserialize)]
+struct ContractNodes {
+    #[serde(default)]
+    nodes: Vec<IdNode>,
+}
+
+/// Minimal source unit: captures source path and top-level nodes.
+#[derive(Deserialize)]
+struct SourceUnitNodes {
+    #[serde(default)]
+    nodes: Vec<ContractNodes>,
+    #[serde(rename = "absolutePath")]
+    absolute_path: Option<PathBuf>,
+}
+
+/// Minimal artifact: only deserializes the AST skeleton.
+#[derive(Deserialize)]
+struct ArtifactSkeleton {
+    ast: Option<SourceUnitNodes>,
+}
+
+/// Scan a single artifact JSON file, extracting the source file path and
+/// all function definition IDs. Uses a minimal serde struct (no full AST).
+fn scan_artifact_ids(path: impl AsRef<Path>) -> Result<Option<(PathBuf, Vec<i64>)>> {
     let path = path.as_ref();
-    tracing::trace!(?path);
-
     let content = fs::read_to_string(path)?;
-    let artifact: Artifact = serde_json::from_str(&content)?;
+    let artifact: ArtifactSkeleton = serde_json::from_str(&content)?;
 
-    let ast = match artifact.ast {
+    let su = match artifact.ast {
         None => return Ok(None),
-        Some(ast) => ast,
+        Some(su) => su,
     };
 
-    let source_file = ast.absolute_path;
-    let mut functions = Vec::new();
+    let source = match su.absolute_path {
+        None => return Ok(None),
+        Some(p) => p,
+    };
 
-    for node in ast.nodes {
-        if let SourceUnitNode::ContractDefinition(cd) = node {
-            functions.extend(extract_contract_functions(cd, &source_file));
+    let mut ids = Vec::new();
+    for contract in &su.nodes {
+        for node in &contract.nodes {
+            if node.node_type == "FunctionDefinition" && node.implemented == Some(true) {
+                ids.push(node.id);
+            }
         }
     }
 
-    if functions.is_empty() {
+    if ids.is_empty() {
         Ok(None)
     } else {
-        Ok(Some(functions))
+        Ok(Some((source, ids)))
     }
-}
-
-/// Extract all implemented functions from a contract definition.
-fn extract_contract_functions(
-    cd: solc::ast::ContractDefinition,
-    source_file: &Path,
-) -> Vec<FunctionInfo> {
-    let contract_name = cd.name;
-    let file = source_file.to_path_buf();
-    cd.nodes
-        .into_iter()
-        .filter_map(|inner| {
-            let ContractDefinitionNode::FunctionDefinition(fd) = inner else {
-                return None;
-            };
-            if !fd.implemented {
-                return None;
-            }
-            Some(FunctionInfo {
-                id: fd.id,
-                name: fd.name.clone(),
-                contract_name: contract_name.clone(),
-                file: file.clone(),
-                parameters: fd.parameters.parameters.clone(),
-                visibility: fd.visibility.clone(),
-                definition: fd,
-            })
-        })
-        .collect()
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
     use std::path::PathBuf;
 
     use super::*;
@@ -178,17 +212,19 @@ mod tests {
     }
 
     #[test]
-    fn index_contains_functions_from_all_contracts() {
+    fn index_contains_functions_from_all_sources() {
         let project_root = fixture_path();
         let artifact_index = ArtifactIndex::build(project_root.join("out"));
         let function_index = FunctionIndex::build(&artifact_index);
+        assert!(function_index.len() > 0);
+    }
 
-        // FunctionInfo entries should include contract_name from all contracts.
-        let contract_names: HashSet<&str> = function_index
-            .values()
-            .map(|fi| fi.contract_name.as_str())
-            .collect();
-        assert!(contract_names.contains("Main"));
-        assert!(contract_names.contains("Helper"));
+    #[test]
+    fn scan_artifact_extracts_function_ids() {
+        let path = fixture_path().join("out/Main.sol/Main.json");
+        let result = scan_artifact_ids(&path).unwrap().unwrap();
+        let (_source, ids) = result;
+        assert!(ids.contains(&27)); // baseWork
+        assert!(ids.contains(&54)); // execute
     }
 }

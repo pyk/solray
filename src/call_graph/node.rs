@@ -3,6 +3,7 @@
 //! Represents a function and the calls it makes to other functions
 //! in a recursive tree structure, used to visualize call graphs.
 
+use std::collections::HashSet;
 use std::fmt;
 use std::path::PathBuf;
 
@@ -47,16 +48,25 @@ impl CallGraphNode {
 
     /// Flatten the call graph into a depth-first list of `(file, src)` pairs
     /// for the sources section. The caller is responsible for formatting paths.
+    /// Duplicate source locations are included only once.
     pub fn flatten_sources(&self) -> Vec<(PathBuf, String)> {
         let mut result = Vec::new();
-        self.flatten_sources_recursive(&mut result);
+        let mut seen = HashSet::new();
+        self.flatten_sources_recursive(&mut result, &mut seen);
         result
     }
 
-    fn flatten_sources_recursive(&self, out: &mut Vec<(PathBuf, String)>) {
-        out.push((self.file.clone(), self.src.clone()));
+    fn flatten_sources_recursive(
+        &self,
+        out: &mut Vec<(PathBuf, String)>,
+        seen: &mut HashSet<(PathBuf, String)>,
+    ) {
+        let key = (self.file.clone(), self.src.clone());
+        if seen.insert(key) {
+            out.push((self.file.clone(), self.src.clone()));
+        }
         for child in &self.children {
-            child.flatten_sources_recursive(out);
+            child.flatten_sources_recursive(out, seen);
         }
     }
 }
