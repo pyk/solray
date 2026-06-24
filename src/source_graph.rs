@@ -461,6 +461,12 @@ fn collect_from_contract_node(
                 current_fn_id: Some(fd.id),
                 ..*ctx
             };
+            for param in &fd.parameters.parameters {
+                collect_from_type_name(&param.type_name, seen_ids, results, &fn_ctx);
+            }
+            for param in &fd.return_parameters.parameters {
+                collect_from_type_name(&param.type_name, seen_ids, results, &fn_ctx);
+            }
             collect_from_statements(&body.statements, seen_ids, results, &fn_ctx);
         }
     }

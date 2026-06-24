@@ -1,0 +1,25 @@
+// symbol: ReturnTypeRef::makeWidget(uint256,string)
+// path: fixtures/sources/src/ReturnTypeRef.sol#L12-L20
+
+/// @notice Returns a Widget. The Widget type only appears in the
+///         return type, not in the body.
+function makeWidget(uint256 id, string memory name)
+    public
+    pure
+    returns (Widget memory w)
+{
+    assembly {
+        mstore(w, 42)
+    }
+}
+
+
+// symbol: Widget
+// path: fixtures/sources/src/ReturnTypeRef.sol#L5-L8
+
+struct Widget {
+    uint256 id;
+    string name;
+}
+
+

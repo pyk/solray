@@ -167,4 +167,18 @@ mod tests {
             )
         );
     }
+
+    // Regression test: types used only in function return types
+    // (and parameter types) must be resolved. Previously,
+    // collect_from_contract_node only traversed the function body
+    // statements, so types referenced solely in the signature
+    // were silently dropped.
+    #[test]
+    fn run_resolves_function_return_types() {
+        let result = run(fixture_path(), "ReturnTypeRef::makeWidget").unwrap();
+        assert_eq!(
+            result,
+            include_str!("../../fixtures/sources/expected/run_resolves_function_return_types.txt")
+        );
+    }
 }
