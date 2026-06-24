@@ -1,6 +1,12 @@
 You are working on a `hawk` project.
 
-## Overview
+## Non-negoitable rules
+
+- You must run `make check` and `make test` before finishing a task.
+- You must follow the [project guidelines](docs/project-guidelines.md).
+- You must use `cargo txt` to view crate documentation.
+
+## Project Overview
 
 `hawk` is CLI that can be used to inspect any foundry project.
 
@@ -20,7 +26,24 @@ The main goal of the `hawk` is to help security researcher to do audit faster.
   function.
 - `hawk inspect source Contract::function`: Show the complete source code of a function.
 
-## Non-negoitable rules
+## cargo txt
 
-- You must run `make check` and `make test` before finishing a task.
-- You must follow the [project guidelines](docs/project-guidelines.md).
+1. Build documentation: `cargo txt build <crate>`
+2. List all items: `cargo txt list <lib_name>`
+3. View a specific item: `cargo txt show <lib_name>::<item>`
+
+For example:
+
+```sh
+# Build the serde crate documentation
+cargo txt build serde
+
+# List all items in serde
+cargo txt list serde
+
+# View serde crate overview
+cargo txt show serde
+
+# View serde::Deserialize trait documentation
+cargo txt show serde::Deserialize
+```
