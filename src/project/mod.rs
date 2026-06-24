@@ -671,10 +671,6 @@ fn process_artifact(path: impl AsRef<Path>) -> Result<Option<Declaration>> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Call graph helpers
-// ---------------------------------------------------------------------------
-
 /// Parse a function ID like `Contract::function` into `(contract_name, function_name)`.
 fn parse_function_id(function_id: &str) -> Result<(&str, &str)> {
     match function_id.split_once("::") {

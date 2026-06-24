@@ -1,10 +1,8 @@
 //! Call graph resolution for Solidity functions.
 //!
-//! [`CallGraphLoader`] builds a lightweight index mapping contract names to
-//! artifact paths by walking the Foundry `out/` directory. Artifact JSON files
-//! are only parsed when a specific function's call graph is requested.
-//!
-//! This keeps the initial lookup fast and defers expensive AST deserialization.
+//! [`CallGraphResolver`] resolves call graphs from a pre-built contract index.
+//! Artifact JSON files are parsed lazily only when a specific function's call
+//! graph is requested, keeping the initial lookup fast.
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -17,31 +15,10 @@ use solc::ast::{
     ContractDefinitionNode, Expression, FunctionCallExpression, FunctionDefinition, SourceUnitNode,
     TypeName, VariableDeclaration, Visibility,
 };
-use walkdir::WalkDir;
 
-use crate::build_info::BuildInfo;
+use crate::artifact_index::{ArtifactEntry, ArtifactIndex};
 use crate::call_graph::node::CallGraphNode;
 use crate::project::Project;
-
-// ---------------------------------------------------------------------------
-// Lightweight index entry
-// ---------------------------------------------------------------------------
-
-/// A resolved artifact entry: the path to the JSON file and the source file
-/// it was compiled from.
-#[derive(Debug, Clone)]
-struct ArtifactEntry {
-    /// Path to the artifact JSON, e.g. `out/DateTime.sol/DateTime.json`
-    path: PathBuf,
-    /// The source file, e.g. `src/DateTime.sol` (resolved lazily from the AST
-    /// via build-info; populated on demand during call graph resolution).
-    #[expect(dead_code)]
-    source_file: Option<PathBuf>,
-}
-
-// ---------------------------------------------------------------------------
-// FunctionInfo (moved from project.rs)
-// ---------------------------------------------------------------------------
 
 /// Internal: function info extracted from an artifact AST for call graph resolution.
 #[derive(Debug, Clone)]
@@ -55,56 +32,37 @@ struct FunctionInfo {
     definition: FunctionDefinition,
 }
 
-// ---------------------------------------------------------------------------
-// Artifact (minimal wrapper)
-// ---------------------------------------------------------------------------
-
 /// Minimal artifact wrapper for extracting the AST on demand.
 #[derive(Deserialize)]
 struct Artifact {
     ast: Option<solc::ast::SourceUnit>,
 }
 
-// ---------------------------------------------------------------------------
-// CallGraphLoader
-// ---------------------------------------------------------------------------
-
 /// Resolves call graphs for Solidity functions in a Foundry project.
 ///
 /// Maintains a lightweight index of contract names to artifact paths and
 /// caches parsed function definitions.
-pub struct CallGraphLoader {
+pub struct CallGraphResolver {
     project: Project,
     /// Lightweight index: contract name → one or more artifact paths.
-    /// Built by walking the `out/` directory without reading JSON.
-    index: HashMap<String, Vec<ArtifactEntry>>,
-    /// Cached build-infos for source ID resolution (used when resolving
-    /// cross-file function calls during recursive call graph traversal).
-    #[expect(dead_code)]
-    build_infos: Vec<BuildInfo>,
+    artifact_index: ArtifactIndex,
     /// Lazily populated: global function info map keyed by AST node ID.
     function_infos: std::sync::OnceLock<Vec<FunctionInfo>>,
 }
 
-impl CallGraphLoader {
-    /// Build a `CallGraphLoader` that owns a [`Project`].
-    ///
-    /// Walks the `out/` directory to build a contract-name → artifact-path
-    /// index without parsing any JSON files. Build-info files are loaded
-    /// eagerly since they are small.
+impl CallGraphResolver {
+    /// Build a [`CallGraphResolver`] that owns a [`Project`].
     pub fn new(project: Project) -> Self {
-        let build_infos = BuildInfo::load_all(project.out_dir());
-        let index = build_contract_index(project.out_dir());
+        let artifact_index = ArtifactIndex::build(project.out_dir());
         Self {
             project,
-            index,
-            build_infos,
+            artifact_index,
             function_infos: std::sync::OnceLock::new(),
         }
     }
 
     /// Return the project root path.
-    pub fn path(&self) -> &Path {
+    pub fn project_path(&self) -> &Path {
         self.project.path()
     }
 
@@ -114,10 +72,10 @@ impl CallGraphLoader {
     /// - Contract not found in artifacts
     /// - Multiple contracts sharing the same name (ambiguity)
     /// - Overloaded functions within the same contract
-    pub fn call_graph(&self, function_id: &str) -> Result<CallGraphNode> {
+    pub fn resolve(&self, function_id: &str) -> Result<CallGraphNode> {
         let (contract_name, function_name) = parse_function_id(function_id)?;
 
-        let entries = self.index.get(contract_name);
+        let entries = self.artifact_index.get(contract_name);
 
         let entries = match entries {
             Some(e) if e.is_empty() => bail!("\"{}\" not found.", contract_name),
@@ -384,7 +342,7 @@ impl CallGraphLoader {
     /// artifacts are silently skipped.
     fn ensure_function_infos(&self) -> &Vec<FunctionInfo> {
         self.function_infos.get_or_init(|| {
-            let entries: Vec<&ArtifactEntry> = self.index.values().flatten().collect();
+            let entries: Vec<&ArtifactEntry> = self.artifact_index.values().flatten().collect();
             entries
                 .par_iter()
                 .filter_map(|e| process_artifact_for_functions(&e.path).ok().flatten())
@@ -393,54 +351,6 @@ impl CallGraphLoader {
         })
     }
 }
-
-// ---------------------------------------------------------------------------
-// Lightweight index construction (no JSON parsing)
-// ---------------------------------------------------------------------------
-
-/// Walk the `out/` directory and build a contract-name → artifact-entry index.
-///
-/// This only reads directory entries; no JSON files are opened. Each artifact
-/// is identified by its filename stem (the contract name).
-fn build_contract_index(out_dir: impl AsRef<Path>) -> HashMap<String, Vec<ArtifactEntry>> {
-    let out_dir = out_dir.as_ref();
-    let mut index: HashMap<String, Vec<ArtifactEntry>> = HashMap::new();
-    if !out_dir.exists() {
-        return index;
-    }
-
-    for entry in WalkDir::new(out_dir)
-        .min_depth(2)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        let path = entry.path();
-
-        // Only .json files.
-        if path.extension().and_then(|s| s.to_str()) != Some("json") {
-            continue;
-        }
-
-        // Skip build-info files.
-        if path.to_string_lossy().contains("build-info") {
-            continue;
-        }
-
-        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-            let entry = ArtifactEntry {
-                path: path.to_path_buf(),
-                source_file: None,
-            };
-            index.entry(stem.to_string()).or_default().push(entry);
-        }
-    }
-
-    index
-}
-
-// ---------------------------------------------------------------------------
-// Free functions (shared helpers)
-// ---------------------------------------------------------------------------
 
 /// Parse a function ID like `Contract::function` into `(contract_name, function_name)`.
 fn parse_function_id(function_id: &str) -> Result<(&str, &str)> {
@@ -535,10 +445,6 @@ fn resolve_called_function_id_from_fc_expression(expr: &Expression) -> Option<i6
     }
 }
 
-// ---------------------------------------------------------------------------
-// Artifact processing (on-demand JSON parsing)
-// ---------------------------------------------------------------------------
-
 /// Process a single artifact JSON file, returning all `FunctionInfo` entries
 /// found across all contracts in the AST.
 fn process_artifact_for_functions(path: impl AsRef<Path>) -> Result<Option<Vec<FunctionInfo>>> {
@@ -597,10 +503,6 @@ fn extract_contract_functions(
         .collect()
 }
 
-// ---------------------------------------------------------------------------
-// tests
-// ---------------------------------------------------------------------------
-
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -620,8 +522,8 @@ mod tests {
 
     #[test]
     fn index_builds_for_calls_fixture() {
-        let out = fixture_project().out_dir().to_path_buf();
-        let index = build_contract_index(&out);
+        let project = fixture_project();
+        let index = ArtifactIndex::build(project.out_dir());
         assert!(index.contains_key("Main"));
         assert!(index.contains_key("Helper"));
         assert!(index.contains_key("Base"));
@@ -629,25 +531,25 @@ mod tests {
 
     #[test]
     fn call_graph_for_readonly() {
-        let loader = CallGraphLoader::new(fixture_project());
-        let node = loader.call_graph("Main::readOnly").unwrap();
+        let resolver = CallGraphResolver::new(fixture_project());
+        let node = resolver.resolve("Main::readOnly").unwrap();
         let output = node.to_string();
         assert!(output.contains("Main::readOnly()"));
     }
 
     #[test]
     fn call_graph_for_execute() {
-        let loader = CallGraphLoader::new(fixture_project());
-        let node = loader.call_graph("Main::execute").unwrap();
+        let resolver = CallGraphResolver::new(fixture_project());
+        let node = resolver.resolve("Main::execute").unwrap();
         let output = node.to_string();
         assert!(output.contains("Main::execute(uint256)"));
     }
 
     #[test]
     fn call_graph_errors_for_unknown_contract() {
-        let loader = CallGraphLoader::new(fixture_project());
-        let err = loader
-            .call_graph("Unknown::function")
+        let resolver = CallGraphResolver::new(fixture_project());
+        let err = resolver
+            .resolve("Unknown::function")
             .unwrap_err()
             .to_string();
         assert!(err.contains("\"Unknown\" not found"));
@@ -655,9 +557,9 @@ mod tests {
 
     #[test]
     fn call_graph_errors_for_unknown_function() {
-        let loader = CallGraphLoader::new(fixture_project());
-        let err = loader
-            .call_graph("Main::unknownFunction")
+        let resolver = CallGraphResolver::new(fixture_project());
+        let err = resolver
+            .resolve("Main::unknownFunction")
             .unwrap_err()
             .to_string();
         assert!(err.contains("\"unknownFunction\" not found in \"Main\""));
@@ -665,9 +567,9 @@ mod tests {
 
     #[test]
     fn ambiguity_shows_suggestions() {
-        let loader = CallGraphLoader::new(fixture_ambiguous_project());
-        let err = loader
-            .call_graph("Dupe::someFunction")
+        let resolver = CallGraphResolver::new(fixture_ambiguous_project());
+        let err = resolver
+            .resolve("Dupe::someFunction")
             .unwrap_err()
             .to_string();
         assert!(err.contains("found 2 \"Dupe\""));

@@ -1,10 +1,10 @@
 //! Call graph types for Solidity function call analysis.
 //!
-//! [`CallGraphNode`] represents a node in a call graph tree. [`CallGraphLoader`]
+//! [`CallGraphNode`] represents a node in a call graph tree. [`CallGraphResolver`]
 //! resolves call graphs from Foundry artifact files.
 
-pub use loader::CallGraphLoader;
 pub use node::CallGraphNode;
+pub use resolver::CallGraphResolver;
 
-pub mod loader;
 pub mod node;
+pub mod resolver;
