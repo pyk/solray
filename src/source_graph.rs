@@ -44,6 +44,7 @@ struct RefCtx<'a> {
     ast: &'a SourceUnit,
     source_file: &'a Path,
     current_fn_id: Option<i64>,
+    symbol_index: &'a SymbolIndex,
 }
 
 /// Resolves the complete source code for a function and all symbols it references.
@@ -222,6 +223,7 @@ impl SourceResolver {
                     symbol.offset,
                     symbol.length,
                     &symbol.file,
+                    &self.symbol_index,
                 );
                 for rs in refs {
                     let key = (rs.file.clone(), rs.offset); // checkrs: allow(clone_in_loops)
@@ -402,6 +404,7 @@ fn collect_referenced_declarations(
     target_offset: usize,
     target_length: usize,
     source_file: &Path,
+    symbol_index: &SymbolIndex,
 ) -> Vec<ResolvedSymbol> {
     let end = target_offset + target_length;
     let mut seen_ids: HashSet<i64> = HashSet::new();
@@ -411,6 +414,7 @@ fn collect_referenced_declarations(
         ast,
         source_file,
         current_fn_id: None,
+        symbol_index,
     };
 
     for node in &ast.nodes {
@@ -512,6 +516,9 @@ fn collect_from_statement(
             if let Some(ref expr) = vds.initial_value {
                 collect_from_expression(expr, seen_ids, results, ctx);
             }
+            for decl in vds.declarations.iter().flatten() {
+                collect_from_type_name(&decl.type_name, seen_ids, results, ctx);
+            }
         }
         _ => {}
     }
@@ -581,7 +588,29 @@ fn collect_from_expression(
     }
 }
 
-/// Resolve a referenced declaration ID to a ResolvedSymbol and add it to results.
+fn collect_from_type_name(
+    type_name: &TypeName,
+    seen_ids: &mut HashSet<i64>,
+    results: &mut Vec<ResolvedSymbol>,
+    ctx: &RefCtx,
+) {
+    match type_name {
+        TypeName::UserDefinedTypeName(udtn) => {
+            if let Some(id) = udtn.referenced_declaration {
+                resolve_and_add_symbol(id, seen_ids, results, ctx);
+            }
+        }
+        TypeName::ArrayTypeName(atn) => {
+            collect_from_type_name(&atn.base_type, seen_ids, results, ctx);
+        }
+        TypeName::Mapping(m) => {
+            collect_from_type_name(&m.key_type, seen_ids, results, ctx);
+            collect_from_type_name(&m.value_type, seen_ids, results, ctx);
+        }
+        _ => {}
+    }
+}
+
 fn resolve_and_add_symbol(
     id: i64,
     seen_ids: &mut HashSet<i64>,
@@ -597,10 +626,17 @@ fn resolve_and_add_symbol(
     }
     if let Some(rs) = resolve_id_in_ast(id, ctx.ast, ctx.source_file) {
         results.push(rs);
+    } else if let Some(entry) = ctx.symbol_index.get(id) {
+        // Cross-file reference: look up the declaration in the symbol index.
+        results.push(ResolvedSymbol {
+            symbol: entry.name.clone(),
+            file: entry.source_file.clone(),
+            offset: entry.offset,
+            length: entry.length,
+        });
     }
 }
 
-/// Search the AST for a node with the given ID and return its ResolvedSymbol.
 fn resolve_id_in_ast(id: i64, ast: &SourceUnit, source_file: &Path) -> Option<ResolvedSymbol> {
     for node in &ast.nodes {
         if let SourceUnitNode::ContractDefinition(cd) = node {

@@ -27,6 +27,12 @@ pub struct SymbolIndexEntry {
     pub artifact_path: PathBuf,
     /// The source file this declaration was compiled from.
     pub source_file: PathBuf,
+    /// Byte offset of the declaration in the source file.
+    pub offset: usize,
+    /// Byte length of the declaration in the source file.
+    pub length: usize,
+    /// Human-readable name of the declaration (e.g. "Product").
+    pub name: String,
 }
 
 /// Lightweight index: Solc AST node ID -> artifact path + source file.
@@ -40,11 +46,20 @@ pub struct SymbolIndex {
     inner: HashMap<i64, SymbolIndexEntry>,
 }
 
+/// Scanned declaration from an artifact.
+#[derive(Debug, Clone)]
+struct ScannedDecl {
+    id: i64,
+    offset: usize,
+    length: usize,
+    name: String,
+}
+
 /// Result of scanning a single artifact during index building.
 struct ArtifactScan {
     source: PathBuf,
     artifact_path: PathBuf,
-    ids: Vec<i64>,
+    ids: Vec<ScannedDecl>,
 }
 
 /// Node types that represent declarations (can be referenced from expressions).
@@ -82,12 +97,15 @@ impl SymbolIndex {
             if !seen_sources.insert(scan.source.clone()) {
                 continue;
             }
-            for id in scan.ids {
+            for decl in &scan.ids {
                 inner.insert(
-                    id,
+                    decl.id,
                     SymbolIndexEntry {
                         artifact_path: scan.artifact_path.clone(), // checkrs: allow(clone_in_loops)
                         source_file: scan.source.clone(),          // checkrs: allow(clone_in_loops)
+                        offset: decl.offset,
+                        length: decl.length,
+                        name: decl.name.clone(), // checkrs: allow(clone_in_loops)
                     },
                 );
             }
@@ -127,12 +145,15 @@ impl std::ops::Deref for SymbolIndex {
 
 // ---- Lightweight ID extraction ----
 
-/// Minimal node: captures `nodeType` and `id` from any AST node.
+/// Minimal node: captures `nodeType`, `id`, `name`, and `src` from any AST node.
 #[derive(Deserialize)]
 struct IdNode {
     #[serde(rename = "nodeType")]
     node_type: String,
     id: i64,
+    src: Option<String>,
+    #[serde(default)]
+    name: String,
 }
 
 /// Minimal contract node: captures child nodes only.
@@ -159,8 +180,8 @@ struct ArtifactSkeleton {
 
 /// Scan a single artifact JSON file, extracting the source file path and
 /// all declaration IDs (functions, variables, structs, enums, errors,
-/// events, modifiers, and user-defined value types).
-fn scan_artifact_ids(path: impl AsRef<Path>) -> Result<Option<(PathBuf, Vec<i64>)>> {
+/// events, modifiers, and user-defined value types) with their source offsets.
+fn scan_artifact_ids(path: impl AsRef<Path>) -> Result<Option<(PathBuf, Vec<ScannedDecl>)>> {
     let path = path.as_ref();
     let content = fs::read_to_string(path)?;
     let artifact: ArtifactSkeleton = serde_json::from_str(&content)?;
@@ -179,7 +200,13 @@ fn scan_artifact_ids(path: impl AsRef<Path>) -> Result<Option<(PathBuf, Vec<i64>
     for contract in &su.nodes {
         for node in &contract.nodes {
             if DECLARATION_NODE_TYPES.contains(&node.node_type.as_str()) {
-                ids.push(node.id);
+                let (offset, length) = parse_src(node.src.as_deref());
+                ids.push(ScannedDecl {
+                    id: node.id,
+                    offset,
+                    length,
+                    name: node.name.clone(), // checkrs: allow(clone_in_loops)
+                });
             }
         }
     }
@@ -189,6 +216,18 @@ fn scan_artifact_ids(path: impl AsRef<Path>) -> Result<Option<(PathBuf, Vec<i64>
     } else {
         Ok(Some((source, ids)))
     }
+}
+
+/// Parse a Solc `src` field (format: "offset:length:fileIndex") into (offset, length).
+fn parse_src(src: Option<&str>) -> (usize, usize) {
+    let s = match src {
+        Some(s) => s,
+        None => return (0, 0),
+    };
+    let parts: Vec<&str> = s.split(':').collect();
+    let offset = parts.first().and_then(|p| p.parse().ok()).unwrap_or(0);
+    let length = parts.get(1).and_then(|p| p.parse().ok()).unwrap_or(0);
+    (offset, length)
 }
 
 #[cfg(test)]

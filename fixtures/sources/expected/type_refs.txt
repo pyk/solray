@@ -1,0 +1,18 @@
+// symbol: TypeRefs::passThrough(Point)
+// path: fixtures/sources/src/TypeRefs.sol#L19-L22
+
+function passThrough(Point memory p) public pure returns (Point memory) {
+    Point memory q = p;
+    return q;
+}
+
+
+// symbol: Point
+// path: fixtures/sources/src/TypeRefs.sol#L5-L8
+
+struct Point {
+    uint256 x;
+    uint256 y;
+}
+
+

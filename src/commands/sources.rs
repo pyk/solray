@@ -100,4 +100,30 @@ mod tests {
             include_str!("../../fixtures/sources/expected/natspec_block.txt")
         );
     }
+
+    // Regression test: user-defined types used in local variable
+    // declarations must be resolved. Previously, type annotations in
+    // VariableDeclarationStatement were never inspected, so structs and
+    // enums referenced only as type names were silently dropped.
+    #[test]
+    fn run_resolves_user_defined_types_in_variable_declarations() {
+        let result = run(fixture_path(), "TypeRefs::passThrough").unwrap();
+        assert_eq!(
+            result,
+            include_str!("../../fixtures/sources/expected/type_refs.txt")
+        );
+    }
+
+    // Regression test: cross-file type references must be resolved.
+    // Previously, resolve_id_in_ast only searched the current AST,
+    // so structs defined in other files were silently dropped even
+    // when the symbol index contained their location.
+    #[test]
+    fn run_resolves_cross_file_type_references() {
+        let result = run(fixture_path(), "CrossFileConsumer::translate").unwrap();
+        assert_eq!(
+            result,
+            include_str!("../../fixtures/sources/expected/cross_file.txt")
+        );
+    }
 }
