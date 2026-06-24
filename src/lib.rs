@@ -7,3 +7,5 @@ pub mod commands;
 pub mod function_index;
 pub mod inheritance;
 pub mod project;
+pub mod source_graph;
+pub mod symbol_index;

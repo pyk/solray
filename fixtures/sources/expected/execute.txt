@@ -1,0 +1,47 @@
+// symbol: Main::execute(uint256)
+// path: fixtures/sources/src/Main.sol#L15-L18
+
+/// @notice Execute with a given value.
+/// @param x The value to store.
+function execute(uint256 x) public {
+    _data = Data(x, msg.sender);
+    _processData();
+}
+
+
+// symbol: Main::_processData()
+// path: fixtures/sources/src/Main.sol#L22-L24
+
+/// @notice Process the stored data.
+/// @return The computed result.
+function _processData() internal view returns (uint256) {
+    return _compute(_data.value);
+}
+
+
+// symbol: Main::_data
+// path: fixtures/sources/src/Main.sol#L11-L11
+
+Data private _data
+
+
+// symbol: Main::_compute(uint256)
+// path: fixtures/sources/src/Main.sol#L29-L31
+
+/// @notice Compute something from a value.
+/// @param val The input value.
+/// @return val + 1.
+function _compute(uint256 val) internal pure returns (uint256) {
+    return val + 1;
+}
+
+
+// symbol: Data
+// path: fixtures/sources/src/Main.sol#L6-L9
+
+struct Data {
+    uint256 value;
+    address sender;
+}
+
+

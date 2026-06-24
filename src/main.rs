@@ -69,6 +69,14 @@ enum InspectSubcommand {
         #[arg(long, default_value = ".")]
         project: PathBuf,
     },
+    /// Show the complete resolved source code of a function
+    Sources {
+        /// The function ID (e.g. Contract::function)
+        function_id: String,
+        /// Path to the Foundry project
+        #[arg(long, default_value = ".")]
+        project: PathBuf,
+    },
 }
 
 /// Print items with a header and numbered list.
@@ -125,6 +133,13 @@ fn main() -> Result<()> {
             InspectSubcommand::Libraries { project } => {
                 let items = hawk::commands::libraries::list(&project)?;
                 print_items(&project, &items, "libraries")?;
+            }
+            InspectSubcommand::Sources {
+                function_id,
+                project,
+            } => {
+                let output = hawk::commands::sources::run(&project, &function_id)?;
+                print!("{output}");
             }
         },
     }
