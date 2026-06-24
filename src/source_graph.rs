@@ -196,7 +196,6 @@ impl SourceResolver {
     }
 
     /// Recursively resolve all referenced declarations.
-    // checkrs: allow(clone_in_loops)
     fn resolve_recursive(&self, root: ResolvedSymbol) -> Result<Vec<ResolvedSymbol>> {
         let mut resolved: Vec<ResolvedSymbol> = Vec::new();
         let mut seen: HashSet<(PathBuf, usize)> = HashSet::new();
@@ -248,7 +247,6 @@ impl SourceResolver {
         Ok(resolved)
     }
 
-    // checkrs: allow(clone_in_loops)
     fn format_output(&self, symbols: &[ResolvedSymbol]) -> Result<String> {
         let cwd = std::env::current_dir()?;
         let project_abs = std::path::absolute(self.project.path())?;
@@ -321,7 +319,6 @@ fn parse_artifact(path: impl AsRef<Path>) -> Result<Option<SourceUnit>> {
 }
 
 /// Find the artifact path that corresponds to a source file.
-// checkrs: allow(clone_in_loops)
 fn find_artifact_for_source(
     source_file: &Path,
     artifact_index: &ArtifactIndex,
@@ -347,7 +344,6 @@ fn find_artifact_for_source(
 }
 
 /// Extract function symbols from an AST for a given contract/function name.
-// checkrs: allow(clone_in_loops)
 fn extract_function_symbols(
     ast: &SourceUnit,
     contract_name: &str,
@@ -384,7 +380,6 @@ fn extract_function_symbols(
 }
 
 /// Collect available function names in a contract.
-// checkrs: allow(clone_in_loops)
 fn collect_contract_functions(ast: &SourceUnit, contract_name: &str, out: &mut Vec<String>) {
     for node in &ast.nodes {
         if let SourceUnitNode::ContractDefinition(cd) = node
