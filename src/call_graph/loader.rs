@@ -21,6 +21,7 @@ use walkdir::WalkDir;
 
 use crate::build_info::BuildInfo;
 use crate::call_graph::node::CallGraphNode;
+use crate::project::Project;
 
 // ---------------------------------------------------------------------------
 // Lightweight index entry
@@ -73,7 +74,7 @@ struct Artifact {
 /// Maintains a lightweight index of contract names to artifact paths and
 /// caches parsed function definitions.
 pub struct CallGraphLoader {
-    project_root: PathBuf,
+    project: Project,
     /// Lightweight index: contract name → one or more artifact paths.
     /// Built by walking the `out/` directory without reading JSON.
     index: HashMap<String, Vec<ArtifactEntry>>,
@@ -86,22 +87,25 @@ pub struct CallGraphLoader {
 }
 
 impl CallGraphLoader {
-    /// Build a `CallGraphLoader` from an open project.
+    /// Build a `CallGraphLoader` that owns a [`Project`].
     ///
     /// Walks the `out/` directory to build a contract-name → artifact-path
     /// index without parsing any JSON files. Build-info files are loaded
     /// eagerly since they are small.
-    pub fn new(project_root: impl AsRef<Path>, out_dir: impl AsRef<Path>) -> Self {
-        let project_root = project_root.as_ref().to_path_buf();
-        let out_dir = out_dir.as_ref().to_path_buf();
-        let build_infos = BuildInfo::load_all(&out_dir);
-        let index = build_contract_index(&out_dir);
+    pub fn new(project: Project) -> Self {
+        let build_infos = BuildInfo::load_all(project.out_dir());
+        let index = build_contract_index(project.out_dir());
         Self {
-            project_root,
+            project,
             index,
             build_infos,
             function_infos: std::sync::OnceLock::new(),
         }
+    }
+
+    /// Return the project root path.
+    pub fn path(&self) -> &Path {
+        self.project.path()
     }
 
     /// Resolve a `Contract::function` ID and return its call graph.
@@ -131,7 +135,7 @@ impl CallGraphLoader {
             for entry in entries {
                 let rp = entry
                     .path
-                    .strip_prefix(&self.project_root)
+                    .strip_prefix(self.project.path())
                     .unwrap_or(&entry.path)
                     .to_string_lossy();
                 msg.push_str(&format!("\nhawk inspect calls {}:{}", rp, function_id));
@@ -603,17 +607,20 @@ mod tests {
 
     use super::*;
 
-    fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/calls")
+    fn fixture_project() -> Project {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/calls");
+        Project::open(root)
     }
 
-    fn fixture_ambiguous_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inheritances-ambiguous")
+    fn fixture_ambiguous_project() -> Project {
+        let root =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inheritances-ambiguous");
+        Project::open(root)
     }
 
     #[test]
     fn index_builds_for_calls_fixture() {
-        let out = fixture_path().join("out");
+        let out = fixture_project().out_dir().to_path_buf();
         let index = build_contract_index(&out);
         assert!(index.contains_key("Main"));
         assert!(index.contains_key("Helper"));
@@ -622,8 +629,7 @@ mod tests {
 
     #[test]
     fn call_graph_for_readonly() {
-        let root = fixture_path();
-        let loader = CallGraphLoader::new(root.clone(), root.join("out"));
+        let loader = CallGraphLoader::new(fixture_project());
         let node = loader.call_graph("Main::readOnly").unwrap();
         let output = node.to_string();
         assert!(output.contains("Main::readOnly()"));
@@ -631,8 +637,7 @@ mod tests {
 
     #[test]
     fn call_graph_for_execute() {
-        let root = fixture_path();
-        let loader = CallGraphLoader::new(root.clone(), root.join("out"));
+        let loader = CallGraphLoader::new(fixture_project());
         let node = loader.call_graph("Main::execute").unwrap();
         let output = node.to_string();
         assert!(output.contains("Main::execute(uint256)"));
@@ -640,8 +645,7 @@ mod tests {
 
     #[test]
     fn call_graph_errors_for_unknown_contract() {
-        let root = fixture_path();
-        let loader = CallGraphLoader::new(root.clone(), root.join("out"));
+        let loader = CallGraphLoader::new(fixture_project());
         let err = loader
             .call_graph("Unknown::function")
             .unwrap_err()
@@ -651,8 +655,7 @@ mod tests {
 
     #[test]
     fn call_graph_errors_for_unknown_function() {
-        let root = fixture_path();
-        let loader = CallGraphLoader::new(root.clone(), root.join("out"));
+        let loader = CallGraphLoader::new(fixture_project());
         let err = loader
             .call_graph("Main::unknownFunction")
             .unwrap_err()
@@ -662,8 +665,7 @@ mod tests {
 
     #[test]
     fn ambiguity_shows_suggestions() {
-        let root = fixture_ambiguous_path();
-        let loader = CallGraphLoader::new(root.clone(), root.join("out"));
+        let loader = CallGraphLoader::new(fixture_ambiguous_project());
         let err = loader
             .call_graph("Dupe::someFunction")
             .unwrap_err()

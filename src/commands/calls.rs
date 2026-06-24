@@ -18,9 +18,9 @@ use crate::project::Project;
 pub fn run(project_path: impl AsRef<Path>, function_id: &str) -> Result<String> {
     let project = Project::open(project_path.as_ref());
     project.validate()?;
-    let loader = CallGraphLoader::new(project.path(), project.out_dir());
+    let loader = CallGraphLoader::new(project);
     let node = loader.call_graph(function_id)?;
-    format_output(node, project.path())
+    format_output(node, loader.path())
 }
 
 fn format_output(tree: CallGraphNode, project_root: &Path) -> Result<String> {
