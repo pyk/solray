@@ -138,6 +138,16 @@ impl Project {
                 .collect()
         })
     }
+
+    /// Return only interfaces.
+    pub fn interfaces(&self) -> Result<Vec<Declaration>> {
+        self.declarations().map(|decls| {
+            decls
+                .into_iter()
+                .filter(|d| d.kind == DeclarationKind::Interface)
+                .collect()
+        })
+    }
 }
 
 fn classify_contract(cd: &ContractDefinition) -> DeclarationKind {
