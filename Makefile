@@ -18,3 +18,13 @@ bin: # Install binary
 test: # Run tests
 	@echo "Run tests"
 	@cargo test --quiet
+
+FIXTURE_DIRS := $(wildcard fixtures/*)
+
+.PHONY: build-fixtures
+build-fixtures: # Force-rebuild all test fixtures
+	@echo "Building fixtures"
+	@for d in $(FIXTURE_DIRS); do \
+		echo "  $$d"; \
+		forge build --root "$$d" --force --quiet || true; \
+	done
