@@ -16,6 +16,7 @@ use solc::ast::{
 };
 
 use crate::artifact_index::{ArtifactEntry, ArtifactIndex};
+use crate::build_info::BuildInfo;
 use crate::call_graph::FunctionID;
 use crate::project::Project;
 use crate::symbol_index::SymbolIndex;
@@ -45,6 +46,7 @@ struct RefCtx<'a> {
     source_file: &'a Path,
     current_fn_id: Option<i64>,
     symbol_index: &'a SymbolIndex,
+    build_info_id: &'a str,
 }
 
 /// Resolves the complete source code for a function and all symbols it references.
@@ -58,7 +60,8 @@ impl SourceResolver {
     /// Build a [`SourceResolver`] for the given project.
     pub fn new(project: Project) -> Self {
         let artifact_index = ArtifactIndex::build(project.out_dir());
-        let symbol_index = SymbolIndex::build(&artifact_index);
+        let build_infos = BuildInfo::load_all(project.out_dir());
+        let symbol_index = SymbolIndex::build(&artifact_index, &build_infos);
         Self {
             project,
             artifact_index,
@@ -218,12 +221,14 @@ impl SourceResolver {
             if let Some(ref a_path) = artifact_path
                 && let Some(ast) = artifact_cache.get(a_path)
             {
+                let build_info_id = self.symbol_index.build_info_for(&symbol.file).unwrap_or("");
                 let refs = collect_referenced_declarations(
                     ast,
                     symbol.offset,
                     symbol.length,
                     &symbol.file,
                     &self.symbol_index,
+                    build_info_id,
                 );
                 for rs in refs {
                     let key = (rs.file.clone(), rs.offset); // checkrs: allow(clone_in_loops)
@@ -405,6 +410,7 @@ fn collect_referenced_declarations(
     target_length: usize,
     source_file: &Path,
     symbol_index: &SymbolIndex,
+    build_info_id: &str,
 ) -> Vec<ResolvedSymbol> {
     let end = target_offset + target_length;
     let mut seen_ids: HashSet<i64> = HashSet::new();
@@ -415,6 +421,7 @@ fn collect_referenced_declarations(
         source_file,
         current_fn_id: None,
         symbol_index,
+        build_info_id,
     };
 
     for node in &ast.nodes {
@@ -584,6 +591,18 @@ fn collect_from_expression(
                 collect_from_expression(comp, seen_ids, results, ctx);
             }
         }
+        Expression::IndexAccess(ia) => {
+            collect_from_expression(&ia.base_expression, seen_ids, results, ctx);
+            if let Some(ref idx) = ia.index_expression {
+                collect_from_expression(idx, seen_ids, results, ctx);
+            }
+        }
+        Expression::IndexRangeAccess(ira) => {
+            collect_from_expression(&ira.base_expression, seen_ids, results, ctx);
+            if let Some(ref start) = ira.start_expression {
+                collect_from_expression(start, seen_ids, results, ctx);
+            }
+        }
         _ => {}
     }
 }
@@ -626,8 +645,15 @@ fn resolve_and_add_symbol(
     }
     if let Some(rs) = resolve_id_in_ast(id, ctx.ast, ctx.source_file) {
         results.push(rs);
-    } else if let Some(entry) = ctx.symbol_index.get(id) {
-        // Cross-file reference: look up the declaration in the symbol index.
+        return;
+    }
+    // Cross-file reference: look up the declaration in the symbol index,
+    // scoped to the same build-info to avoid ID collisions across
+    // incremental compilation units.
+    let Some(entry) = ctx.symbol_index.get(id) else {
+        return;
+    };
+    if entry.build_info_id == ctx.build_info_id && entry.source_file != *ctx.source_file {
         results.push(ResolvedSymbol {
             symbol: entry.name.clone(),
             file: entry.source_file.clone(),

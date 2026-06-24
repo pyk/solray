@@ -1,0 +1,14 @@
+// symbol: IndexAccessTest::getItem(uint256)
+// path: fixtures/sources/src/IndexAccessTest.sol#L11-L13
+
+function getItem(uint256 id) public view returns (uint256) {
+    return items[id].value;
+}
+
+
+// symbol: IndexAccessTest::items
+// path: fixtures/sources/src/IndexAccessTest.sol#L9-L9
+
+mapping(uint256 => Item) public items
+
+

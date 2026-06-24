@@ -126,4 +126,33 @@ mod tests {
             include_str!("../../fixtures/sources/expected/cross_file.txt")
         );
     }
+
+    // Regression test: IndexAccess expressions (e.g. `arr[i]`) must be
+    // traversed. Previously, Expression::IndexAccess was not handled in
+    // collect_from_expression, so entire expression subtrees were silently
+    // dropped (including nested MemberAccess and FunctionCall nodes).
+    #[test]
+    fn run_resolves_index_access_expressions() {
+        let result = run(fixture_path(), "IndexAccessTest::getItem").unwrap();
+        assert_eq!(
+            result,
+            include_str!("../../fixtures/sources/expected/index_access.txt")
+        );
+    }
+
+    // Integration test: incremental builds must not leak symbols across
+    // build-info boundaries. The fixtures contain two build-info files
+    // (Incremental.sol was compiled separately). Resolving Main::execute
+    // must not include Item from the unrelated Incremental contract.
+    #[test]
+    fn incremental_build_does_not_leak_symbols() {
+        let result = run(fixture_path(), "Main::execute").unwrap();
+        assert!(!result.contains("Incremental"), "Incremental leaked");
+        assert!(!result.contains("// symbol: Item"), "Item leaked");
+        assert!(result.contains("// symbol: Data"), "Data missing");
+        assert!(
+            result.contains("// symbol: Main::_compute"),
+            "_compute missing"
+        );
+    }
 }

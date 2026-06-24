@@ -33,6 +33,8 @@ pub struct SymbolIndexEntry {
     pub length: usize,
     /// Human-readable name of the declaration (e.g. "Product").
     pub name: String,
+    /// The build-info identifier (hex hash) for the compilation unit.
+    pub build_info_id: String,
 }
 
 /// Lightweight index: Solc AST node ID -> artifact path + source file.
@@ -44,6 +46,8 @@ pub struct SymbolIndexEntry {
 #[derive(Debug, Clone)]
 pub struct SymbolIndex {
     inner: HashMap<i64, SymbolIndexEntry>,
+    /// Maps source file paths to build-info IDs for build-info scoping.
+    source_to_build_info: HashMap<PathBuf, String>,
 }
 
 /// Scanned declaration from an artifact.
@@ -60,6 +64,8 @@ struct ArtifactScan {
     source: PathBuf,
     artifact_path: PathBuf,
     ids: Vec<ScannedDecl>,
+    /// The first file index found in the artifact, used to resolve the build-info.
+    first_file_index: String,
 }
 
 /// Node types that represent declarations (can be referenced from expressions).
@@ -74,29 +80,40 @@ const DECLARATION_NODE_TYPES: &[&str] = &[
     "UserDefinedValueTypeDefinition",
 ];
 
+use crate::build_info::BuildInfo;
+
 impl SymbolIndex {
     /// Build a [`SymbolIndex`] by scanning all artifacts in `artifact_index`.
-    pub fn build(artifact_index: &ArtifactIndex) -> Self {
+    /// `build_infos` is used to scope each declaration to its compilation unit,
+    /// preventing ID collisions across incremental builds.
+    pub fn build(artifact_index: &ArtifactIndex, build_infos: &[BuildInfo]) -> Self {
         let entries: Vec<&ArtifactEntry> = artifact_index.all_entries().collect();
 
         let scanned: Vec<ArtifactScan> = entries
             .par_iter()
             .filter_map(|entry| {
-                let (source, ids) = scan_artifact_ids(&entry.path).ok()??;
+                let result = scan_artifact_ids(&entry.path).ok()??;
                 Some(ArtifactScan {
-                    source,
+                    source: result.source,
                     artifact_path: entry.path.to_path_buf(),
-                    ids,
+                    ids: result.ids,
+                    first_file_index: result.first_file_index,
                 })
             })
             .collect();
 
         let mut inner: HashMap<i64, SymbolIndexEntry> = HashMap::with_capacity(scanned.len() * 4);
+        let mut source_to_build_info: HashMap<PathBuf, String> =
+            HashMap::with_capacity(scanned.len());
         let mut seen_sources: HashSet<PathBuf> = HashSet::with_capacity(scanned.len());
         for scan in scanned {
             if !seen_sources.insert(scan.source.clone()) {
                 continue;
             }
+            // Resolve which build-info this artifact belongs to.
+            let build_info_id =
+                resolve_build_info(&scan.first_file_index, &scan.source, build_infos);
+            source_to_build_info.insert(scan.source.clone(), build_info_id.clone()); // checkrs: allow(clone_in_loops)
             for decl in &scan.ids {
                 inner.insert(
                     decl.id,
@@ -106,12 +123,21 @@ impl SymbolIndex {
                         offset: decl.offset,
                         length: decl.length,
                         name: decl.name.clone(), // checkrs: allow(clone_in_loops)
+                        build_info_id: build_info_id.clone(), // checkrs: allow(clone_in_loops)
                     },
                 );
             }
         }
 
-        Self { inner }
+        Self {
+            inner,
+            source_to_build_info,
+        }
+    }
+
+    /// Return the build-info ID for a given source file, if known.
+    pub fn build_info_for(&self, source: &Path) -> Option<&str> {
+        self.source_to_build_info.get(source).map(|s| s.as_str())
     }
 
     /// Return the number of indexed declaration IDs.
@@ -178,10 +204,17 @@ struct ArtifactSkeleton {
     ast: Option<SourceUnitNodes>,
 }
 
+/// Result of scanning a single artifact.
+struct ArtifactScanResult {
+    source: PathBuf,
+    ids: Vec<ScannedDecl>,
+    first_file_index: String,
+}
+
 /// Scan a single artifact JSON file, extracting the source file path and
 /// all declaration IDs (functions, variables, structs, enums, errors,
 /// events, modifiers, and user-defined value types) with their source offsets.
-fn scan_artifact_ids(path: impl AsRef<Path>) -> Result<Option<(PathBuf, Vec<ScannedDecl>)>> {
+fn scan_artifact_ids(path: impl AsRef<Path>) -> Result<Option<ArtifactScanResult>> {
     let path = path.as_ref();
     let content = fs::read_to_string(path)?;
     let artifact: ArtifactSkeleton = serde_json::from_str(&content)?;
@@ -197,14 +230,18 @@ fn scan_artifact_ids(path: impl AsRef<Path>) -> Result<Option<(PathBuf, Vec<Scan
     };
 
     let mut ids = Vec::new();
+    let mut first_file_index = String::new();
     for contract in &su.nodes {
         for node in &contract.nodes {
             if DECLARATION_NODE_TYPES.contains(&node.node_type.as_str()) {
-                let (offset, length) = parse_src(node.src.as_deref());
+                let src = parse_src(node.src.as_deref());
+                if first_file_index.is_empty() {
+                    first_file_index = src.file_index.clone(); // checkrs: allow(clone_in_loops)
+                }
                 ids.push(ScannedDecl {
                     id: node.id,
-                    offset,
-                    length,
+                    offset: src.offset,
+                    length: src.length,
                     name: node.name.clone(), // checkrs: allow(clone_in_loops)
                 });
             }
@@ -214,20 +251,55 @@ fn scan_artifact_ids(path: impl AsRef<Path>) -> Result<Option<(PathBuf, Vec<Scan
     if ids.is_empty() {
         Ok(None)
     } else {
-        Ok(Some((source, ids)))
+        Ok(Some(ArtifactScanResult {
+            source,
+            ids,
+            first_file_index,
+        }))
     }
 }
 
-/// Parse a Solc `src` field (format: "offset:length:fileIndex") into (offset, length).
-fn parse_src(src: Option<&str>) -> (usize, usize) {
+/// Parsed source location.
+struct ParsedSrc {
+    offset: usize,
+    length: usize,
+    file_index: String,
+}
+
+/// Parse a Solc `src` field (format: "offset:length:fileIndex").
+fn parse_src(src: Option<&str>) -> ParsedSrc {
     let s = match src {
         Some(s) => s,
-        None => return (0, 0),
+        None => {
+            return ParsedSrc {
+                offset: 0,
+                length: 0,
+                file_index: String::new(),
+            };
+        }
     };
     let parts: Vec<&str> = s.split(':').collect();
     let offset = parts.first().and_then(|p| p.parse().ok()).unwrap_or(0);
     let length = parts.get(1).and_then(|p| p.parse().ok()).unwrap_or(0);
-    (offset, length)
+    let file_index = parts.get(2).map(|s| s.to_string()).unwrap_or_default();
+    ParsedSrc {
+        offset,
+        length,
+        file_index,
+    }
+}
+
+/// Resolve which build-info an artifact belongs to by matching its
+/// `file_index` against each build-info's `source_id_to_path` map.
+fn resolve_build_info(file_index: &str, source: &Path, build_infos: &[BuildInfo]) -> String {
+    for info in build_infos {
+        if let Some(resolved) = info.source_id_to_path.get(file_index)
+            && resolved == source
+        {
+            return info.id.clone(); // checkrs: allow(clone_in_loops)
+        }
+    }
+    String::new()
 }
 
 #[cfg(test)]
@@ -244,7 +316,8 @@ mod tests {
     fn index_builds_for_sources_fixture() {
         let project_root = fixture_path();
         let artifact_index = ArtifactIndex::build(project_root.join("out"));
-        let symbol_index = SymbolIndex::build(&artifact_index);
+        let build_infos = BuildInfo::load_all(project_root.join("out"));
+        let symbol_index = SymbolIndex::build(&artifact_index, &build_infos);
         assert!(symbol_index.len() > 0);
     }
 
@@ -252,7 +325,8 @@ mod tests {
     fn index_includes_struct_definition() {
         let project_root = fixture_path();
         let artifact_index = ArtifactIndex::build(project_root.join("out"));
-        let symbol_index = SymbolIndex::build(&artifact_index);
+        let build_infos = BuildInfo::load_all(project_root.join("out"));
+        let symbol_index = SymbolIndex::build(&artifact_index, &build_infos);
         // The Main.sol fixture has a "Data" struct which should be indexed
         let has_struct = symbol_index.len() > 3; // at least: execute, _processData, _compute, Data
         assert!(
@@ -265,7 +339,7 @@ mod tests {
     fn scan_artifact_extracts_declaration_ids() {
         let path = fixture_path().join("out/Main.sol/Main.json");
         let result = scan_artifact_ids(&path).unwrap().unwrap();
-        let (_source, ids) = result;
+        let (_source, ids) = (&result.source, &result.ids);
         // Main.sol: execute, _processData, _compute, Data (struct), _data (var)
         assert!(
             ids.len() >= 4,
