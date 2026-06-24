@@ -327,8 +327,9 @@ fn find_artifact_for_source(
     symbol_index: &SymbolIndex,
 ) -> Option<PathBuf> {
     for entry in symbol_index.values() {
-        if entry.source_file == source_file {
-            return Some(entry.artifact_path.clone()); // checkrs: allow(clone_in_loops)
+        let info = symbol_index.artifact_info(entry.artifact_id);
+        if info.source_file == source_file {
+            return Some(info.artifact_path.clone()); // checkrs: allow(clone_in_loops)
         }
     }
     for entries in artifact_index.values() {
@@ -653,10 +654,11 @@ fn resolve_and_add_symbol(
     let Some(entry) = ctx.symbol_index.get(id) else {
         return;
     };
-    if entry.build_info_id == ctx.build_info_id && entry.source_file != *ctx.source_file {
+    let info = ctx.symbol_index.artifact_info(entry.artifact_id);
+    if info.build_info_id == ctx.build_info_id && info.source_file != *ctx.source_file {
         results.push(ResolvedSymbol {
             symbol: entry.name.clone(),
-            file: entry.source_file.clone(),
+            file: info.source_file.clone(),
             offset: entry.offset,
             length: entry.length,
         });

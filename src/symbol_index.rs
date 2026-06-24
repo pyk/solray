@@ -19,22 +19,29 @@ use serde::Deserialize;
 
 use crate::artifact_index::{ArtifactEntry, ArtifactIndex};
 
-/// An entry in the symbol index: the artifact path and source file for a
-/// declaration identified by its Solc AST node ID.
+/// Shared metadata for all declarations from the same artifact.
+#[derive(Debug, Clone)]
+pub struct ArtifactInfo {
+    /// Path to the artifact JSON file.
+    pub artifact_path: PathBuf,
+    /// The source file this artifact was compiled from.
+    pub source_file: PathBuf,
+    /// The build-info identifier (hex hash) for the compilation unit.
+    pub build_info_id: String,
+}
+
+/// An entry in the symbol index: links a declaration ID to its source
+/// location and the shared artifact metadata.
 #[derive(Debug, Clone)]
 pub struct SymbolIndexEntry {
-    /// Path to the artifact JSON file containing this declaration.
-    pub artifact_path: PathBuf,
-    /// The source file this declaration was compiled from.
-    pub source_file: PathBuf,
+    /// Index into [`SymbolIndex::artifacts`].
+    pub artifact_id: usize,
     /// Byte offset of the declaration in the source file.
     pub offset: usize,
     /// Byte length of the declaration in the source file.
     pub length: usize,
     /// Human-readable name of the declaration (e.g. "Product").
     pub name: String,
-    /// The build-info identifier (hex hash) for the compilation unit.
-    pub build_info_id: String,
 }
 
 /// Lightweight index: Solc AST node ID -> artifact path + source file.
@@ -48,6 +55,8 @@ pub struct SymbolIndex {
     inner: HashMap<i64, SymbolIndexEntry>,
     /// Maps source file paths to build-info IDs for build-info scoping.
     source_to_build_info: HashMap<PathBuf, String>,
+    /// Shared artifact metadata, indexed via [`SymbolIndexEntry::artifact_id`].
+    pub artifacts: Vec<ArtifactInfo>,
 }
 
 /// Scanned declaration from an artifact.
@@ -102,42 +111,66 @@ impl SymbolIndex {
             })
             .collect();
 
-        let mut inner: HashMap<i64, SymbolIndexEntry> = HashMap::with_capacity(scanned.len() * 4);
-        let mut source_to_build_info: HashMap<PathBuf, String> =
-            HashMap::with_capacity(scanned.len());
+        let total_decls: usize = scanned.iter().map(|s| s.ids.len()).sum();
+        let mut inner: HashMap<i64, SymbolIndexEntry> = HashMap::with_capacity(total_decls);
         let mut seen_sources: HashSet<PathBuf> = HashSet::with_capacity(scanned.len());
+        let mut artifacts: Vec<ArtifactInfo> = Vec::with_capacity(scanned.len());
+
         for scan in scanned {
+            // Dedup by source: only process the first artifact per source file
+            // (all artifacts from the same source carry an identical AST).
             if !seen_sources.insert(scan.source.clone()) {
                 continue;
             }
+
             // Resolve which build-info this artifact belongs to.
             let build_info_id =
                 resolve_build_info(&scan.first_file_index, &scan.source, build_infos);
-            source_to_build_info.insert(scan.source.clone(), build_info_id.clone()); // checkrs: allow(clone_in_loops)
-            for decl in &scan.ids {
+
+            // Consume the scan's owned fields into ArtifactInfo.
+            let artifact_id = artifacts.len();
+            artifacts.push(ArtifactInfo {
+                artifact_path: scan.artifact_path,
+                source_file: scan.source,
+                build_info_id,
+            });
+
+            // Consume the declarations into the index (zero inner-loop clones).
+            for decl in scan.ids {
                 inner.insert(
                     decl.id,
                     SymbolIndexEntry {
-                        artifact_path: scan.artifact_path.clone(), // checkrs: allow(clone_in_loops)
-                        source_file: scan.source.clone(),          // checkrs: allow(clone_in_loops)
+                        artifact_id,
                         offset: decl.offset,
                         length: decl.length,
-                        name: decl.name.clone(), // checkrs: allow(clone_in_loops)
-                        build_info_id: build_info_id.clone(), // checkrs: allow(clone_in_loops)
+                        name: decl.name,
                     },
                 );
             }
         }
 
+        // Build the source-to-build-info lookup from the artifact vec.
+        // These clones happen once per source outside the inner loop.
+        let source_to_build_info: HashMap<PathBuf, String> = artifacts
+            .iter()
+            .map(|a| (a.source_file.clone(), a.build_info_id.clone()))
+            .collect();
+
         Self {
             inner,
             source_to_build_info,
+            artifacts,
         }
     }
 
     /// Return the build-info ID for a given source file, if known.
     pub fn build_info_for(&self, source: &Path) -> Option<&str> {
         self.source_to_build_info.get(source).map(|s| s.as_str())
+    }
+
+    /// Return the shared artifact metadata for a given artifact ID.
+    pub fn artifact_info(&self, artifact_id: usize) -> &ArtifactInfo {
+        &self.artifacts[artifact_id]
     }
 
     /// Return the number of indexed declaration IDs.
