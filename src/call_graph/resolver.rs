@@ -368,6 +368,24 @@ impl CallGraphResolver {
                         let node = self.build_call_node(id, functions, visited)?;
                         nodes.push(node);
                     }
+                } else if let FunctionCallExpression::MemberAccess(ma) = &*fc.expression
+                    && is_low_level_call(&ma.member_name)
+                {
+                    // Low-level calls (.call(), .delegatecall(),
+                    // .staticcall()) have no referenced_declaration
+                    // because they are built-in methods on the
+                    // `address` type, not user-defined functions.
+                    // Synthesize a leaf node so they appear in the
+                    // call graph.
+                    let sig = format!("(address).{}()", ma.member_name);
+                    nodes.push(CallGraphNode::new(
+                        &sig,
+                        "",
+                        PathBuf::new(),
+                        "low-level",
+                        "",
+                        vec![],
+                    ));
                 }
                 for arg in &fc.arguments {
                     self.collect_calls_from_expression(arg, functions, visited, nodes)?;
@@ -523,6 +541,14 @@ fn resolve_called_function_id_from_fc_expression(expr: &Expression) -> Option<i6
     }
 }
 
+/// Check whether a member name refers to a low-level `address` call method.
+fn is_low_level_call(member_name: &str) -> bool {
+    matches!(
+        member_name,
+        "call" | "delegatecall" | "staticcall" | "callcode"
+    )
+}
+
 /// Process a single artifact JSON file, returning all [`FunctionInfo`] entries
 /// found across all contracts in the AST.
 #[tracing::instrument(skip_all)]
@@ -670,6 +696,23 @@ mod tests {
         let expected = concat!(
             "Main::callViaInterface() (public)\n",
             "\u{2514}\u{2500}\u{2500} IHelper::doWork() (external)\n",
+        );
+        assert_eq!(output, expected);
+    }
+
+    // Regression test: low-level calls (.call(), .delegatecall(),
+    // .staticcall()) must appear in the resolved call graph. Previously,
+    // they were silently dropped because their `referenced_declaration` is
+    // `None` (they are built-in methods on the `address` type, not
+    // user-defined functions).
+    #[test]
+    fn call_graph_includes_low_level_call() {
+        let resolver = CallGraphResolver::new(fixture_project());
+        let node = resolver.resolve("LowLevelCaller::callWithPayload").unwrap();
+        let output = node.to_string();
+        let expected = concat!(
+            "LowLevelCaller::callWithPayload(address,bytes) (external)\n",
+            "\u{2514}\u{2500}\u{2500} (address).call() (low-level)\n",
         );
         assert_eq!(output, expected);
     }
