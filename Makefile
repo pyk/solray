@@ -28,14 +28,11 @@ build-fixtures: # Force-rebuild all test fixtures with incremental sources
 		if [ "$$(basename $$d)" = "sources" ]; then \
 			echo "  $$d (incremental)"; \
 			cd "$$d" && forge clean > /dev/null 2>&1; \
-			for f in src/Main.sol src/Overloaded.sol src/NatspecBlock.sol \
-			         src/TypeRefs.sol src/TypesLib.sol \
-			         src/CrossFileConsumer.sol src/IndexAccessTest.sol; do \
-				touch "$$f" 2>/dev/null; \
-			done; \
 			forge build --quiet 2>/dev/null; \
-			touch src/Incremental.sol 2>/dev/null; \
+			echo "// incremental marker" >> src/Incremental.sol; \
 			forge build --quiet 2>/dev/null; \
+			head -n -1 src/Incremental.sol > src/Incremental.sol.tmp \
+				&& mv src/Incremental.sol.tmp src/Incremental.sol; \
 		else \
 			echo "  $$d"; \
 			forge build --root "$$d" --force --quiet || true; \
