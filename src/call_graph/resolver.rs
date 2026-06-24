@@ -641,7 +641,10 @@ mod tests {
         let resolver = CallGraphResolver::new(fixture_project());
         let node = resolver.resolve("Main::readOnly").unwrap();
         let output = node.to_string();
-        assert!(output.contains("Main::readOnly()"));
+        assert_eq!(
+            output,
+            include_str!("../../fixtures/calls/expected/call_graph_for_readonly.txt")
+        );
     }
 
     #[test]
@@ -649,7 +652,10 @@ mod tests {
         let resolver = CallGraphResolver::new(fixture_project());
         let node = resolver.resolve("Main::execute").unwrap();
         let output = node.to_string();
-        assert!(output.contains("Main::execute(uint256)"));
+        assert_eq!(
+            output,
+            include_str!("../../fixtures/calls/expected/call_graph_for_execute.txt")
+        );
     }
 
     #[test]
@@ -659,7 +665,13 @@ mod tests {
             .resolve("Unknown::function")
             .unwrap_err()
             .to_string();
-        assert_eq!(err, "\"Unknown\" not found.");
+        assert_eq!(
+            err,
+            include_str!(
+                "../../fixtures/calls/expected/call_graph_errors_for_unknown_contract.txt"
+            )
+            .trim_end()
+        );
     }
 
     #[test]
@@ -669,7 +681,13 @@ mod tests {
             .resolve("Main::unknownFunction")
             .unwrap_err()
             .to_string();
-        assert_eq!(err, "\"unknownFunction\" not found in \"Main\".");
+        assert_eq!(
+            err,
+            include_str!(
+                "../../fixtures/calls/expected/call_graph_errors_for_unknown_function.txt"
+            )
+            .trim_end()
+        );
     }
 
     #[test]
@@ -679,8 +697,10 @@ mod tests {
             .resolve("Dupe::someFunction")
             .unwrap_err()
             .to_string();
-        assert!(err.contains("found 2 \"Dupe\""));
-        assert!(err.contains("hawk inspect calls"));
+        assert_eq!(
+            err,
+            include_str!("../../fixtures/calls/expected/ambiguity_shows_suggestions.txt")
+        );
     }
 
     // Regression test: calls through interface casts (e.g. IHelper(address(h)).doWork())
@@ -692,11 +712,10 @@ mod tests {
         let resolver = CallGraphResolver::new(fixture_project());
         let node = resolver.resolve("Main::callViaInterface").unwrap();
         let output = node.to_string();
-        let expected = concat!(
-            "Main::callViaInterface() (public)\n",
-            "\u{2514}\u{2500}\u{2500} IHelper::doWork() (external)\n",
+        assert_eq!(
+            output,
+            include_str!("../../fixtures/calls/expected/call_graph_for_interface_call.txt")
         );
-        assert_eq!(output, expected);
     }
 
     // Regression test: low-level calls (.call(), .delegatecall(),
@@ -709,10 +728,9 @@ mod tests {
         let resolver = CallGraphResolver::new(fixture_project());
         let node = resolver.resolve("LowLevelCaller::callWithPayload").unwrap();
         let output = node.to_string();
-        let expected = concat!(
-            "LowLevelCaller::callWithPayload(address,bytes) (external)\n",
-            "\u{2514}\u{2500}\u{2500} (address).call() (low-level)\n",
+        assert_eq!(
+            output,
+            include_str!("../../fixtures/calls/expected/call_graph_includes_low_level_call.txt")
         );
-        assert_eq!(output, expected);
     }
 }
