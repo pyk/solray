@@ -17,7 +17,7 @@ use solc::ast::{
 };
 
 use crate::artifact_index::{ArtifactEntry, ArtifactIndex};
-use crate::call_graph::node::CallGraphNode;
+use crate::call_graph::{FunctionID, node::CallGraphNode};
 use crate::project::Project;
 
 /// Internal: function info extracted from an artifact AST for call graph resolution.
@@ -73,14 +73,14 @@ impl CallGraphResolver {
     /// - Multiple contracts sharing the same name (ambiguity)
     /// - Overloaded functions within the same contract
     pub fn resolve(&self, function_id: &str) -> Result<CallGraphNode> {
-        let (contract_name, function_name) = parse_function_id(function_id)?;
+        let fid = FunctionID::try_from(function_id)?;
 
-        let entries = self.artifact_index.get(contract_name);
+        let entries = self.artifact_index.get(fid.contract_name());
 
         let entries = match entries {
-            Some(e) if e.is_empty() => bail!("\"{}\" not found.", contract_name),
+            Some(e) if e.is_empty() => bail!("\"{}\" not found.", fid.contract_name()),
             Some(e) => e,
-            None => bail!("\"{}\" not found.", contract_name),
+            None => bail!("\"{}\" not found.", fid.contract_name()),
         };
 
         // Handle ambiguity: multiple contracts with the same name.
@@ -88,7 +88,7 @@ impl CallGraphResolver {
             let mut msg = format!(
                 "found {} \"{}\"\n\nSelect one of the following:\n",
                 entries.len(),
-                contract_name
+                fid.contract_name()
             );
             for entry in entries {
                 let rp = entry
@@ -96,7 +96,7 @@ impl CallGraphResolver {
                     .strip_prefix(self.project.path())
                     .unwrap_or(&entry.path)
                     .to_string_lossy();
-                msg.push_str(&format!("\nhawk inspect calls {}:{}", rp, function_id));
+                msg.push_str(&format!("\nhawk inspect calls {}:{}", rp, fid));
             }
             msg.push('\n');
             bail!(msg);
@@ -115,8 +115,8 @@ impl CallGraphResolver {
         let matched: Vec<&FunctionInfo> = func_infos
             .iter()
             .filter(|fi| {
-                fi.contract_name == contract_name
-                    && fi.name == function_name
+                fi.contract_name == fid.contract_name()
+                    && fi.name == fid.function_name()
                     && seen.insert((fi.name.clone(), fi.file.clone()))
             })
             .collect();
@@ -128,8 +128,8 @@ impl CallGraphResolver {
         ensure!(
             !matched.is_empty(),
             "\"{}\" not found in \"{}\".",
-            function_name,
-            contract_name
+            fid.function_name(),
+            fid.contract_name()
         );
 
         // Handle overloaded functions.
@@ -137,7 +137,7 @@ impl CallGraphResolver {
             let mut msg = format!(
                 "found {} \"{}\"\n\nSelect one of the following:\n",
                 matched.len(),
-                function_id
+                fid
             );
             for fi in &matched {
                 let sig = format!(
@@ -349,19 +349,6 @@ impl CallGraphResolver {
                 .flatten()
                 .collect()
         })
-    }
-}
-
-/// Parse a function ID like `Contract::function` into `(contract_name, function_name)`.
-fn parse_function_id(function_id: &str) -> Result<(&str, &str)> {
-    match function_id.split_once("::") {
-        Some((contract, function)) if !contract.is_empty() && !function.is_empty() => {
-            Ok((contract, function))
-        }
-        _ => bail!(
-            "invalid function ID \"{}\". Expected format: Contract::function",
-            function_id
-        ),
     }
 }
 

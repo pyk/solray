@@ -30,6 +30,10 @@ severe negative impact on the project and the user.
 - You must use context objects for internal workflows to prevent parameter explosion.
 - You must avoid deep module hierarchies.
 
+### Testing Rules
+
+- You must assert exact error messages in tests with `assert_eq!`, never `.contains()`.
+
 ## Project Overview
 
 `hawk` is CLI that can be used to inspect any foundry project.
