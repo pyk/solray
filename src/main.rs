@@ -38,6 +38,14 @@ enum InspectSubcommand {
         #[arg(long, default_value = ".")]
         project: PathBuf,
     },
+    /// Show the inheritance graph of a declaration
+    Inheritances {
+        /// The declaration name (contract, abstract, or interface)
+        decl: String,
+        /// Path to the Foundry project
+        #[arg(long, default_value = ".")]
+        project: PathBuf,
+    },
     /// List all interfaces
     Interfaces {
         /// Path to the Foundry project
@@ -78,6 +86,10 @@ fn main() -> Result<()> {
             InspectSubcommand::Contracts { project } => {
                 let items = hawk::commands::contracts::list(&project)?;
                 print_items(&project, &items, "contracts")?;
+            }
+            InspectSubcommand::Inheritances { decl, project } => {
+                let output = hawk::commands::inheritances::run(&decl, &project)?;
+                print!("{output}");
             }
             InspectSubcommand::Interfaces { project } => {
                 let items = hawk::commands::interfaces::list(&project)?;
