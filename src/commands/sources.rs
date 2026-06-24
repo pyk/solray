@@ -87,4 +87,17 @@ mod tests {
             "found 2 \"Overloaded::beforeTokenTransfer\"\n\nSelect one of the following:\n\nhawk inspect sources \"Overloaded::beforeTokenTransfer(address,address)\"\nhawk inspect sources \"Overloaded::beforeTokenTransfer(address,address,uint256)\"\n",
         );
     }
+
+    // Regression test: block-comment natspec (/** ... */) must be
+    // resolved and included in the output. Previously, only the closing
+    // `*/` line was captured because the backward scan broke on `*/`
+    // instead of continuing up to the opening `/**`.
+    #[test]
+    fn run_shows_natspec_block_comment() {
+        let result = run(fixture_path(), "NatspecBlock::compute").unwrap();
+        assert_eq!(
+            result,
+            include_str!("../../fixtures/sources/expected/natspec_block.txt")
+        );
+    }
 }

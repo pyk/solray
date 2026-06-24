@@ -755,7 +755,7 @@ fn extract_natspec(content: &str, offset: usize) -> String {
             lines.push(line);
         } else if trimmed.starts_with("/**") || trimmed.starts_with('*') {
             lines.push(line);
-            if trimmed.ends_with("*/") || trimmed.starts_with("/**") {
+            if trimmed.starts_with("/**") {
                 break;
             }
         } else if trimmed.is_empty() {

@@ -1,0 +1,13 @@
+// symbol: NatspecBlock::compute(uint256)
+// path: fixtures/sources/src/NatspecBlock.sol#L10-L12
+
+/**
+ * @notice This function uses block-comment natspec.
+ * @param x The input value.
+ * @return The computed result.
+ */
+function compute(uint256 x) public pure returns (uint256) {
+    return x + 1;
+}
+
+
