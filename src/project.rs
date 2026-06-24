@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Result, bail};
+use rayon::prelude::*;
 use serde::Deserialize;
 use solc::ast::{ContractDefinition, ContractKind, SourceUnit, SourceUnitNode};
 use walkdir::WalkDir;
@@ -78,59 +79,32 @@ impl Project {
         &self.path
     }
 
+    /// Collect all JSON artifact paths from the output directory,
+    /// excluding `build-info` files.
+    fn artifact_paths(&self) -> Vec<PathBuf> {
+        WalkDir::new(&self.out)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                let p = e.path();
+                p.extension().and_then(|s| s.to_str()) == Some("json")
+                    && !p.to_string_lossy().contains("build-info")
+            })
+            .map(|e| e.path().to_path_buf())
+            .collect()
+    }
+
     /// Return all declarations found across all artifacts.
     pub fn declarations(&self) -> Result<Vec<Declaration>> {
         if !self.out.exists() {
             return Ok(Vec::new());
         }
 
-        let mut results = Vec::new();
-
-        for entry in WalkDir::new(&self.out).into_iter().filter_map(|e| e.ok()) {
-            let path = entry.path();
-
-            if path.extension().and_then(|e| e.to_str()) != Some("json") {
-                continue;
-            }
-            if path.to_string_lossy().contains("build-info") {
-                continue;
-            }
-
-            let contract_name = match path.file_stem().and_then(|s| s.to_str()) {
-                Some(name) => name,
-                None => continue,
-            };
-
-            let content = fs::read_to_string(path)?;
-            let artifact: Artifact = serde_json::from_str(&content)?;
-
-            let ast = match artifact.ast {
-                None => bail!(
-                    "artifact `{}` is missing the AST; rebuild with `ast = true` in foundry.toml",
-                    path.display()
-                ),
-                Some(ast) => ast,
-            };
-
-            // Take ownership of nodes to avoid cloning the name.
-            let source_file = ast.absolute_path;
-            if let Some(cd) = ast.nodes.into_iter().find_map(|node| {
-                if let SourceUnitNode::ContractDefinition(cd) = node
-                    && cd.name == contract_name
-                {
-                    return Some(cd);
-                }
-                None
-            }) {
-                let kind = classify_contract(&cd);
-                results.push(Declaration {
-                    name: cd.name,
-                    kind,
-                    file: source_file,
-                });
-            }
-        }
-
+        let paths = self.artifact_paths();
+        let mut results: Vec<Declaration> = paths
+            .into_par_iter()
+            .filter_map(|path| process_artifact(path).ok().flatten())
+            .collect();
         results.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(results)
     }
@@ -172,5 +146,45 @@ fn classify_contract(cd: &ContractDefinition) -> DeclarationKind {
         ContractKind::Contract => DeclarationKind::Contract,
         ContractKind::Interface => DeclarationKind::Interface,
         ContractKind::Library => DeclarationKind::Library,
+    }
+}
+
+/// Process a single artifact JSON file, extracting its [`Declaration`] if one
+/// is found.
+fn process_artifact(path: impl AsRef<Path>) -> Result<Option<Declaration>> {
+    let path = path.as_ref();
+    let contract_name = match path.file_stem().and_then(|s| s.to_str()) {
+        Some(name) => name,
+        None => return Ok(None),
+    };
+
+    let content = fs::read_to_string(path)?;
+    let artifact: Artifact = serde_json::from_str(&content)?;
+
+    let ast = match artifact.ast {
+        None => bail!(
+            "artifact `{}` is missing the AST; rebuild with `ast = true` in foundry.toml",
+            path.display()
+        ),
+        Some(ast) => ast,
+    };
+
+    let source_file = ast.absolute_path;
+    if let Some(cd) = ast.nodes.into_iter().find_map(|node| {
+        if let SourceUnitNode::ContractDefinition(cd) = node
+            && cd.name == contract_name
+        {
+            return Some(cd);
+        }
+        None
+    }) {
+        let kind = classify_contract(&cd);
+        Ok(Some(Declaration {
+            name: cd.name,
+            kind,
+            file: source_file,
+        }))
+    } else {
+        Ok(None)
     }
 }
