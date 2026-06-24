@@ -6,6 +6,8 @@ You are working on a `hawk` project.
 - You must follow the [project guidelines](docs/project-guidelines.md).
 - You must use `cargo txt` to view crate documentation.
 - You must separate I/O from a logic.
+- You must not create fixture artifact manually, run `forge build` to generate the
+  artifact.
 
 ## Project Overview
 
@@ -24,6 +26,8 @@ The main goal of the `hawk` is to help security researcher to do audit faster.
 - `hawk inspect abstracts`: List all abtract contracts.
 - `hawk inspect libraries`: List all libraries.
 - `hawk inspect interfaces`: List all interfaces.
+- `hawk inspect inheritances <declaration>`: Show inheritance graph of a
+  contract/interface.
 - `hawk inspect callgraph Contract::function`: Show the complete callgraph of a
   function.
 - `hawk inspect source Contract::function`: Show the complete source code of a function.

@@ -166,6 +166,15 @@ impl Project {
         Ok(decls.into_iter().find(|d| d.name == name))
     }
 
+    /// Find all declarations matching `name` exactly (case-sensitive).
+    ///
+    /// This is useful for detecting name collisions where the same declaration
+    /// name appears in multiple files (e.g., a dependency and the project itself).
+    pub fn find_declarations_by_name(&self, name: &str) -> Result<Vec<Declaration>> {
+        let decls = self.declarations()?;
+        Ok(decls.into_iter().filter(|d| d.name == name).collect())
+    }
+
     /// Build the inheritance tree for a contract identified by name.
     ///
     /// Returns an [`InheritanceNode`] where `name` and `file` represent the
@@ -178,6 +187,44 @@ impl Project {
 
         let mut visited: HashSet<&str> = HashSet::new();
         build_tree(name, &by_name, &mut visited)
+    }
+
+    /// Build the inheritance tree for a contract identified by name and file path.
+    ///
+    /// Unlike [`inheritance_tree`], this disambiguates which contract to use
+    /// as the root when multiple contracts share the same name. Base contracts
+    /// are still resolved by name alone.
+    pub fn inheritance_tree_by_path(
+        &self,
+        name: &str,
+        file_path: impl AsRef<Path>,
+    ) -> Result<InheritanceNode> {
+        let file_path = file_path.as_ref();
+        let infos = self.load_contract_infos()?;
+        let by_name: HashMap<&str, &ContractInfo> =
+            infos.iter().map(|ci| (ci.name.as_str(), ci)).collect();
+
+        let root_info = infos
+            .iter()
+            .find(|ci| ci.name == name && ci.file == file_path)
+            .with_context(|| {
+                format!("contract `{}` not found in `{}`", name, file_path.display())
+            })?;
+
+        let mut visited: HashSet<&str> = HashSet::new();
+        visited.insert(&root_info.name);
+
+        let parents: Vec<InheritanceNode> = root_info
+            .base_contracts
+            .iter()
+            .map(|base_name| build_tree(base_name, &by_name, &mut visited))
+            .collect::<Result<Vec<InheritanceNode>>>()?;
+
+        Ok(InheritanceNode {
+            name: root_info.name.clone(),
+            file: root_info.file.clone(),
+            parents,
+        })
     }
 
     /// Load contract info (name, file, base_contracts) from all artifacts.
