@@ -6,7 +6,12 @@ You are working on a `hawk` project.
 
 The main goal of the `hawk` is to help security researcher to do audit faster.
 
-### `hawk` commands
+## Project Structure
+
+- `hawk` is designed to be library first, which mean the CLI is the consumer of the
+  library.
+
+## `hawk` commands
 
 - `hawk inspect contracts`: List all deployables (non-abstract) contracts.
 - `hawk inspect abstracts`: List all abtract contracts.
