@@ -3,6 +3,7 @@
 pub mod abstracts;
 pub mod calls;
 pub mod contracts;
+pub mod entrypoints;
 pub mod inheritances;
 pub mod interfaces;
 pub mod libraries;

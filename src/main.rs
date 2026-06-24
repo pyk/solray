@@ -49,6 +49,14 @@ enum InspectSubcommand {
         #[arg(long, default_value = ".")]
         project: PathBuf,
     },
+    /// List all write functions from a deployable contract ABI
+    Entrypoints {
+        /// The deployable contract name
+        deployable: String,
+        /// Path to the Foundry project
+        #[arg(long, default_value = ".")]
+        project: PathBuf,
+    },
     /// Show the inheritance graph of a declaration
     Inheritances {
         /// The declaration name (contract, abstract, or interface)
@@ -121,6 +129,13 @@ fn main() -> Result<()> {
             InspectSubcommand::Contracts { project } => {
                 let items = hawk::commands::contracts::list(&project)?;
                 print_items(&project, &items, "contracts")?;
+            }
+            InspectSubcommand::Entrypoints {
+                deployable,
+                project,
+            } => {
+                let output = hawk::commands::entrypoints::run(&deployable, &project)?;
+                print!("{output}");
             }
             InspectSubcommand::Inheritances { decl, project } => {
                 let output = hawk::commands::inheritances::run(&decl, &project)?;
