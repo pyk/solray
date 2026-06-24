@@ -28,8 +28,7 @@ The main goal of the `hawk` is to help security researcher to do audit faster.
 - `hawk inspect interfaces`: List all interfaces.
 - `hawk inspect inheritances <declaration>`: Show inheritance graph of a
   contract/interface.
-- `hawk inspect callgraph Contract::function`: Show the complete callgraph of a
-  function.
+- `hawk inspect calls Contract::function`: Show the complete callgraph of a function.
 - `hawk inspect source Contract::function`: Show the complete source code of a function.
 
 ## cargo txt

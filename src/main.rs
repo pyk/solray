@@ -32,6 +32,14 @@ enum InspectSubcommand {
         #[arg(long, default_value = ".")]
         project: PathBuf,
     },
+    /// Show the call graph of a function
+    Calls {
+        /// The function ID (e.g. Contract::function)
+        function_id: String,
+        /// Path to the Foundry project
+        #[arg(long, default_value = ".")]
+        project: PathBuf,
+    },
     /// List all deployable contracts
     Contracts {
         /// Path to the Foundry project
@@ -82,6 +90,13 @@ fn main() -> Result<()> {
             InspectSubcommand::Abstracts { project } => {
                 let items = hawk::commands::abstracts::list(&project)?;
                 print_items(&project, &items, "abstracts")?;
+            }
+            InspectSubcommand::Calls {
+                function_id,
+                project,
+            } => {
+                let output = hawk::commands::calls::run(&function_id, &project)?;
+                print!("{output}");
             }
             InspectSubcommand::Contracts { project } => {
                 let items = hawk::commands::contracts::list(&project)?;
