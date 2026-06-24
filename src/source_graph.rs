@@ -313,8 +313,6 @@ impl SourceResolver {
     }
 }
 
-// ---- Artifact parsing and lookup ----
-
 /// Parse an artifact JSON file and return its AST.
 fn parse_artifact(path: impl AsRef<Path>) -> Result<Option<SourceUnit>> {
     let content = fs::read_to_string(path.as_ref())?;
@@ -347,8 +345,6 @@ fn find_artifact_for_source(
     }
     None
 }
-
-// ---- Function discovery ----
 
 /// Extract function symbols from an AST for a given contract/function name.
 // checkrs: allow(clone_in_loops)
@@ -404,8 +400,6 @@ fn collect_contract_functions(ast: &SourceUnit, contract_name: &str, out: &mut V
         }
     }
 }
-
-// ---- Reference collection ----
 
 /// Collect all referenced declarations within a source range of the AST.
 fn collect_referenced_declarations(
@@ -762,8 +756,6 @@ fn node_to_symbol(
         _ => None,
     }
 }
-
-// ---- Source utilities ----
 
 /// Compute the leading whitespace count on the line containing `offset`.
 fn base_indent(content: &str, offset: usize) -> usize {

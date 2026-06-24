@@ -216,6 +216,22 @@ impl CallGraphResolver {
         Ok(())
     }
 
+    /// Load a function by ID and append its call node if the function is known.
+    fn push_loaded_function(
+        &self,
+        id: i64,
+        functions: &mut HashMap<i64, FunctionInfo>,
+        visited: &mut HashSet<i64>,
+        nodes: &mut Vec<CallGraphNode>,
+    ) -> Result<()> {
+        self.ensure_function_loaded(id, functions)?;
+        if functions.contains_key(&id) {
+            let node = self.build_call_node(id, functions, visited)?;
+            nodes.push(node);
+        }
+        Ok(())
+    }
+
     /// Build a `CallGraphNode` for a function by ID, recursively.
     fn build_call_node(
         &self,
@@ -352,39 +368,40 @@ impl CallGraphResolver {
     ) -> Result<()> {
         match expr {
             Expression::FunctionCall(fc) => {
-                let called_func_id = match &*fc.expression {
-                    FunctionCallExpression::MemberAccess(ma) => ma.referenced_declaration,
-                    FunctionCallExpression::Identifier(id) => id.referenced_declaration,
+                match &*fc.expression {
+                    FunctionCallExpression::MemberAccess(ma) => match ma.referenced_declaration {
+                        Some(id) => self.push_loaded_function(id, functions, visited, nodes)?,
+                        None if is_low_level_call(&ma.member_name) => {
+                            // Low-level calls (.call(), .delegatecall(),
+                            // .staticcall()) have no referenced_declaration
+                            // because they are built-in methods on the
+                            // `address` type, not user-defined functions.
+                            // Synthesize a leaf node so they appear in the
+                            // call graph.
+                            let sig = format!("(address).{}()", ma.member_name);
+                            nodes.push(CallGraphNode::new(
+                                &sig,
+                                "",
+                                PathBuf::new(),
+                                "low-level",
+                                "",
+                                vec![],
+                            ));
+                        }
+                        None => {}
+                    },
+                    FunctionCallExpression::Identifier(id) => {
+                        id.referenced_declaration.map_or(Ok(()), |id| {
+                            self.push_loaded_function(id, functions, visited, nodes)
+                        })?;
+                    }
                     FunctionCallExpression::FunctionCallOptions(fco) => {
                         resolve_called_function_id_from_fc_expression(&fco.expression)
+                            .map_or(Ok(()), |id| {
+                                self.push_loaded_function(id, functions, visited, nodes)
+                            })?;
                     }
-                    _ => None,
-                };
-                // checkrs: allow(nested_if_let)
-                if let Some(id) = called_func_id {
-                    self.ensure_function_loaded(id, functions)?;
-                    if functions.contains_key(&id) {
-                        let node = self.build_call_node(id, functions, visited)?;
-                        nodes.push(node);
-                    }
-                } else if let FunctionCallExpression::MemberAccess(ma) = &*fc.expression
-                    && is_low_level_call(&ma.member_name)
-                {
-                    // Low-level calls (.call(), .delegatecall(),
-                    // .staticcall()) have no referenced_declaration
-                    // because they are built-in methods on the
-                    // `address` type, not user-defined functions.
-                    // Synthesize a leaf node so they appear in the
-                    // call graph.
-                    let sig = format!("(address).{}()", ma.member_name);
-                    nodes.push(CallGraphNode::new(
-                        &sig,
-                        "",
-                        PathBuf::new(),
-                        "low-level",
-                        "",
-                        vec![],
-                    ));
+                    _ => {}
                 }
                 for arg in &fc.arguments {
                     self.collect_calls_from_expression(arg, functions, visited, nodes)?;

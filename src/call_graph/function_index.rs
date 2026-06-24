@@ -126,8 +126,6 @@ impl std::ops::Deref for FunctionIndex {
     }
 }
 
-// ---- Lightweight ID extraction ----
-
 /// Minimal node: captures `nodeType` and `id` from any AST node.
 /// All Solc AST nodes have `nodeType` and `id`.
 #[derive(Deserialize)]

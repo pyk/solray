@@ -202,8 +202,6 @@ impl std::ops::Deref for SymbolIndex {
     }
 }
 
-// ---- Lightweight ID extraction ----
-
 /// Minimal node: captures `nodeType`, `id`, `name`, and `src` from any AST node.
 #[derive(Deserialize)]
 struct IdNode {
