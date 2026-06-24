@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -33,21 +34,23 @@ enum InspectSubcommand {
     },
 }
 
-fn main() {
+fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
         Command::Inspect(args) => match args.subcommand {
             InspectSubcommand::Contracts { project } => {
-                let contracts = hawk::commands::contracts::list(&project).unwrap_or_else(|e| {
-                    eprintln!("error: {e}");
-                    std::process::exit(1);
-                });
+                let contracts = hawk::commands::contracts::list(&project)?;
+                let cwd = std::env::current_dir()?;
+                let project_abs = std::path::absolute(&project)?;
+                let project_rel = project_abs.strip_prefix(&cwd).unwrap_or(&project_abs);
 
-                for decl in &contracts {
-                    println!("{}", decl.name);
+                for line in &contracts {
+                    println!("{}", project_rel.join(line).display());
                 }
             }
         },
     }
+
+    Ok(())
 }
