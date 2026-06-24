@@ -5,6 +5,7 @@ You are working on a `hawk` project.
 - You must run `make check` and `make test` before finishing a task.
 - You must follow the [project guidelines](docs/project-guidelines.md).
 - You must use `cargo txt` to view crate documentation.
+- You must separate I/O from a logic.
 
 ## Project Overview
 
