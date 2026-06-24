@@ -149,7 +149,7 @@ mod tests {
     fn run_errors_for_unknown_contract() {
         let result = run(fixture_path(), "Unknown::function");
         let err = result.unwrap_err().to_string();
-        assert!(err.contains("\"Unknown\" not found"));
+        assert!(err.contains("\"function\" not found in \"Unknown\""));
     }
 
     #[test]

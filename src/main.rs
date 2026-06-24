@@ -39,6 +39,9 @@ enum InspectSubcommand {
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
+        /// Enable trace logging for performance diagnostics
+        #[arg(short, long)]
+        verbose: bool,
     },
     /// List all deployable contracts
     Contracts {
@@ -94,7 +97,16 @@ fn main() -> Result<()> {
             InspectSubcommand::Calls {
                 function_id,
                 project,
+                verbose,
             } => {
+                if verbose {
+                    let _ = tracing_subscriber::fmt()
+                        .with_max_level(tracing::Level::TRACE)
+                        .with_target(true)
+                        .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
+                        .with_writer(std::io::stderr)
+                        .try_init();
+                }
                 let output = hawk::commands::calls::run(&project, &function_id)?;
                 print!("{output}");
             }
