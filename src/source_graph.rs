@@ -823,9 +823,9 @@ fn extract_natspec(content: &str, offset: usize) -> String {
         let trimmed = line.trim();
         if trimmed.starts_with("///") {
             lines.push(line);
-        } else if trimmed.starts_with("/**") || trimmed.starts_with('*') {
+        } else if trimmed.starts_with("/*") || trimmed.starts_with('*') {
             lines.push(line);
-            if trimmed.starts_with("/**") {
+            if trimmed.starts_with("/*") {
                 break;
             }
         } else if trimmed.is_empty() {

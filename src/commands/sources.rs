@@ -181,4 +181,17 @@ mod tests {
             include_str!("../../fixtures/sources/expected/run_resolves_function_return_types.txt")
         );
     }
+
+    // Regression test: regular block comments (/* ... */) must be
+    // extracted in full. Previously, the opening `/*` line was
+    // not matched because the backward scan only checked for
+    // `/**` and `*` prefixes, missing bare `/*`.
+    #[test]
+    fn run_extracts_regular_block_comments() {
+        let result = run(fixture_path(), "BlockComment::getItem").unwrap();
+        assert_eq!(
+            result,
+            include_str!("../../fixtures/sources/expected/run_extracts_regular_block_comments.txt")
+        );
+    }
 }

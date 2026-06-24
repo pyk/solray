@@ -1,0 +1,20 @@
+// symbol: BlockComment::getItem()
+// path: fixtures/sources/src/BlockComment.sol#L13-L15
+
+function getItem() public pure returns (Item memory) {
+    return Item(42);
+}
+
+
+// symbol: Item
+// path: fixtures/sources/src/BlockComment.sol#L9-L11
+
+/*
+ *  A value holder with a regular block comment.
+ *  This is not a NatSpec doc comment (no double-star).
+ */
+struct Item {
+    uint256 value;
+}
+
+
