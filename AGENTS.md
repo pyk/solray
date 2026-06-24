@@ -9,12 +9,12 @@ severe negative impact on the project and the user.
 
 - You must run `make check` and `make test` before finishing a task.
 - You must use `cargo txt` to view crate documentation.
-- You must separate I/O from logic.
 - You must not create fixture artifacts manually. Run `forge build` to generate them.
-- You must not add comment block header.
 
 ### Code Design Rules
 
+- You must separate I/O from logic.
+- You must not add comment block header.
 - You must design the public API around types, not functions.
 - You must organize modules around domain concepts.
 - You must keep one primary type per module (`project.rs` -> Project).
