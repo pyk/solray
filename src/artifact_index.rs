@@ -7,6 +7,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use anyhow::{Result, bail};
 use walkdir::WalkDir;
 
 /// A resolved artifact entry: the path to the JSON file and the source file
@@ -76,6 +77,15 @@ impl ArtifactIndex {
     /// Return `true` if the index contains no entries.
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
+    }
+
+    /// Look up artifact entries by declaration name, returning an error if the
+    /// name is not found or has no entries.
+    pub fn try_get(&self, name: &str) -> Result<Vec<ArtifactEntry>> {
+        match self.inner.get(name) {
+            Some(entries) if !entries.is_empty() => Ok(entries.clone()),
+            _ => bail!("\"{}\" not found.", name),
+        }
     }
 
     /// Iterate over all artifact entries across all declarations.

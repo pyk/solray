@@ -9,14 +9,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Result, bail, ensure};
-use rayon::prelude::*;
 use serde::Deserialize;
 use solc::ast::{
     ContractDefinitionNode, Expression, FunctionCallExpression, FunctionDefinition, SourceUnitNode,
     TypeName, VariableDeclaration, Visibility,
 };
 
-use crate::artifact_index::{ArtifactEntry, ArtifactIndex};
+use crate::artifact_index::ArtifactIndex;
 use crate::call_graph::{FunctionID, node::CallGraphNode};
 use crate::project::Project;
 
@@ -39,15 +38,10 @@ struct Artifact {
 }
 
 /// Resolves call graphs for Solidity functions in a Foundry project.
-///
-/// Maintains a lightweight index of contract names to artifact paths and
-/// caches parsed function definitions.
 pub struct CallGraphResolver {
     project: Project,
     /// Lightweight index: contract name → one or more artifact paths.
     artifact_index: ArtifactIndex,
-    /// Lazily populated: global function info map keyed by AST node ID.
-    function_infos: std::sync::OnceLock<Vec<FunctionInfo>>,
 }
 
 impl CallGraphResolver {
@@ -57,7 +51,6 @@ impl CallGraphResolver {
         Self {
             project,
             artifact_index,
-            function_infos: std::sync::OnceLock::new(),
         }
     }
 
@@ -75,13 +68,7 @@ impl CallGraphResolver {
     pub fn resolve(&self, function_id: &str) -> Result<CallGraphNode> {
         let fid = FunctionID::try_from(function_id)?;
 
-        let entries = self.artifact_index.get(fid.contract_name());
-
-        let entries = match entries {
-            Some(e) if e.is_empty() => bail!("\"{}\" not found.", fid.contract_name()),
-            Some(e) => e,
-            None => bail!("\"{}\" not found.", fid.contract_name()),
-        };
+        let entries = self.artifact_index.try_get(fid.contract_name())?;
 
         // Handle ambiguity: multiple contracts with the same name.
         if entries.len() > 1 {
@@ -90,7 +77,7 @@ impl CallGraphResolver {
                 entries.len(),
                 fid.contract_name()
             );
-            for entry in entries {
+            for entry in &entries {
                 let rp = entry
                     .path
                     .strip_prefix(self.project.path())
@@ -102,18 +89,24 @@ impl CallGraphResolver {
             bail!(msg);
         }
 
-        let _entry = &entries[0];
+        // Start with the target contract's functions only.
+        //
+        // The map is keyed by Solc AST node ID (`i64`). Within a single
+        // compilation, Solc assigns globally unique IDs across all source
+        // files. Incremental rebuilds always recompile all affected files,
+        // so artifacts on disk are always internally consistent. Duplicate
+        // IDs across artifacts (from the same `solc` run) are the same
+        // function definition and can be safely overwritten.
+        let mut functions: HashMap<i64, FunctionInfo> = HashMap::new();
+        let mut loaded_artifacts: HashSet<PathBuf> = HashSet::new();
+        for entry in &entries {
+            self.load_artifact(&entry.path, &mut functions, &mut loaded_artifacts)?;
+        }
 
-        // Ensure function infos are loaded (lazy, cached).
-        let func_infos = self.ensure_function_infos();
-        let by_id: HashMap<i64, &FunctionInfo> = func_infos.iter().map(|fi| (fi.id, fi)).collect();
-
-        // Find matching functions in the target contract.
-        // Deduplicate: a function may appear in multiple artifacts when
-        // those artifacts share the same source unit AST.
+        // Find the target function, deduplicating across artifacts.
         let mut seen = HashSet::new();
-        let matched: Vec<&FunctionInfo> = func_infos
-            .iter()
+        let target: Vec<&FunctionInfo> = functions
+            .values()
             .filter(|fi| {
                 fi.contract_name == fid.contract_name()
                     && fi.name == fid.function_name()
@@ -121,25 +114,20 @@ impl CallGraphResolver {
             })
             .collect();
 
-        // Use the artifact entry's path to further filter if needed.
-        // In practice, a single artifact covers a source unit, so the entry
-        // filter is enough for ambiguity. For overloaded functions we need
-        // parameter disambiguation.
         ensure!(
-            !matched.is_empty(),
+            !target.is_empty(),
             "\"{}\" not found in \"{}\".",
             fid.function_name(),
             fid.contract_name()
         );
 
-        // Handle overloaded functions.
-        if matched.len() > 1 {
+        if target.len() > 1 {
             let mut msg = format!(
                 "found {} \"{}\"\n\nSelect one of the following:\n",
-                matched.len(),
+                target.len(),
                 fid
             );
-            for fi in &matched {
+            for fi in &target {
                 let sig = format!(
                     "{}::{}({})",
                     fi.contract_name,
@@ -152,21 +140,74 @@ impl CallGraphResolver {
             bail!(msg);
         }
 
-        let target = &matched[0];
+        let target_id = target[0].id;
 
         let mut visited: HashSet<i64> = HashSet::new();
-        self.build_call_node(target, &by_id, &mut visited)
+        self.build_call_node(
+            target_id,
+            &mut functions,
+            &mut loaded_artifacts,
+            &mut visited,
+        )
     }
 
-    /// Build a `CallGraphNode` for a given function info, recursively.
+    /// Parse a single artifact and insert its functions into the map.
+    fn load_artifact(
+        &self,
+        path: impl AsRef<Path>,
+        functions: &mut HashMap<i64, FunctionInfo>,
+        loaded: &mut HashSet<PathBuf>,
+    ) -> Result<()> {
+        let path = path.as_ref();
+        if loaded.contains(path) {
+            return Ok(());
+        }
+        if let Some(funcs) = process_artifact_for_functions(path)? {
+            for fi in funcs {
+                functions.insert(fi.id, fi);
+            }
+        }
+        loaded.insert(path.to_path_buf());
+        Ok(())
+    }
+
+    /// Ensure a function ID is loaded, scanning remaining artifacts on demand.
+    fn ensure_function_loaded(
+        &self,
+        id: i64,
+        functions: &mut HashMap<i64, FunctionInfo>,
+        loaded: &mut HashSet<PathBuf>,
+    ) -> Result<()> {
+        if functions.contains_key(&id) {
+            return Ok(());
+        }
+        for entry in self.artifact_index.all_entries() {
+            if loaded.contains(&entry.path) {
+                continue;
+            }
+            self.load_artifact(&entry.path, functions, loaded)?;
+            if functions.contains_key(&id) {
+                return Ok(());
+            }
+        }
+        // ID not found in any unloaded artifact -- the call target is
+        // something we cannot resolve, e.g. a built-in or library function.
+        Ok(())
+    }
+
+    /// Build a `CallGraphNode` for a function by ID, recursively.
+    ///
+    /// Body statements are cloned before recursion to allow the function
+    /// map to be mutated for lazy-loaded callees during traversal.
     fn build_call_node(
         &self,
-        info: &FunctionInfo,
-        by_id: &HashMap<i64, &FunctionInfo>,
+        func_id: i64,
+        functions: &mut HashMap<i64, FunctionInfo>,
+        loaded: &mut HashSet<PathBuf>,
         visited: &mut HashSet<i64>,
     ) -> Result<CallGraphNode> {
-        if !visited.insert(info.id) {
-            // Recursive call detected; return a stub.
+        if !visited.insert(func_id) {
+            let info = &functions[&func_id];
             let sig = build_signature(info);
             let vis = visibility_str(&info.visibility);
             let src = format!(
@@ -183,12 +224,19 @@ impl CallGraphResolver {
             ));
         }
 
-        let children = if let Some(ref body) = info.definition.body {
-            self.collect_calls(&body.statements, by_id, visited)?
+        // Clone body statements so we don't hold a borrow across the
+        // recursive call (which may lazy-load new functions).
+        let body_stmts = functions
+            .get(&func_id)
+            .and_then(|fi| fi.definition.body.as_ref().map(|b| b.statements.clone())); // checkrs: allow(clone_in_iterator)
+
+        let children = if let Some(stmts) = body_stmts {
+            self.collect_calls(&stmts, functions, loaded, visited)?
         } else {
             Vec::new()
         };
 
+        let info = &functions[&func_id];
         let sig = build_signature(info);
         let vis = visibility_str(&info.visibility);
         let src = format!(
@@ -210,12 +258,13 @@ impl CallGraphResolver {
     fn collect_calls(
         &self,
         statements: &[solc::ast::Statement],
-        by_id: &HashMap<i64, &FunctionInfo>,
+        functions: &mut HashMap<i64, FunctionInfo>,
+        loaded: &mut HashSet<PathBuf>,
         visited: &mut HashSet<i64>,
     ) -> Result<Vec<CallGraphNode>> {
         let mut nodes = Vec::new();
         for stmt in statements {
-            self.collect_calls_from_statement(stmt, by_id, visited, &mut nodes)?;
+            self.collect_calls_from_statement(stmt, functions, loaded, visited, &mut nodes)?;
         }
         Ok(nodes)
     }
@@ -224,52 +273,93 @@ impl CallGraphResolver {
     fn collect_calls_from_statement(
         &self,
         stmt: &solc::ast::Statement,
-        by_id: &HashMap<i64, &FunctionInfo>,
+        functions: &mut HashMap<i64, FunctionInfo>,
+        loaded: &mut HashSet<PathBuf>,
         visited: &mut HashSet<i64>,
         nodes: &mut Vec<CallGraphNode>,
     ) -> Result<()> {
         match stmt {
             solc::ast::Statement::ExpressionStatement(es) => {
-                self.collect_calls_from_expression(&es.expression, by_id, visited, nodes)?;
+                self.collect_calls_from_expression(
+                    &es.expression,
+                    functions,
+                    loaded,
+                    visited,
+                    nodes,
+                )?;
             }
             solc::ast::Statement::Block(block) => {
                 for s in &block.statements {
-                    self.collect_calls_from_statement(s, by_id, visited, nodes)?;
+                    self.collect_calls_from_statement(s, functions, loaded, visited, nodes)?;
                 }
             }
             solc::ast::Statement::IfStatement(ifs) => {
-                self.collect_calls_from_expression(&ifs.condition, by_id, visited, nodes)?;
-                self.collect_calls_from_statement(&ifs.true_body, by_id, visited, nodes)?;
+                self.collect_calls_from_expression(
+                    &ifs.condition,
+                    functions,
+                    loaded,
+                    visited,
+                    nodes,
+                )?;
+                self.collect_calls_from_statement(
+                    &ifs.true_body,
+                    functions,
+                    loaded,
+                    visited,
+                    nodes,
+                )?;
                 if let Some(ref false_body) = ifs.false_body {
-                    self.collect_calls_from_statement(false_body, by_id, visited, nodes)?;
+                    self.collect_calls_from_statement(
+                        false_body, functions, loaded, visited, nodes,
+                    )?;
                 }
             }
             solc::ast::Statement::ForStatement(fors) => {
                 if let Some(ref init) = fors.initialization_expression {
-                    self.collect_calls_from_expression(init, by_id, visited, nodes)?;
+                    self.collect_calls_from_expression(init, functions, loaded, visited, nodes)?;
                 }
-                self.collect_calls_from_expression(&fors.condition, by_id, visited, nodes)?;
+                self.collect_calls_from_expression(
+                    &fors.condition,
+                    functions,
+                    loaded,
+                    visited,
+                    nodes,
+                )?;
                 if let Some(ref loop_expr) = fors.loop_expression {
-                    self.collect_calls_from_expression(loop_expr, by_id, visited, nodes)?;
+                    self.collect_calls_from_expression(
+                        loop_expr, functions, loaded, visited, nodes,
+                    )?;
                 }
-                self.collect_calls_from_statement(&fors.body, by_id, visited, nodes)?;
+                self.collect_calls_from_statement(&fors.body, functions, loaded, visited, nodes)?;
             }
             solc::ast::Statement::WhileStatement(whiles) => {
-                self.collect_calls_from_expression(&whiles.condition, by_id, visited, nodes)?;
-                self.collect_calls_from_statement(&whiles.body, by_id, visited, nodes)?;
+                self.collect_calls_from_expression(
+                    &whiles.condition,
+                    functions,
+                    loaded,
+                    visited,
+                    nodes,
+                )?;
+                self.collect_calls_from_statement(&whiles.body, functions, loaded, visited, nodes)?;
             }
             solc::ast::Statement::DoWhileStatement(dw) => {
-                self.collect_calls_from_statement(&dw.body, by_id, visited, nodes)?;
-                self.collect_calls_from_expression(&dw.condition, by_id, visited, nodes)?;
+                self.collect_calls_from_statement(&dw.body, functions, loaded, visited, nodes)?;
+                self.collect_calls_from_expression(
+                    &dw.condition,
+                    functions,
+                    loaded,
+                    visited,
+                    nodes,
+                )?;
             }
             solc::ast::Statement::Return(ret) => {
                 if let Some(ref expr) = ret.expression {
-                    self.collect_calls_from_expression(expr, by_id, visited, nodes)?;
+                    self.collect_calls_from_expression(expr, functions, loaded, visited, nodes)?;
                 }
             }
             solc::ast::Statement::VariableDeclarationStatement(vds) => {
                 if let Some(ref expr) = vds.initial_value {
-                    self.collect_calls_from_expression(expr, by_id, visited, nodes)?;
+                    self.collect_calls_from_expression(expr, functions, loaded, visited, nodes)?;
                 }
             }
             _ => {}
@@ -281,7 +371,8 @@ impl CallGraphResolver {
     fn collect_calls_from_expression(
         &self,
         expr: &Expression,
-        by_id: &HashMap<i64, &FunctionInfo>,
+        functions: &mut HashMap<i64, FunctionInfo>,
+        loaded: &mut HashSet<PathBuf>,
         visited: &mut HashSet<i64>,
         nodes: &mut Vec<CallGraphNode>,
     ) -> Result<()> {
@@ -295,60 +386,104 @@ impl CallGraphResolver {
                     }
                     _ => None,
                 };
-                if let Some(fi) = called_func_id.and_then(|id| by_id.get(&id)) {
-                    let node = self.build_call_node(fi, by_id, visited)?;
-                    nodes.push(node);
+                // checkrs: allow(nested_if_let)
+                if let Some(id) = called_func_id {
+                    self.ensure_function_loaded(id, functions, loaded)?;
+                    if functions.contains_key(&id) {
+                        let node = self.build_call_node(id, functions, loaded, visited)?;
+                        nodes.push(node);
+                    }
                 }
                 for arg in &fc.arguments {
-                    self.collect_calls_from_expression(arg, by_id, visited, nodes)?;
+                    self.collect_calls_from_expression(arg, functions, loaded, visited, nodes)?;
                 }
                 if let FunctionCallExpression::FunctionCallOptions(fco) = &*fc.expression {
                     for opt in &fco.options {
-                        self.collect_calls_from_expression(opt, by_id, visited, nodes)?;
+                        self.collect_calls_from_expression(opt, functions, loaded, visited, nodes)?;
                     }
                 }
             }
             Expression::Assignment(assign) => {
-                self.collect_calls_from_expression(&assign.right_hand_side, by_id, visited, nodes)?;
-                self.collect_calls_from_expression(&assign.left_hand_side, by_id, visited, nodes)?;
+                self.collect_calls_from_expression(
+                    &assign.right_hand_side,
+                    functions,
+                    loaded,
+                    visited,
+                    nodes,
+                )?;
+                self.collect_calls_from_expression(
+                    &assign.left_hand_side,
+                    functions,
+                    loaded,
+                    visited,
+                    nodes,
+                )?;
             }
             Expression::MemberAccess(ma) => {
-                self.collect_calls_from_expression(&ma.expression, by_id, visited, nodes)?;
+                self.collect_calls_from_expression(
+                    &ma.expression,
+                    functions,
+                    loaded,
+                    visited,
+                    nodes,
+                )?;
             }
             Expression::BinaryOperation(binop) => {
-                self.collect_calls_from_expression(&binop.left_expression, by_id, visited, nodes)?;
-                self.collect_calls_from_expression(&binop.right_expression, by_id, visited, nodes)?;
+                self.collect_calls_from_expression(
+                    &binop.left_expression,
+                    functions,
+                    loaded,
+                    visited,
+                    nodes,
+                )?;
+                self.collect_calls_from_expression(
+                    &binop.right_expression,
+                    functions,
+                    loaded,
+                    visited,
+                    nodes,
+                )?;
             }
             Expression::UnaryOperation(unop) => {
-                self.collect_calls_from_expression(&unop.sub_expression, by_id, visited, nodes)?;
+                self.collect_calls_from_expression(
+                    &unop.sub_expression,
+                    functions,
+                    loaded,
+                    visited,
+                    nodes,
+                )?;
             }
             Expression::Conditional(cond) => {
-                self.collect_calls_from_expression(&cond.condition, by_id, visited, nodes)?;
-                self.collect_calls_from_expression(&cond.true_expression, by_id, visited, nodes)?;
-                self.collect_calls_from_expression(&cond.false_expression, by_id, visited, nodes)?;
+                self.collect_calls_from_expression(
+                    &cond.condition,
+                    functions,
+                    loaded,
+                    visited,
+                    nodes,
+                )?;
+                self.collect_calls_from_expression(
+                    &cond.true_expression,
+                    functions,
+                    loaded,
+                    visited,
+                    nodes,
+                )?;
+                self.collect_calls_from_expression(
+                    &cond.false_expression,
+                    functions,
+                    loaded,
+                    visited,
+                    nodes,
+                )?;
             }
             Expression::TupleExpression(tuple) => {
                 for expr in tuple.components.iter().flatten() {
-                    self.collect_calls_from_expression(expr, by_id, visited, nodes)?;
+                    self.collect_calls_from_expression(expr, functions, loaded, visited, nodes)?;
                 }
             }
             _ => {}
         }
         Ok(())
-    }
-
-    /// Load all function definitions from all artifacts into a vector.
-    /// Results are cached in `function_infos`. Parse errors for individual
-    /// artifacts are silently skipped.
-    fn ensure_function_infos(&self) -> &Vec<FunctionInfo> {
-        self.function_infos.get_or_init(|| {
-            let entries: Vec<&ArtifactEntry> = self.artifact_index.values().flatten().collect();
-            entries
-                .par_iter()
-                .filter_map(|e| process_artifact_for_functions(&e.path).ok().flatten())
-                .flatten()
-                .collect()
-        })
     }
 }
 
