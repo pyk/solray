@@ -16,7 +16,7 @@ use anyhow::Result;
 use rayon::prelude::*;
 use serde::Deserialize;
 
-use crate::artifact_index::{ArtifactEntry, ArtifactIndex};
+use crate::artifact_index::ArtifactIndex;
 
 /// An entry in the function index: the artifact path and source file for a
 /// function definition identified by its Solc AST node ID.
@@ -53,19 +53,22 @@ impl FunctionIndex {
     /// from the same source file are deduplicated.
     #[tracing::instrument(skip_all)]
     pub fn build(artifact_index: &ArtifactIndex) -> Self {
-        let entries: Vec<&ArtifactEntry> = artifact_index.all_entries().collect();
-        tracing::trace!(total_entries = entries.len(), "building function index");
+        let artifact_paths: Vec<&PathBuf> = artifact_index.all_entries().collect();
+        tracing::trace!(
+            total_entries = artifact_paths.len(),
+            "building function index"
+        );
 
         // Parallel scan: extract (source, artifact_path, ids) from all
         // artifacts concurrently. No Mutex needed since each task produces
         // independent results.
-        let scanned: Vec<ArtifactScan> = entries
+        let scanned: Vec<ArtifactScan> = artifact_paths
             .par_iter()
-            .filter_map(|entry| {
-                let (source, ids) = scan_artifact_ids(&entry.path).ok()??;
+            .filter_map(|artifact_path| {
+                let (source, ids) = scan_artifact_ids(artifact_path).ok()??;
                 Some(ArtifactScan {
                     source,
-                    artifact_path: entry.path.to_path_buf(),
+                    artifact_path: artifact_path.to_path_buf(),
                     ids,
                 })
             })

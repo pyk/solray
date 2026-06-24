@@ -15,7 +15,7 @@ use solc::ast::{
     TypeName,
 };
 
-use crate::artifact_index::{ArtifactEntry, ArtifactIndex};
+use crate::artifact_index::ArtifactIndex;
 use crate::build_info::BuildInfo;
 use crate::call_graph::FunctionID;
 use crate::project::Project;
@@ -79,19 +79,18 @@ impl SourceResolver {
         let fid = FunctionID::try_from(function_id)?;
 
         // Detect contract-level ambiguity.
-        let entries = self.artifact_index.try_get(fid.contract_name())?;
+        let artifact_paths = self.artifact_index.try_get(fid.contract_name())?;
 
-        if entries.len() > 1 {
+        if artifact_paths.len() > 1 {
             let mut msg = format!(
                 "found {} \"{}\"\n\nSelect one of the following:\n",
-                entries.len(),
+                artifact_paths.len(),
                 fid.contract_name()
             );
-            for entry in &entries {
-                let rp = entry
-                    .path
+            for artifact_path in &artifact_paths {
+                let rp = artifact_path
                     .strip_prefix(self.project.path())
-                    .unwrap_or(&entry.path)
+                    .unwrap_or(artifact_path)
                     .to_string_lossy();
                 msg.push_str(&format!("\nhawk inspect sources {}:{}", rp, fid));
             }
@@ -100,7 +99,7 @@ impl SourceResolver {
         }
 
         // Find the target function and its source location.
-        let root_symbol = self.find_function(&fid, &entries)?;
+        let root_symbol = self.find_function(&fid, &artifact_paths)?;
 
         // Recursively resolve all referenced declarations.
         let resolved = self.resolve_recursive(root_symbol)?;
@@ -110,7 +109,11 @@ impl SourceResolver {
     }
 
     /// Find a function across artifacts and return its ResolvedSymbol.
-    fn find_function(&self, fid: &FunctionID, entries: &[ArtifactEntry]) -> Result<ResolvedSymbol> {
+    fn find_function(
+        &self,
+        fid: &FunctionID,
+        artifact_paths: &[PathBuf],
+    ) -> Result<ResolvedSymbol> {
         let fn_name = fid.function_name();
         let (base_name, is_exact) = if let Some(pos) = fn_name.find('(') {
             (&fn_name[..pos], true)
@@ -119,8 +122,8 @@ impl SourceResolver {
         };
 
         let mut functions: HashMap<String, ResolvedSymbol> = HashMap::new();
-        for entry in entries {
-            let parsed = parse_artifact(&entry.path)?;
+        for artifact_path in artifact_paths {
+            let parsed = parse_artifact(artifact_path)?;
             if let Some(ast) = parsed {
                 extract_function_symbols(&ast, fid.contract_name(), base_name, &mut functions);
             }
@@ -128,8 +131,8 @@ impl SourceResolver {
 
         if functions.is_empty() {
             let mut all_fns: Vec<String> = Vec::new();
-            for entry in entries {
-                let parsed = parse_artifact(&entry.path)?;
+            for artifact_path in artifact_paths {
+                let parsed = parse_artifact(artifact_path)?;
                 if let Some(ast) = parsed {
                     collect_contract_functions(&ast, fid.contract_name(), &mut all_fns);
                 }
@@ -332,13 +335,13 @@ fn find_artifact_for_source(
             return Some(info.artifact_path.clone()); // checkrs: allow(clone_in_loops)
         }
     }
-    for entries in artifact_index.values() {
-        for entry in entries {
-            if let Some(parent) = entry.path.parent().and_then(|p| p.file_stem())
+    for artifact_paths in artifact_index.values() {
+        for artifact_path in artifact_paths {
+            if let Some(parent) = artifact_path.parent().and_then(|p| p.file_stem())
                 && let Some(stem) = source_file.file_stem()
                 && parent == stem
             {
-                return Some(entry.path.clone()); // checkrs: allow(clone_in_loops)
+                return Some(artifact_path.clone()); // checkrs: allow(clone_in_loops)
             }
         }
     }

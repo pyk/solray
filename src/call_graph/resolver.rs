@@ -91,19 +91,18 @@ impl CallGraphResolver {
         tracing::trace!(?function_id);
 
         // Detect contract-level ambiguity from the artifact index.
-        if let Ok(entries) = self.artifact_index.try_get(fid.contract_name())
-            && entries.len() > 1
+        if let Ok(artifact_paths) = self.artifact_index.try_get(fid.contract_name())
+            && artifact_paths.len() > 1
         {
             let mut msg = format!(
                 "found {} \"{}\"\n\nSelect one of the following:\n",
-                entries.len(),
+                artifact_paths.len(),
                 fid.contract_name()
             );
-            for entry in &entries {
-                let rp = entry
-                    .path
+            for artifact_path in &artifact_paths {
+                let rp = artifact_path
                     .strip_prefix(self.project.path())
-                    .unwrap_or(&entry.path)
+                    .unwrap_or(artifact_path)
                     .to_string_lossy();
                 msg.push_str(&format!("\nhawk inspect calls {}:{}", rp, fid));
             }
@@ -112,10 +111,10 @@ impl CallGraphResolver {
         }
 
         // Parse the target contract's artifacts to get initial functions.
-        let entries = self.artifact_index.try_get(fid.contract_name())?;
+        let artifact_paths = self.artifact_index.try_get(fid.contract_name())?;
         let mut functions: HashMap<i64, FunctionInfo> = HashMap::new();
-        for entry in &entries {
-            self.load_artifact(&entry.path, &mut functions)?;
+        for artifact_path in &artifact_paths {
+            self.load_artifact(artifact_path, &mut functions)?;
         }
 
         // Find the target function, deduplicating across source files.

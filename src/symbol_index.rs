@@ -17,7 +17,7 @@ use anyhow::Result;
 use rayon::prelude::*;
 use serde::Deserialize;
 
-use crate::artifact_index::{ArtifactEntry, ArtifactIndex};
+use crate::artifact_index::ArtifactIndex;
 
 /// Shared metadata for all declarations from the same artifact.
 #[derive(Debug, Clone)]
@@ -96,15 +96,15 @@ impl SymbolIndex {
     /// `build_infos` is used to scope each declaration to its compilation unit,
     /// preventing ID collisions across incremental builds.
     pub fn build(artifact_index: &ArtifactIndex, build_infos: &[BuildInfo]) -> Self {
-        let entries: Vec<&ArtifactEntry> = artifact_index.all_entries().collect();
+        let artifact_paths: Vec<&PathBuf> = artifact_index.all_entries().collect();
 
-        let scanned: Vec<ArtifactScan> = entries
+        let scanned: Vec<ArtifactScan> = artifact_paths
             .par_iter()
-            .filter_map(|entry| {
-                let result = scan_artifact_ids(&entry.path).ok()??;
+            .filter_map(|artifact_path| {
+                let result = scan_artifact_ids(artifact_path).ok()??;
                 Some(ArtifactScan {
                     source: result.source,
-                    artifact_path: entry.path.to_path_buf(),
+                    artifact_path: artifact_path.to_path_buf(),
                     ids: result.ids,
                     first_file_index: result.first_file_index,
                 })
