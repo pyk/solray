@@ -18,8 +18,8 @@ use solc::ast::{
 };
 
 use crate::artifact_index::ArtifactIndex;
+use crate::call_graph::FunctionIndex;
 use crate::call_graph::{FunctionID, node::CallGraphNode};
-use crate::function_index::FunctionIndex;
 use crate::project::Project;
 
 /// Function information extracted from an artifact AST for call graph resolution.
