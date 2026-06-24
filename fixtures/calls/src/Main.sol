@@ -29,4 +29,8 @@ contract Main is Base {
     function readOnly() public view returns (uint256) {
         return data + baseValue;
     }
+
+    function callViaInterface() public {
+        IHelper(address(helper)).doWork();
+    }
 }

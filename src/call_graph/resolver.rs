@@ -566,9 +566,11 @@ fn extract_contract_functions(
             let ContractDefinitionNode::FunctionDefinition(fd) = inner else {
                 return None;
             };
-            if !fd.implemented {
-                return None;
-            }
+            // Include all function definitions, including interface
+            // functions (implemented = false). Interface functions have
+            // no body, so they become leaf nodes in the call graph,
+            // which is correct for external calls through interface
+            // casts (e.g. IHelper(address(h)).doWork()).
             Some(FunctionInfo {
                 id: fd.id,
                 name: fd.name.clone(),
@@ -654,5 +656,21 @@ mod tests {
             .to_string();
         assert!(err.contains("found 2 \"Dupe\""));
         assert!(err.contains("hawk inspect calls"));
+    }
+
+    // Regression test: calls through interface casts (e.g. IHelper(address(h)).doWork())
+    // must appear in the resolved call graph. Previously, interface functions were not
+    // indexed because they have `implemented = false`, causing the resolver to silently
+    // drop them.
+    #[test]
+    fn call_graph_for_interface_call() {
+        let resolver = CallGraphResolver::new(fixture_project());
+        let node = resolver.resolve("Main::callViaInterface").unwrap();
+        let output = node.to_string();
+        let expected = concat!(
+            "Main::callViaInterface() (public)\n",
+            "\u{2514}\u{2500}\u{2500} IHelper::doWork() (external)\n",
+        );
+        assert_eq!(output, expected);
     }
 }

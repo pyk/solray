@@ -125,16 +125,13 @@ impl std::ops::Deref for FunctionIndex {
 
 // ---- Lightweight ID extraction ----
 
-/// Minimal node: captures only `nodeType`, `id`, and `implemented` from any
-/// AST node. All Solc AST nodes have `nodeType` and `id`. Only
-/// `FunctionDefinition` nodes have `implemented`.
+/// Minimal node: captures `nodeType` and `id` from any AST node.
+/// All Solc AST nodes have `nodeType` and `id`.
 #[derive(Deserialize)]
 struct IdNode {
     #[serde(rename = "nodeType")]
     node_type: String,
     id: i64,
-    #[serde(default)]
-    implemented: Option<bool>,
 }
 
 /// Minimal contract node: captures child nodes only.
@@ -180,7 +177,7 @@ fn scan_artifact_ids(path: impl AsRef<Path>) -> Result<Option<(PathBuf, Vec<i64>
     let mut ids = Vec::new();
     for contract in &su.nodes {
         for node in &contract.nodes {
-            if node.node_type == "FunctionDefinition" && node.implemented == Some(true) {
+            if node.node_type == "FunctionDefinition" {
                 ids.push(node.id);
             }
         }
@@ -224,7 +221,6 @@ mod tests {
         let path = fixture_path().join("out/Main.sol/Main.json");
         let result = scan_artifact_ids(&path).unwrap().unwrap();
         let (_source, ids) = result;
-        assert!(ids.contains(&27)); // baseWork
-        assert!(ids.contains(&54)); // execute
+        assert_eq!(ids, &[41, 68, 79, 89, 102]);
     }
 }
