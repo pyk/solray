@@ -17,5 +17,13 @@ tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 # Solidity compiler bindings
 solc = "0.0.11"
 
+# JSON & TOML
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.148"
+toml = "1.1.2"
+
 # Parallel processing
 rayon = "1.12"
+
+# Path traversal
+walkdir = "2"
