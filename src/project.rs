@@ -71,17 +71,26 @@ struct Artifact {
 }
 
 impl Project {
-    /// Open the Foundry project at `path`.
+    /// Create a [`Project`] handle for the Foundry project at `path`.
     ///
-    /// Looks for `foundry.toml` to locate the project root and validates
-    /// that `ast = true` is set in the default profile.
-    ///
-    /// Requires artifacts to have been built with `forge build`.
-    pub fn open(path: impl AsRef<Path>) -> Result<Self> {
+    /// This simply records the project path and the expected `out/` directory.
+    /// Call [`validate`](Self::validate) to check that the project is properly
+    /// configured (e.g. `foundry.toml` exists and `ast = true` is set).
+    pub fn open(path: impl AsRef<Path>) -> Self {
         let path = path.as_ref().to_path_buf();
-        let foundry_toml = path.join("foundry.toml");
+        let out = path.join("out");
+        Project { path, out }
+    }
 
-        anyhow::ensure!(
+    /// Validate that the project at [`self.path`](Self::path) is a properly
+    /// configured Foundry project.
+    ///
+    /// Checks that `foundry.toml` exists and that `ast = true` is set in the
+    /// default profile. This ensures artifacts can be inspected.
+    pub fn validate(&self) -> Result<()> {
+        let foundry_toml = self.path.join("foundry.toml");
+
+        ensure!(
             foundry_toml.exists(),
             "not a Foundry project: {} not found",
             foundry_toml.display()
@@ -95,14 +104,13 @@ impl Project {
             .and_then(|d| d.get("ast"))
             .and_then(|a| a.as_bool());
 
-        anyhow::ensure!(
+        ensure!(
             ast == Some(true),
             "`ast = true` must be set in the [profile.default] section of {}",
             foundry_toml.display()
         );
 
-        let out = path.join("out");
-        Ok(Project { path, out })
+        Ok(())
     }
 
     /// Return the project root path.
@@ -274,7 +282,7 @@ impl Project {
 
         let decls = self.find_declarations_by_name(contract_name)?;
 
-        anyhow::ensure!(!decls.is_empty(), "\"{}\" not found.", contract_name);
+        ensure!(!decls.is_empty(), "\"{}\" not found.", contract_name);
 
         // Build the global function info map.
         let func_infos = self.load_function_infos()?;

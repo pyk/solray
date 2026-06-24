@@ -20,7 +20,8 @@ use crate::project::Project;
 /// user-friendly message when the declaration is not found, or when
 /// multiple declarations share the same name.
 pub fn run(decl: &str, path: impl AsRef<Path>) -> Result<String> {
-    let project = Project::open(path)?;
+    let project = Project::open(path);
+    project.validate()?;
     let project_root = project.path().to_path_buf();
 
     let (name, maybe_file) = parse_decl(decl);

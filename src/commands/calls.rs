@@ -16,7 +16,8 @@ use crate::project::Project;
 ///
 /// `function_id` should be in the format `Contract::function`.
 pub fn run(project_path: impl AsRef<Path>, function_id: &str) -> Result<String> {
-    let project = Project::open(project_path.as_ref())?;
+    let project = Project::open(project_path.as_ref());
+    project.validate()?;
     let loader = CallGraphLoader::new(project.path(), project.out_dir());
     let node = loader.call_graph(function_id)?;
     format_output(node, project.path())

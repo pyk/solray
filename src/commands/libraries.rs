@@ -14,7 +14,8 @@ use crate::project::Project;
 /// Returns each library as `"file:name"` where `file` is relative to the
 /// project root (as recorded in the AST).
 pub fn list(path: impl AsRef<Path>) -> Result<Vec<String>> {
-    let project = Project::open(path)?;
+    let project = Project::open(path);
+    project.validate()?;
     let declarations = project.libraries()?;
     let lines: Vec<String> = declarations
         .iter()
