@@ -4,3 +4,18 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# Error handling
+anyhow = "1.0.100"
+
+# CLI
+clap = { version="4.5.54", features = ["derive"] }
+
+# Logging & Tracing
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+
+# Solidity compiler bindings
+solc = "0.0.11"
+
+# Parallel processing
+rayon = "1.12"
