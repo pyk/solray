@@ -6,7 +6,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "hawk", about = "Inspect Foundry projects")]
+#[command(name = "hawk", about = "Inspect Foundry projects", version)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -175,4 +175,17 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use clap::CommandFactory;
+
+    use super::Cli;
+
+    #[test]
+    fn version_comes_from_cargo_package_version() {
+        let expected = format!("hawk {}\n", env!("CARGO_PKG_VERSION"));
+        assert_eq!(Cli::command().render_version(), expected);
+    }
 }
