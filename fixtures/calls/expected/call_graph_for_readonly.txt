@@ -1,1 +1,7 @@
+Call graph:
+
 Main::readOnly() (public)
+
+Resolved from 1 sources:
+
+1. fixtures/calls/src/Main.sol#L29-L31

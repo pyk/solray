@@ -38,6 +38,7 @@ impl EntrypointsResolver {
 
     /// Resolve a deployable contract and return the formatted entrypoint list.
     pub fn resolve(&self, deployable: &str) -> Result<String> {
+        self.project.validate()?;
         let project_root_abs = std::path::absolute(self.project.path())?;
         let (name, maybe_file) = parse_target(deployable);
         let deployables = self.project.deployable_contracts()?;

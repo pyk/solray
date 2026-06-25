@@ -1,2 +1,9 @@
+Call graph:
+
 Main::callViaInterface() (public)
 └── IHelper::doWork() (external)
+
+Resolved from 2 sources:
+
+1. fixtures/calls/src/Main.sol#L33-L35
+2. fixtures/calls/src/Helper.sol#L5

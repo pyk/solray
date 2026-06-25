@@ -18,8 +18,7 @@ use solc::ast::{
 };
 
 use crate::artifact_index::ArtifactIndex;
-use crate::call_graph::FunctionIndex;
-use crate::call_graph::{FunctionID, node::CallGraphNode};
+use crate::call_graph::{CallGraphNode, FunctionID, FunctionIndex, ResolvedCallGraph};
 use crate::project::Project;
 
 /// Function information extracted from an artifact AST for call graph resolution.
@@ -80,13 +79,13 @@ impl CallGraphResolver {
         self.project.path()
     }
 
-    /// Resolve a `Contract::function` ID and return its call graph.
+    /// Resolve a `Contract::function` ID and return a resolved call graph.
     ///
     /// Parses only the artifacts needed to traverse the call graph,
     /// using the [`FunctionIndex`] for O(1) lookups from callee IDs
     /// to artifact paths.
     #[tracing::instrument(skip(self))]
-    pub fn resolve(&self, function_id: &str) -> Result<CallGraphNode> {
+    pub fn resolve(&self, function_id: &str) -> Result<ResolvedCallGraph> {
         let fid = FunctionID::try_from(function_id)?;
         tracing::trace!(?function_id);
 
@@ -157,7 +156,11 @@ impl CallGraphResolver {
         let target_id = target[0].id;
 
         let mut visited: HashSet<i64> = HashSet::new();
-        self.build_call_node(target_id, &mut functions, &mut visited)
+        let node = self.build_call_node(target_id, &mut functions, &mut visited)?;
+        Ok(ResolvedCallGraph::new(
+            node,
+            self.project.path().to_path_buf(),
+        ))
     }
 
     /// Parse a single artifact and insert its functions into the map.
@@ -656,8 +659,7 @@ mod tests {
     #[test]
     fn call_graph_for_readonly() {
         let resolver = CallGraphResolver::new(fixture_project());
-        let node = resolver.resolve("Main::readOnly").unwrap();
-        let output = node.to_string();
+        let output = resolver.resolve("Main::readOnly").unwrap().to_string();
         assert_eq!(
             output,
             include_str!("../../fixtures/calls/expected/call_graph_for_readonly.txt")
@@ -667,8 +669,7 @@ mod tests {
     #[test]
     fn call_graph_for_execute() {
         let resolver = CallGraphResolver::new(fixture_project());
-        let node = resolver.resolve("Main::execute").unwrap();
-        let output = node.to_string();
+        let output = resolver.resolve("Main::execute").unwrap().to_string();
         assert_eq!(
             output,
             include_str!("../../fixtures/calls/expected/call_graph_for_execute.txt")
@@ -727,8 +728,10 @@ mod tests {
     #[test]
     fn call_graph_for_interface_call() {
         let resolver = CallGraphResolver::new(fixture_project());
-        let node = resolver.resolve("Main::callViaInterface").unwrap();
-        let output = node.to_string();
+        let output = resolver
+            .resolve("Main::callViaInterface")
+            .unwrap()
+            .to_string();
         assert_eq!(
             output,
             include_str!("../../fixtures/calls/expected/call_graph_for_interface_call.txt")
@@ -743,8 +746,10 @@ mod tests {
     #[test]
     fn call_graph_includes_low_level_call() {
         let resolver = CallGraphResolver::new(fixture_project());
-        let node = resolver.resolve("LowLevelCaller::callWithPayload").unwrap();
-        let output = node.to_string();
+        let output = resolver
+            .resolve("LowLevelCaller::callWithPayload")
+            .unwrap()
+            .to_string();
         assert_eq!(
             output,
             include_str!("../../fixtures/calls/expected/call_graph_includes_low_level_call.txt")
