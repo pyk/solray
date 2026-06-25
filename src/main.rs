@@ -85,6 +85,14 @@ enum InspectSubcommand {
         #[arg(long, default_value = ".")]
         project: PathBuf,
     },
+    /// List all storage entries exposed by a deployable contract
+    Storages {
+        /// The deployable contract name
+        deployable: String,
+        /// Path to the Foundry project
+        #[arg(long, default_value = ".")]
+        project: PathBuf,
+    },
 }
 
 /// Print items with a header and numbered list.
@@ -154,6 +162,13 @@ fn main() -> Result<()> {
                 project,
             } => {
                 let output = hawk::commands::sources::run(&project, &function_id)?;
+                print!("{output}");
+            }
+            InspectSubcommand::Storages {
+                deployable,
+                project,
+            } => {
+                let output = hawk::commands::storages::run(&deployable, &project)?;
                 print!("{output}");
             }
         },

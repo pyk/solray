@@ -93,6 +93,34 @@ impl Project {
         Ok(())
     }
 
+    /// Validate that `storageLayout` is enabled for the default profile.
+    pub fn validate_storage_layout(&self) -> Result<()> {
+        self.validate()?;
+
+        let foundry_toml = self.path.join("foundry.toml");
+        let config: toml::Value = toml::from_str(&fs::read_to_string(&foundry_toml)?)?;
+
+        let storage_layout = config
+            .get("profile")
+            .and_then(|p| p.get("default"))
+            .and_then(|d| d.get("extra_output"))
+            .and_then(|extra_output| extra_output.as_array());
+        let storage_layout_enabled = match storage_layout {
+            Some(extra_output) => extra_output
+                .iter()
+                .any(|value| value.as_str() == Some("storageLayout")),
+            None => false,
+        };
+
+        ensure!(
+            storage_layout_enabled,
+            "`storageLayout` must be set in the [profile.default].extra_output section of {}",
+            foundry_toml.display()
+        );
+
+        Ok(())
+    }
+
     /// Return the project root path.
     pub fn path(&self) -> &Path {
         &self.path

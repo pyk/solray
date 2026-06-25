@@ -8,3 +8,4 @@ pub mod inheritances;
 pub mod interfaces;
 pub mod libraries;
 pub mod sources;
+pub mod storages;
