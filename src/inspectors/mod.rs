@@ -4,6 +4,7 @@ pub mod r#abstract;
 pub mod artifact_id;
 pub mod contract;
 pub mod external_function;
+pub mod function_source;
 pub mod inheritance_graph;
 pub mod interface;
 pub mod library;

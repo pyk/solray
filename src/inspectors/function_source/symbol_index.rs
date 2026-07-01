@@ -339,6 +339,9 @@ mod tests {
 
     use super::*;
 
+    use crate::artifact_index::ArtifactIndex;
+    use crate::build_info::BuildInfo;
+
     fn fixture_path() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/sources")
     }

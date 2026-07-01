@@ -8,6 +8,7 @@ use hawk::AbstractInspector;
 use hawk::ArtifactId;
 use hawk::ContractInspector;
 use hawk::ExternalFunctionInspector;
+use hawk::FunctionSourceInspector;
 use hawk::InheritanceGraphInspector;
 use hawk::InterfaceInspector;
 use hawk::LibraryInspector;
@@ -88,9 +89,11 @@ enum InspectSubcommand {
         project: PathBuf,
     },
     /// Show the complete resolved source code of a function
-    Sources {
-        /// The function ID (e.g. Contract::function)
-        function_id: String,
+    FunctionSource {
+        /// The artifact ID (e.g. Name or File.sol:Name)
+        contract: String,
+        /// The function name
+        function: String,
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
@@ -164,11 +167,15 @@ fn main() -> Result<()> {
                 let output = inspector.inspect()?;
                 print!("{output}");
             }
-            InspectSubcommand::Sources {
-                function_id,
+            InspectSubcommand::FunctionSource {
+                contract,
+                function,
                 project,
             } => {
-                let output = hawk::commands::sources::run(&project, &function_id)?;
+                let project = Project::open(&project);
+                let inspector = FunctionSourceInspector::inspect_project(project);
+                let id = ArtifactId::new(&contract);
+                let output = inspector.inspect(&id, &function)?;
                 print!("{output}");
             }
             InspectSubcommand::StorageLayout { id, project } => {

@@ -1,14 +1,13 @@
-//! Complete source code resolution for Solidity functions.
+//! Function source inspection for Foundry projects.
 //!
-//! [`SourceResolver`] resolves a function by its `Contract::function` ID and emits
-//! the full source code of the function together with every declaration it references,
-//! recursively. Natspec comments are preserved for each declaration.
+//! [`FunctionSourceInspector`] resolves the complete source code for a
+//! function and all symbols it references, recursively.
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use solc::ast::{
     ContractDefinitionNode, Expression, FunctionCallExpression, SourceUnit, SourceUnitNode,
@@ -18,12 +17,16 @@ use solc::ast::{
 use crate::artifact_index::ArtifactIndex;
 use crate::build_info::BuildInfo;
 use crate::call_graph::FunctionID;
+use crate::inspectors::artifact_id::ArtifactId;
 use crate::project::Project;
-use crate::symbol_index::SymbolIndex;
+
+use crate::inspectors::function_source::symbol_index::SymbolIndex;
+
+pub mod symbol_index;
 
 /// A resolved declaration with its source code and metadata.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct ResolvedSymbol {
+pub struct ResolvedSymbol {
     /// Human-readable signature, e.g. `execute(uint256)` or `Data`
     symbol: String,
     /// The source file path
@@ -32,12 +35,6 @@ struct ResolvedSymbol {
     offset: usize,
     /// Byte length of the definition
     length: usize,
-}
-
-/// Minimal artifact wrapper for extracting the full AST.
-#[derive(Deserialize)]
-struct Artifact {
-    ast: Option<SourceUnit>,
 }
 
 /// Context passed through reference-collection to resolve IDs against the AST.
@@ -49,16 +46,91 @@ struct RefCtx<'a> {
     build_info_id: &'a str,
 }
 
-/// Resolves the complete source code for a function and all symbols it references.
-pub struct SourceResolver {
+/// The output of a [`FunctionSourceInspector`] inspection.
+#[derive(Debug)]
+pub struct FunctionSourceInspectorOutput {
+    symbols: Vec<ResolvedSymbol>,
+    project_path: PathBuf,
+}
+
+impl FunctionSourceInspectorOutput {
+    /// Create a new [`FunctionSourceInspectorOutput`] from resolved symbols.
+    pub fn new(symbols: Vec<ResolvedSymbol>, project_path: impl AsRef<Path>) -> Self {
+        Self {
+            symbols,
+            project_path: project_path.as_ref().to_path_buf(),
+        }
+    }
+}
+
+impl std::fmt::Display for FunctionSourceInspectorOutput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let project_abs =
+            std::path::absolute(&self.project_path).unwrap_or(self.project_path.clone());
+        let mut file_contents: HashMap<PathBuf, String> = HashMap::new();
+
+        for symbol in &self.symbols {
+            let full_path = project_abs.join(&symbol.file);
+            let rel_path = full_path.strip_prefix(&cwd).unwrap_or(&full_path);
+
+            let content = if let Some(c) = file_contents.get(&symbol.file) {
+                c.clone() // checkrs: allow(clone_in_loops)
+            } else {
+                let Ok(c) = fs::read_to_string(&full_path) else {
+                    writeln!(f, "// symbol: {}", symbol.symbol)?;
+                    writeln!(f, "// path: {} (unable to read)\n\n", rel_path.display())?;
+                    continue;
+                };
+                file_contents.insert(symbol.file.clone(), c.clone()); // checkrs: allow(clone_in_loops)
+                c
+            };
+
+            let line_offsets = build_line_offsets(&content);
+            let start_line = byte_offset_to_line(symbol.offset, &line_offsets);
+            let end_line = byte_offset_to_line(
+                symbol
+                    .offset
+                    .saturating_add(symbol.length)
+                    .saturating_sub(1),
+                &line_offsets,
+            );
+
+            let natspec = extract_natspec(&content, symbol.offset);
+            let source_text = &content[symbol.offset..symbol.offset + symbol.length];
+
+            let base = base_indent(&content, symbol.offset);
+            let natspec = dedent(&natspec, base);
+            let source_text = dedent(source_text, base);
+
+            writeln!(f, "// symbol: {}", symbol.symbol)?;
+            write!(
+                f,
+                "// path: {}#L{}-L{}\n\n",
+                rel_path.display(),
+                start_line,
+                end_line
+            )?;
+            if !natspec.is_empty() {
+                write!(f, "{}", natspec)?;
+            }
+            write!(f, "{}\n\n", source_text)?;
+        }
+
+        Ok(())
+    }
+}
+
+/// Inspect the complete source code of a Solidity function.
+pub struct FunctionSourceInspector {
     project: Project,
     artifact_index: ArtifactIndex,
     symbol_index: SymbolIndex,
 }
 
-impl SourceResolver {
-    /// Build a [`SourceResolver`] for the given project.
-    pub fn new(project: Project) -> Self {
+impl FunctionSourceInspector {
+    /// Build a [`FunctionSourceInspector`] for the given project.
+    pub fn inspect_project(project: Project) -> Self {
         let artifact_index = ArtifactIndex::build(project.out_dir());
         let build_infos = BuildInfo::load_all(project.out_dir());
         let symbol_index = SymbolIndex::build(&artifact_index, &build_infos);
@@ -69,45 +141,70 @@ impl SourceResolver {
         }
     }
 
-    /// Return the project root path.
-    pub fn project_path(&self) -> &Path {
-        self.project.path()
-    }
-
-    /// Resolve a `Contract::function` ID and return the formatted source output.
-    pub fn resolve(&self, function_id: &str) -> Result<String> {
-        let fid = FunctionID::try_from(function_id)?;
-
-        // Detect contract-level ambiguity.
-        let artifact_paths = self.artifact_index.try_get(fid.contract_name())?;
-
-        if artifact_paths.len() > 1 {
-            let mut msg = format!(
-                "found {} \"{}\"\n\nSelect one of the following:\n",
-                artifact_paths.len(),
-                fid.contract_name()
-            );
-            for artifact_path in &artifact_paths {
-                let rp = artifact_path
-                    .strip_prefix(self.project.path())
-                    .unwrap_or(artifact_path)
-                    .to_string_lossy();
-                msg.push_str(&format!("\nhawk inspect sources {}:{}", rp, fid));
+    /// Inspect the source code for the given artifact ID and function name.
+    pub fn inspect(
+        &self,
+        id: &ArtifactId,
+        function_name: &str,
+    ) -> Result<FunctionSourceInspectorOutput> {
+        let artifact_paths = match &id.file {
+            Some(file) => {
+                let artifact_path = self
+                    .project
+                    .out_dir()
+                    .join(file)
+                    .join(format!("{}.json", id.name));
+                ensure!(artifact_path.exists(), "\"{}\" not found.", id.name);
+                vec![artifact_path]
             }
-            msg.push('\n');
-            bail!(msg);
-        }
+            None => {
+                let candidates = self
+                    .artifact_index
+                    .get(&id.name)
+                    .cloned()
+                    .unwrap_or_default();
+                match candidates.len() {
+                    0 => {
+                        bail!("\"{}\" not found.", id.name);
+                    }
+                    n if n > 1 => {
+                        let mut sorted = candidates;
+                        sorted.sort();
+                        let mut msg = format!(
+                            "found {} \"{}\"\n\nSelect one of the following:\n",
+                            n, id.name
+                        );
+                        for candidate in &sorted {
+                            let parent = candidate
+                                .parent()
+                                .and_then(|p| p.file_name())
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("");
+                            msg.push_str(&format!(
+                                "\nhawk inspect function-source {parent}:{id_name} {function_name}",
+                                id_name = id.name
+                            ));
+                        }
+                        msg.push('\n');
+                        bail!(msg);
+                    }
+                    _ => candidates,
+                }
+            }
+        };
 
-        // Find the target function and its source location.
+        let fid = FunctionID::try_from(format!("{}::{}", id.name, function_name).as_str())?;
         let root_symbol = self.find_function(&fid, &artifact_paths)?;
-
-        // Recursively resolve all referenced declarations.
         let resolved = self.resolve_recursive(root_symbol)?;
 
-        // Format output.
-        self.format_output(&resolved)
+        Ok(FunctionSourceInspectorOutput::new(
+            resolved,
+            self.project.path(),
+        ))
     }
+}
 
+impl FunctionSourceInspector {
     /// Find a function across artifacts and return its ResolvedSymbol.
     fn find_function(
         &self,
@@ -149,7 +246,6 @@ impl SourceResolver {
         }
 
         if is_exact {
-            // Filter to exactly matching signatures
             let target_sig = format!("{}::{}", fid.contract_name(), fn_name);
             let matched: Vec<&ResolvedSymbol> = functions
                 .values()
@@ -164,7 +260,11 @@ impl SourceResolver {
                 let mut sorted: Vec<&String> = functions.values().map(|s| &s.symbol).collect();
                 sorted.sort();
                 for sym in sorted {
-                    msg.push_str(&format!("\nhawk inspect sources \"{}\"", sym));
+                    msg.push_str(&format!(
+                        "\nhawk inspect function-source {} {}",
+                        fid.contract_name(),
+                        sym
+                    ));
                 }
                 msg.push('\n');
                 bail!(msg);
@@ -181,18 +281,20 @@ impl SourceResolver {
             let mut sorted: Vec<&String> = functions.values().map(|s| &s.symbol).collect();
             sorted.sort();
             for sym in sorted {
-                msg.push_str(&format!("\nhawk inspect sources \"{}\"", sym));
+                msg.push_str(&format!(
+                    "\nhawk inspect function-source {} {}",
+                    fid.contract_name(),
+                    sym
+                ));
             }
             msg.push('\n');
             bail!(msg);
         }
 
-        // We've already checked is_empty() and len() > 1, so exactly one entry remains.
-        let result = functions
+        functions
             .into_values()
             .next()
-            .context("internal error: function list is empty")?;
-        Ok(result)
+            .context("internal error: function list is empty")
     }
 
     /// Recursively resolve all referenced declarations.
@@ -200,8 +302,6 @@ impl SourceResolver {
         let mut resolved: Vec<ResolvedSymbol> = Vec::new();
         let mut seen: HashSet<(PathBuf, usize)> = HashSet::new();
         let mut queue: Vec<ResolvedSymbol> = vec![root];
-
-        // Cache for parsed artifacts: artifact_path -> SourceUnit
         let mut artifact_cache: HashMap<PathBuf, SourceUnit> = HashMap::new();
 
         while let Some(symbol) = queue.pop() {
@@ -210,7 +310,6 @@ impl SourceResolver {
                 continue;
             }
 
-            // Find the artifact for this source file, parse it, and collect refs.
             let artifact_path =
                 find_artifact_for_source(&symbol.file, &self.artifact_index, &self.symbol_index);
 
@@ -246,76 +345,21 @@ impl SourceResolver {
 
         Ok(resolved)
     }
-
-    fn format_output(&self, symbols: &[ResolvedSymbol]) -> Result<String> {
-        let cwd = std::env::current_dir()?;
-        let project_abs = std::path::absolute(self.project.path())?;
-        let mut output = String::new();
-        let mut file_contents: HashMap<PathBuf, String> = HashMap::new();
-
-        for symbol in symbols {
-            let full_path = project_abs.join(&symbol.file);
-            let rel_path = full_path.strip_prefix(&cwd).unwrap_or(&full_path);
-
-            let content = if let Some(c) = file_contents.get(&symbol.file) {
-                c.clone() // checkrs: allow(clone_in_loops)
-            } else {
-                let Ok(c) = fs::read_to_string(&full_path) else {
-                    output.push_str(&format!(
-                        "// symbol: {}\n// path: {} (unable to read)\n\n",
-                        symbol.symbol,
-                        rel_path.display()
-                    ));
-                    continue;
-                };
-                file_contents.insert(symbol.file.clone(), c.clone()); // checkrs: allow(clone_in_loops)
-                c
-            };
-
-            let line_offsets = build_line_offsets(&content);
-            let start_line = byte_offset_to_line(symbol.offset, &line_offsets);
-            let end_line = byte_offset_to_line(
-                symbol
-                    .offset
-                    .saturating_add(symbol.length)
-                    .saturating_sub(1),
-                &line_offsets,
-            );
-
-            let natspec = extract_natspec(&content, symbol.offset);
-            let source_text = &content[symbol.offset..symbol.offset + symbol.length];
-
-            // Compute the base indentation: the whitespace preceding the symbol
-            // in the source file. Strip it so the output is flush-left.
-            let base = base_indent(&content, symbol.offset);
-            let natspec = dedent(&natspec, base);
-            let source_text = dedent(source_text, base);
-
-            output.push_str(&format!("// symbol: {}\n", symbol.symbol));
-            output.push_str(&format!(
-                "// path: {}#L{}-L{}\n\n",
-                rel_path.display(),
-                start_line,
-                end_line
-            ));
-
-            if !natspec.is_empty() {
-                output.push_str(&natspec);
-            }
-
-            output.push_str(&source_text);
-            output.push_str("\n\n");
-        }
-
-        Ok(output)
-    }
 }
+
+// ===== Free functions for artifact parsing and source resolution =====
 
 /// Parse an artifact JSON file and return its AST.
 fn parse_artifact(path: impl AsRef<Path>) -> Result<Option<SourceUnit>> {
     let content = fs::read_to_string(path.as_ref())?;
     let artifact: Artifact = serde_json::from_str(&content)?;
     Ok(artifact.ast)
+}
+
+/// Minimal artifact wrapper for extracting the full AST.
+#[derive(Deserialize)]
+struct Artifact {
+    ast: Option<SourceUnit>,
 }
 
 /// Find the artifact path that corresponds to a source file.
@@ -635,7 +679,6 @@ fn resolve_and_add_symbol(
     results: &mut Vec<ResolvedSymbol>,
     ctx: &RefCtx,
 ) {
-    // Skip self-reference
     if ctx.current_fn_id == Some(id) {
         return;
     }
@@ -646,9 +689,6 @@ fn resolve_and_add_symbol(
         results.push(rs);
         return;
     }
-    // Cross-file reference: look up the declaration in the symbol index,
-    // scoped to the same build-info to avoid ID collisions across
-    // incremental compilation units.
     let Some(entry) = ctx.symbol_index.get(id) else {
         return;
     };
@@ -779,8 +819,7 @@ fn dedent(text: &str, base: usize) -> String {
     result
 }
 
-/// Build a vector where `line_offsets[n]` is the byte offset of the start of line `n`
-/// (1-indexed: `line_offsets[1]` is the offset of line 1).
+/// Build a vector where `line_offsets[n]` is the byte offset of the start of line `n`.
 fn build_line_offsets(content: &str) -> Vec<usize> {
     let mut offsets = vec![0, 0];
     for (i, byte) in content.bytes().enumerate() {
@@ -831,14 +870,12 @@ fn extract_natspec(content: &str, offset: usize) -> String {
 
     lines.reverse();
 
-    // Trim trailing blank lines (between natspec and the declaration).
     while let Some(last) = lines.last()
         && last.trim().is_empty()
     {
         lines.pop();
     }
 
-    // Trim leading blank lines (before the first natspec line).
     while let Some(first) = lines.first()
         && first.trim().is_empty()
     {
@@ -923,107 +960,160 @@ mod tests {
 
     use super::*;
 
+    use crate::project::Project;
+
     fn fixture_path() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/sources")
     }
 
-    fn run(project_path: impl AsRef<Path>, function_id: &str) -> Result<String> {
-        let project = Project::open(project_path);
+    fn inspect(contract: &str, function_name: &str) -> Result<FunctionSourceInspectorOutput> {
+        let project = Project::open(fixture_path());
         project.validate()?;
-        let resolver = SourceResolver::new(project);
-        resolver.resolve(function_id)
+        let inspector = FunctionSourceInspector::inspect_project(project);
+        let id = ArtifactId::new(contract);
+        inspector.inspect(&id, function_name)
     }
 
     #[test]
-    fn resolves_execute_with_recursive_refs() {
-        let result = run(fixture_path(), "Main::execute").unwrap();
+    fn inspect_shows_source_for_execute() {
+        let output = inspect("Main", "execute").unwrap();
         assert_eq!(
-            result,
-            include_str!("../fixtures/sources/expected/run_shows_source_for_execute.txt")
+            output.to_string(),
+            include_str!("../../../fixtures/sources/expected/run_shows_source_for_execute.txt")
         );
     }
 
     #[test]
-    fn errors_for_unknown_contract() {
-        let result = run(fixture_path(), "Unknown::function");
-        let err = result.unwrap_err().to_string();
-        assert_eq!(err, "\"Unknown\" not found.");
+    fn inspect_shows_source_with_recursive_refs() {
+        let output = inspect("Main", "_processData").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/sources/expected/run_shows_source_with_recursive_refs.txt"
+            )
+        );
     }
 
     #[test]
-    fn errors_for_unknown_function() {
-        let result = run(fixture_path(), "Main::unknownFunction");
-        let err = result.unwrap_err().to_string();
+    fn inspect_shows_source_for_overloaded_with_params() {
+        let output = inspect("Overloaded", "beforeTokenTransfer(address,address,uint256)").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/sources/expected/run_shows_source_for_overloaded_with_params.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_errors_for_unknown_contract() {
+        let err = inspect("Unknown", "function").unwrap_err().to_string();
         assert_eq!(
             err,
-            "\"unknownFunction\" not found in \"Main\".\n\nAvailable functions in \"Main\": _compute, _processData, execute"
+            include_str!("../../../fixtures/sources/expected/run_errors_for_unknown_contract.txt")
         );
     }
 
     #[test]
-    fn errors_for_overloaded_function() {
-        let result = run(fixture_path(), "Overloaded::beforeTokenTransfer");
-        let err = result.unwrap_err().to_string();
+    fn inspect_errors_for_unknown_function() {
+        let err = inspect("Main", "unknownFunction").unwrap_err().to_string();
         assert_eq!(
             err,
-            "found 2 \"Overloaded::beforeTokenTransfer\"\n\nSelect one of the following:\n\nhawk inspect sources \"Overloaded::beforeTokenTransfer(address,address)\"\nhawk inspect sources \"Overloaded::beforeTokenTransfer(address,address,uint256)\"\n"
+            include_str!("../../../fixtures/sources/expected/run_errors_for_unknown_function.txt")
         );
     }
 
     #[test]
-    fn build_line_offsets_works() {
-        let content = "line1\nline2\nline3\n";
-        let offsets = build_line_offsets(content);
-        assert_eq!(offsets, vec![0, 0, 6, 12, 18]);
-    }
-
-    #[test]
-    fn byte_offset_to_line_finds_correct_line() {
-        let content = "line1\nline2\nline3\n";
-        let offsets = build_line_offsets(content);
-        assert_eq!(byte_offset_to_line(0, &offsets), 1);
-        assert_eq!(byte_offset_to_line(3, &offsets), 1);
-        assert_eq!(byte_offset_to_line(6, &offsets), 2);
-    }
-
-    #[test]
-    fn extract_natspec_gets_doc_comments() {
-        let content =
-            "/// @notice Does something.\n/// @param x The input.\nfunction foo(uint256 x) {}";
-        // offset of 'function' = len of "/// @notice Does something.\n/// @param x The input.\n"
-        let fn_offset = 52;
-        let natspec = extract_natspec(content, fn_offset);
+    fn inspect_errors_for_overloaded_function() {
+        let err = inspect("Overloaded", "beforeTokenTransfer")
+            .unwrap_err()
+            .to_string();
         assert_eq!(
-            natspec,
-            "/// @notice Does something.\n/// @param x The input.\n"
+            err,
+            include_str!(
+                "../../../fixtures/sources/expected/run_errors_for_overloaded_function.txt"
+            )
         );
     }
 
     #[test]
-    fn base_indent_finds_leading_whitespace() {
-        let content = "    function foo() {}\n";
-        assert_eq!(base_indent(content, 4), 4);
-    }
-
-    #[test]
-    fn base_indent_zero_for_no_whitespace() {
-        let content = "function foo() {}\n";
-        assert_eq!(base_indent(content, 0), 0);
-    }
-
-    #[test]
-    fn dedent_strips_leading_spaces() {
-        let text = "    /// @notice hi\n    /// @param x\n\nfunction foo() {\n    bar();\n}\n";
-        let result = dedent(text, 4);
+    fn inspect_shows_natspec_block_comment() {
+        let output = inspect("NatspecBlock", "compute").unwrap();
         assert_eq!(
-            result,
-            "/// @notice hi\n/// @param x\n\nfunction foo() {\nbar();\n}\n"
+            output.to_string(),
+            include_str!("../../../fixtures/sources/expected/run_shows_natspec_block_comment.txt")
         );
     }
 
     #[test]
-    fn dedent_preserves_text_with_no_indent() {
-        let text = "function foo() {}\n";
-        assert_eq!(dedent(text, 0), text);
+    fn inspect_resolves_user_defined_types_in_variable_declarations() {
+        let output = inspect("TypeRefs", "passThrough").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/sources/expected/run_resolves_user_defined_types_in_variable_declarations.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_cross_file_type_references() {
+        let output = inspect("CrossFileConsumer", "translate").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/sources/expected/run_resolves_cross_file_type_references.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_index_access_expressions() {
+        let output = inspect("IndexAccessTest", "getItem").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/sources/expected/run_resolves_index_access_expressions.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn incremental_build_does_not_leak_symbols() {
+        let output = inspect("Main", "execute").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/sources/expected/incremental_build_does_not_leak_symbols.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_function_return_types() {
+        let output = inspect("ReturnTypeRef", "makeWidget").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/sources/expected/run_resolves_function_return_types.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_extracts_regular_block_comments() {
+        let output = inspect("BlockComment", "getItem").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/sources/expected/run_extracts_regular_block_comments.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_shows_source_for_path_qualified_contract() {
+        let output = inspect("Main.sol:Main", "execute").unwrap();
+        assert!(output.to_string().contains("// symbol:"));
     }
 }

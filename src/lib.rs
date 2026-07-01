@@ -8,6 +8,8 @@ pub use inspectors::contract::ContractInspector;
 pub use inspectors::contract::ContractInspectorOutput;
 pub use inspectors::external_function::ExternalFunctionInspector;
 pub use inspectors::external_function::ExternalFunctionInspectorOutput;
+pub use inspectors::function_source::FunctionSourceInspector;
+pub use inspectors::function_source::FunctionSourceInspectorOutput;
 pub use inspectors::inheritance_graph::InheritanceGraphInspector;
 pub use inspectors::inheritance_graph::InheritanceGraphInspectorOutput;
 pub use inspectors::interface::InterfaceInspector;
@@ -26,5 +28,3 @@ pub mod commands;
 
 pub mod inspectors;
 pub mod project;
-pub mod source_graph;
-pub mod symbol_index;
