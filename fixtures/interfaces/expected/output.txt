@@ -1,0 +1,15 @@
+summary:
+- 2 interfaces in src directory
+- 1 interfaces in lib directory
+- 1 interfaces in test directory
+- total 4 interfaces
+
+interfaces in src directory:
+1. IArrayUtils (file: src/Mixed.sol)
+2. IPrimary (file: src/SingleInterface.sol)
+
+interfaces in lib directory:
+1. IDependency (file: lib/mylib/src/SomeLib.sol)
+
+interfaces in test directory:
+1. ITestHelper (file: test/TestInterface.sol)
