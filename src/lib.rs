@@ -1,9 +1,11 @@
 //! Hawk: inspect Foundry projects.
 
-pub use call_graph::CallGraphResolver;
 pub use inspectors::r#abstract::AbstractInspector;
 pub use inspectors::r#abstract::AbstractInspectorOutput;
 pub use inspectors::artifact_id::ArtifactId;
+pub use inspectors::call_graph::CallGraphInspector;
+pub use inspectors::call_graph::CallGraphInspectorOutput;
+pub use inspectors::call_graph::FunctionId;
 pub use inspectors::contract::ContractInspector;
 pub use inspectors::contract::ContractInspectorOutput;
 pub use inspectors::external_function::ExternalFunctionInspector;
@@ -23,8 +25,6 @@ pub use project::Project;
 
 pub mod artifact_index;
 pub mod build_info;
-pub mod call_graph;
-pub mod commands;
 
 pub mod inspectors;
 pub mod project;

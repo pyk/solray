@@ -6,8 +6,10 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use hawk::AbstractInspector;
 use hawk::ArtifactId;
+use hawk::CallGraphInspector;
 use hawk::ContractInspector;
 use hawk::ExternalFunctionInspector;
+use hawk::FunctionId;
 use hawk::FunctionSourceInspector;
 use hawk::InheritanceGraphInspector;
 use hawk::InterfaceInspector;
@@ -44,9 +46,11 @@ enum InspectSubcommand {
         project: PathBuf,
     },
     /// Show the call graph of a function
-    Calls {
-        /// The function ID (e.g. Contract::function)
-        function_id: String,
+    CallGraph {
+        /// The artifact ID (e.g. Name or File.sol:Name)
+        contract: String,
+        /// The function name
+        function: String,
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
@@ -119,8 +123,9 @@ fn main() -> Result<()> {
                 let output = inspector.inspect()?;
                 print!("{output}");
             }
-            InspectSubcommand::Calls {
-                function_id,
+            InspectSubcommand::CallGraph {
+                contract,
+                function,
                 project,
                 verbose,
             } => {
@@ -132,7 +137,11 @@ fn main() -> Result<()> {
                         .with_writer(std::io::stderr)
                         .try_init();
                 }
-                let output = hawk::commands::calls::run(&project, &function_id)?;
+                let project = Project::open(&project);
+                let inspector = CallGraphInspector::new(project);
+                let artifact_id = ArtifactId::new(&contract);
+                let function_id = FunctionId::new(artifact_id, &function);
+                let output = inspector.inspect(&function_id)?;
                 print!("{output}");
             }
             InspectSubcommand::Contracts { project } => {

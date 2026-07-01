@@ -12,17 +12,17 @@ use std::path::PathBuf;
 /// Each node represents a function call that may contain child calls.
 #[derive(Debug, Clone)]
 pub struct CallGraphNode {
-    /// Human-readable signature, e.g. `Main::execute(uint256)`
+    /// Human-readable signature, e.g. `Main::execute(uint256)`.
     pub signature: String,
-    /// The contract name that defines this function
+    /// The contract name that defines this function.
     pub contract_name: String,
-    /// The source file path
+    /// The source file path.
     pub file: PathBuf,
-    /// Visibility: `external`, `public`, `internal`, `private`
+    /// Visibility: `external`, `public`, `internal`, `private`.
     pub visibility: String,
-    /// Source location range for the function (for the Sources section)
+    /// Source location range for the function (offset:length).
     pub src: String,
-    /// Calls made within this function
+    /// Calls made within this function.
     pub children: Vec<CallGraphNode>,
 }
 
@@ -36,7 +36,7 @@ impl CallGraphNode {
         src: &str,
         children: Vec<CallGraphNode>,
     ) -> Self {
-        CallGraphNode {
+        Self {
             signature: signature.to_string(),
             contract_name: contract_name.to_string(),
             file,
@@ -47,8 +47,7 @@ impl CallGraphNode {
     }
 
     /// Flatten the call graph into a depth-first list of `(file, src)` pairs
-    /// for the sources section. The caller is responsible for formatting paths.
-    /// Duplicate source locations are included only once.
+    /// for the sources section.
     pub fn flatten_sources(&self) -> Vec<(PathBuf, String)> {
         let mut result = Vec::new();
         let mut seen = HashSet::new();

@@ -16,11 +16,9 @@ use solc::ast::{
 
 use crate::artifact_index::ArtifactIndex;
 use crate::build_info::BuildInfo;
-use crate::call_graph::FunctionID;
 use crate::inspectors::artifact_id::ArtifactId;
-use crate::project::Project;
-
 use crate::inspectors::function_source::symbol_index::SymbolIndex;
+use crate::project::Project;
 
 pub mod symbol_index;
 
@@ -193,8 +191,7 @@ impl FunctionSourceInspector {
             }
         };
 
-        let fid = FunctionID::try_from(format!("{}::{}", id.name, function_name).as_str())?;
-        let root_symbol = self.find_function(&fid, &artifact_paths)?;
+        let root_symbol = self.find_function(&id.name, function_name, &artifact_paths)?;
         let resolved = self.resolve_recursive(root_symbol)?;
 
         Ok(FunctionSourceInspectorOutput::new(
@@ -208,21 +205,21 @@ impl FunctionSourceInspector {
     /// Find a function across artifacts and return its ResolvedSymbol.
     fn find_function(
         &self,
-        fid: &FunctionID,
+        contract_name: &str,
+        function_name: &str,
         artifact_paths: &[PathBuf],
     ) -> Result<ResolvedSymbol> {
-        let fn_name = fid.function_name();
-        let (base_name, is_exact) = if let Some(pos) = fn_name.find('(') {
-            (&fn_name[..pos], true)
+        let (base_name, is_exact) = if let Some(pos) = function_name.find('(') {
+            (&function_name[..pos], true)
         } else {
-            (fn_name, false)
+            (function_name, false)
         };
 
         let mut functions: HashMap<String, ResolvedSymbol> = HashMap::new();
         for artifact_path in artifact_paths {
             let parsed = parse_artifact(artifact_path)?;
             if let Some(ast) = parsed {
-                extract_function_symbols(&ast, fid.contract_name(), base_name, &mut functions);
+                extract_function_symbols(&ast, contract_name, base_name, &mut functions);
             }
         }
 
@@ -231,22 +228,22 @@ impl FunctionSourceInspector {
             for artifact_path in artifact_paths {
                 let parsed = parse_artifact(artifact_path)?;
                 if let Some(ast) = parsed {
-                    collect_contract_functions(&ast, fid.contract_name(), &mut all_fns);
+                    collect_contract_functions(&ast, contract_name, &mut all_fns);
                 }
             }
             all_fns.sort();
             all_fns.dedup();
             bail!(
                 "\"{}\" not found in \"{}\".\n\nAvailable functions in \"{}\": {}",
-                fid.function_name(),
-                fid.contract_name(),
-                fid.contract_name(),
+                function_name,
+                contract_name,
+                contract_name,
                 all_fns.join(", ")
             );
         }
 
         if is_exact {
-            let target_sig = format!("{}::{}", fid.contract_name(), fn_name);
+            let target_sig = format!("{}::{}", contract_name, function_name);
             let matched: Vec<&ResolvedSymbol> = functions
                 .values()
                 .filter(|s| s.symbol == target_sig)
@@ -254,16 +251,14 @@ impl FunctionSourceInspector {
             if matched.is_empty() {
                 let mut msg = format!(
                     "\"{}\" not found in \"{}\".\n\nSelect one of the following:\n",
-                    fid.function_name(),
-                    fid.contract_name()
+                    function_name, contract_name
                 );
                 let mut sorted: Vec<&String> = functions.values().map(|s| &s.symbol).collect();
                 sorted.sort();
                 for sym in sorted {
                     msg.push_str(&format!(
                         "\nhawk inspect function-source {} {}",
-                        fid.contract_name(),
-                        sym
+                        contract_name, sym
                     ));
                 }
                 msg.push('\n');
@@ -276,15 +271,14 @@ impl FunctionSourceInspector {
             let mut msg = format!(
                 "found {} \"{}\"\n\nSelect one of the following:\n",
                 functions.len(),
-                fid
+                function_name
             );
             let mut sorted: Vec<&String> = functions.values().map(|s| &s.symbol).collect();
             sorted.sort();
             for sym in sorted {
                 msg.push_str(&format!(
                     "\nhawk inspect function-source {} {}",
-                    fid.contract_name(),
-                    sym
+                    contract_name, sym
                 ));
             }
             msg.push('\n');

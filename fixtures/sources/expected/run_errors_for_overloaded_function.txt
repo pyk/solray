@@ -1,4 +1,4 @@
-found 2 "Overloaded::beforeTokenTransfer"
+found 2 "beforeTokenTransfer"
 
 Select one of the following:
 

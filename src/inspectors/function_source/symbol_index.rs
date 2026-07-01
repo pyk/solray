@@ -1,6 +1,6 @@
 //! Lightweight index mapping all Solc AST declaration node IDs to artifact paths.
 //!
-//! [`SymbolIndex`] extends the concept of [`crate::call_graph::FunctionIndex`]
+//! [`SymbolIndex`] extends the concept of a lightweight artifact index
 //! to include not just function definitions, but also struct definitions, enum
 //! definitions, error definitions, event definitions, modifier definitions,
 //! variable declarations, and user-defined value type definitions.

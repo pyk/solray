@@ -2,5 +2,5 @@ found 2 "Dupe"
 
 Select one of the following:
 
-hawk inspect calls out/lib/Dupe.sol/Dupe.json:Dupe::someFunction
-hawk inspect calls out/Dupe.sol/Dupe.json:Dupe::someFunction
+hawk inspect call-graph Dupe.sol:Dupe someFunction
+hawk inspect call-graph lib/Dupe.sol:Dupe someFunction
