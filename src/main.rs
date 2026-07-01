@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use hawk::AbstractInspector;
+use hawk::Project;
 
 #[derive(Parser)]
 #[command(name = "hawk", about = "Inspect Foundry projects", version)]
@@ -115,8 +117,10 @@ fn main() -> Result<()> {
     match cli.command {
         Command::Inspect(args) => match args.subcommand {
             InspectSubcommand::Abstracts { project } => {
-                let items = hawk::commands::abstracts::list(&project)?;
-                print_items(&project, &items, "abstracts")?;
+                let project = Project::open(&project);
+                let inspector = AbstractInspector::new(project);
+                let output = inspector.inspect()?;
+                print!("{output}");
             }
             InspectSubcommand::Calls {
                 function_id,

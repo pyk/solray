@@ -3,6 +3,9 @@
 pub use call_graph::CallGraphResolver;
 pub use entrypoints::EntrypointsResolver;
 pub use inheritance_resolver::InheritanceResolver;
+pub use inspectors::r#abstract::AbstractInspector;
+pub use inspectors::r#abstract::AbstractInspectorOutput;
+pub use project::Project;
 pub use storage_layout::StorageLayoutResolver;
 
 pub mod artifact_index;
@@ -12,6 +15,7 @@ pub mod commands;
 pub mod entrypoints;
 pub mod inheritance;
 pub mod inheritance_resolver;
+pub mod inspectors;
 pub mod project;
 pub mod source_graph;
 pub mod storage_layout;
