@@ -3,6 +3,7 @@
 //! [`AbstractInspector`] scans the artifact directory and produces structured
 //! output for each abstract contract found.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -12,6 +13,57 @@ use serde::Deserialize;
 use walkdir::WalkDir;
 
 use crate::project::Project;
+use crate::project::ProjectDirectories;
+
+/// The directory category an [`Abstract`] belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum DirCategory {
+    Src,
+    Lib,
+    Test,
+    Other,
+}
+
+impl DirCategory {
+    fn display(self) -> &'static str {
+        match self {
+            DirCategory::Src => "src",
+            DirCategory::Lib => "lib",
+            DirCategory::Test => "test",
+            DirCategory::Other => "other",
+        }
+    }
+}
+
+/// Classifies artifact paths using the directory layout declared in the
+/// project's `foundry.toml`.
+struct DirectoryClassifier<'a> {
+    directories: &'a ProjectDirectories,
+}
+
+impl<'a> DirectoryClassifier<'a> {
+    fn new(directories: &'a ProjectDirectories) -> Self {
+        Self { directories }
+    }
+
+    fn classify(&self, path: impl AsRef<Path>) -> DirCategory {
+        let path = path.as_ref();
+        if self
+            .directories
+            .libs
+            .iter()
+            .any(|lib| path.starts_with(lib))
+        {
+            DirCategory::Lib
+        } else if path.starts_with(&self.directories.src) {
+            DirCategory::Src
+        } else if path.starts_with(&self.directories.test) {
+            DirCategory::Test
+        } else {
+            DirCategory::Other
+        }
+    }
+}
 
 /// A single abstract contract.
 pub struct Abstract {
@@ -43,22 +95,62 @@ impl std::fmt::Display for Abstract {
 /// The output of an [`AbstractInspector`] inspection.
 pub struct AbstractInspectorOutput {
     abstracts: Vec<Abstract>,
+    directories: ProjectDirectories,
 }
 
 impl AbstractInspectorOutput {
-    /// Create a new [`AbstractInspectorOutput`] from a list of abstracts.
-    pub fn new(abstracts: Vec<Abstract>) -> Self {
-        Self { abstracts }
+    /// Create a new [`AbstractInspectorOutput`] from a list of abstracts and
+    /// the project's directory configuration.
+    pub fn new(abstracts: Vec<Abstract>, directories: ProjectDirectories) -> Self {
+        Self {
+            abstracts,
+            directories,
+        }
     }
 }
 
 impl std::fmt::Display for AbstractInspectorOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "found {} abstracts\n", self.abstracts.len())?;
-        for (i, abstract_) in self.abstracts.iter().enumerate() {
-            writeln!(f, "{}. {}", i + 1, abstract_)?;
+        let groups = self.grouped();
+
+        writeln!(f, "summary:")?;
+        for (dir, abstracts) in &groups {
+            writeln!(
+                f,
+                "- {} abstracts in {} directory",
+                abstracts.len(),
+                dir.display()
+            )?;
         }
+        writeln!(f, "- total {} abstracts", self.abstracts.len())?;
+
+        for (dir, abstracts) in &groups {
+            writeln!(f, "\nabstracts in {} directory:", dir.display())?;
+            for (i, abstract_) in abstracts.iter().enumerate() {
+                writeln!(
+                    f,
+                    "{}. {} (file: {})",
+                    i + 1,
+                    abstract_.name,
+                    abstract_.path.display()
+                )?;
+            }
+        }
+
         Ok(())
+    }
+}
+
+impl AbstractInspectorOutput {
+    /// Return the abstracts grouped by directory category.
+    fn grouped(&self) -> BTreeMap<DirCategory, Vec<&Abstract>> {
+        let classifier = DirectoryClassifier::new(&self.directories);
+        let mut groups: BTreeMap<DirCategory, Vec<&Abstract>> = BTreeMap::new();
+        for abstract_ in &self.abstracts {
+            let dir = classifier.classify(&abstract_.path);
+            groups.entry(dir).or_default().push(abstract_);
+        }
+        groups
     }
 }
 
@@ -83,17 +175,19 @@ impl AbstractInspector {
         self.project.validate()?;
 
         let project_root_abs = std::path::absolute(self.project.path())?;
+        let directories = self.project.directories()?;
         let abstracts = self.load_abstracts(&project_root_abs)?;
-        Ok(AbstractInspectorOutput::new(abstracts))
+        Ok(AbstractInspectorOutput::new(abstracts, directories))
     }
 
     /// Walk the artifact directory and extract only abstract contracts.
     fn load_abstracts(&self, project_root: &Path) -> Result<Vec<Abstract>> {
         let paths = self.artifact_paths();
-        let abstracts: Vec<Abstract> = paths
+        let mut abstracts: Vec<Abstract> = paths
             .into_par_iter()
             .filter_map(|path| parse_abstract(&path, project_root).ok().flatten())
             .collect();
+        abstracts.sort_by(|a, b| a.path.cmp(&b.path).then(a.name.cmp(&b.name)));
         Ok(abstracts)
     }
 
@@ -218,30 +312,31 @@ impl LightweightNode {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     use super::*;
 
     use crate::project::Project;
+    use crate::project::ProjectDirectories;
 
-    fn fixture_project() -> Project {
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/contracts");
-        Project::open(path)
+    fn default_directories() -> ProjectDirectories {
+        ProjectDirectories {
+            src: PathBuf::from("src"),
+            test: PathBuf::from("test"),
+            libs: vec![PathBuf::from("lib"), PathBuf::from("node_modules")],
+        }
+    }
+
+    fn fixture_path() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/abstracts")
     }
 
     #[test]
-    fn inspect_returns_abstract_contracts_only() {
-        let inspector = AbstractInspector::new(fixture_project());
+    fn inspect_returns_only_abstract_declarations() {
+        let inspector = AbstractInspector::new(Project::open(fixture_path()));
         let output = inspector.inspect().unwrap();
-
-        assert_eq!(
-            output
-                .abstracts
-                .iter()
-                .map(|a: &Abstract| a.to_string())
-                .collect::<Vec<String>>(),
-            vec!["src/AbstractBase.sol:AbstractBase"]
-        );
+        let expected = include_str!("../../fixtures/abstracts/expected/output.txt");
+        assert_eq!(output.to_string(), expected);
     }
 
     #[test]
@@ -252,13 +347,47 @@ mod tests {
     }
 
     #[test]
-    fn output_display_numbers_each_abstract() {
-        let file = PathBuf::from("src/AbstractBase.sol");
-        let abstract_ = Abstract::new("AbstractBase", &file, Path::new(""));
-        let output = AbstractInspectorOutput::new(vec![abstract_]);
+    fn output_display_formats_structured_by_directory() {
+        let src = Abstract::new(
+            "OnlyOwnerBase",
+            &PathBuf::from("src/OnlyOwnerBase.sol"),
+            Path::new(""),
+        );
+        let lib = Abstract::new(
+            "TestBase",
+            &PathBuf::from("lib/forge-std/src/Base.sol"),
+            Path::new(""),
+        );
+        let node_modules = Abstract::new(
+            "NodeModuleFoo",
+            &PathBuf::from("node_modules/some-pkg/src/Foo.sol"),
+            Path::new(""),
+        );
+        let test = Abstract::new(
+            "Assertions",
+            &PathBuf::from("test/Assertions.sol"),
+            Path::new(""),
+        );
+        let output =
+            AbstractInspectorOutput::new(vec![test, lib, node_modules, src], default_directories());
         assert_eq!(
             output.to_string(),
-            "found 1 abstracts\n\n1. src/AbstractBase.sol:AbstractBase\n"
+            "summary:\n\
+- 1 abstracts in src directory\n\
+- 2 abstracts in lib directory\n\
+- 1 abstracts in test directory\n\
+- total 4 abstracts\n\
+\n\
+abstracts in src directory:\n\
+1. OnlyOwnerBase (file: src/OnlyOwnerBase.sol)\n\
+\n\
+abstracts in lib directory:\n\
+1. TestBase (file: lib/forge-std/src/Base.sol)\n\
+2. NodeModuleFoo (file: node_modules/some-pkg/src/Foo.sol)\n\
+\n\
+abstracts in test directory:\n\
+1. Assertions (file: test/Assertions.sol)\n\
+"
         );
     }
 }

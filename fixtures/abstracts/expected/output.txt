@@ -1,0 +1,15 @@
+summary:
+- 2 abstracts in src directory
+- 1 abstracts in lib directory
+- 1 abstracts in test directory
+- total 4 abstracts
+
+abstracts in src directory:
+1. MyAbstract (file: src/AbstractOnly.sol)
+2. AbstractBase (file: src/Mixed.sol)
+
+abstracts in lib directory:
+1. LibAbstract (file: lib/mylib/src/SomeLib.sol)
+
+abstracts in test directory:
+1. TestAbstract (file: test/TestAbstract.sol)

@@ -29,6 +29,19 @@ pub enum DeclarationKind {
     Library,
 }
 
+/// The directory configuration of a Foundry project, as declared in
+/// `foundry.toml`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectDirectories {
+    /// The source directory (configured via `src`; defaults to `"src"`).
+    pub src: PathBuf,
+    /// The test directory (configured via `test`; defaults to `"test"`).
+    pub test: PathBuf,
+    /// The library directories (configured via `libs`; defaults to
+    /// `["lib", "node_modules"]`).
+    pub libs: Vec<PathBuf>,
+}
+
 /// Internal: contract info extracted from an artifact AST for inheritance resolution.
 #[derive(Debug, Clone)]
 struct ContractInfo {
@@ -129,6 +142,40 @@ impl Project {
     /// Return the output directory path.
     pub fn out_dir(&self) -> &Path {
         &self.out
+    }
+
+    /// Read the directory configuration from the project's `foundry.toml`.
+    ///
+    /// Returns the configured `src`, `test`, and `libs` directories,
+    /// falling back to Foundry defaults when a field is absent.
+    pub fn directories(&self) -> Result<ProjectDirectories> {
+        let foundry_toml = self.path.join("foundry.toml");
+        let config: toml::Value = toml::from_str(&fs::read_to_string(&foundry_toml)?)?;
+        let default_profile = config.get("profile").and_then(|p| p.get("default"));
+
+        let src = default_profile
+            .and_then(|d| d.get("src"))
+            .and_then(|s| s.as_str())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("src"));
+
+        let test = default_profile
+            .and_then(|d| d.get("test"))
+            .and_then(|t| t.as_str())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("test"));
+
+        let libs = default_profile
+            .and_then(|d| d.get("libs"))
+            .and_then(|l| l.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(PathBuf::from))
+                    .collect()
+            })
+            .unwrap_or_else(|| vec![PathBuf::from("lib"), PathBuf::from("node_modules")]);
+
+        Ok(ProjectDirectories { src, test, libs })
     }
 
     /// Collect all JSON artifact paths from the output directory,
