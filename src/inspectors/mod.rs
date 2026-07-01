@@ -2,6 +2,7 @@
 
 pub mod r#abstract;
 pub mod contract;
+pub mod external_function;
 pub mod interface;
 pub mod library;
 pub mod storage_layout;

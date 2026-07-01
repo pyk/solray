@@ -5,7 +5,9 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use hawk::AbstractInspector;
+use hawk::ArtifactId;
 use hawk::ContractInspector;
+use hawk::ExternalFunctionInspector;
 use hawk::InterfaceInspector;
 use hawk::LibraryInspector;
 use hawk::Project;
@@ -56,10 +58,10 @@ enum InspectSubcommand {
         #[arg(long, default_value = ".")]
         project: PathBuf,
     },
-    /// List all write functions from a deployable contract ABI
-    Entrypoints {
-        /// The deployable contract name
-        deployable: String,
+    /// List all external functions from a contract ABI
+    ExternalFunctions {
+        /// The artifact ID (e.g. Name or File.sol:Name)
+        id: String,
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
@@ -135,11 +137,11 @@ fn main() -> Result<()> {
                 let output = inspector.inspect()?;
                 print!("{output}");
             }
-            InspectSubcommand::Entrypoints {
-                deployable,
-                project,
-            } => {
-                let output = hawk::commands::entrypoints::run(&deployable, &project)?;
+            InspectSubcommand::ExternalFunctions { id, project } => {
+                let project = Project::open(&project);
+                let inspector = ExternalFunctionInspector::new(project);
+                let id = ArtifactId::new(&id);
+                let output = inspector.inspect(&id)?;
                 print!("{output}");
             }
             InspectSubcommand::Inheritances { decl, project } => {
