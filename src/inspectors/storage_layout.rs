@@ -86,8 +86,15 @@ impl StorageLayoutInspectorOutput {
 
 impl std::fmt::Display for StorageLayoutInspectorOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Found {} storages\n", self.storage_layout.storage.len())?;
-        for (i, entry) in self.storage_layout.storage.iter().enumerate() {
+        let slot_width = self
+            .storage_layout
+            .storage
+            .iter()
+            .map(|e| e.slot.len())
+            .max()
+            .unwrap_or(0);
+
+        for entry in &self.storage_layout.storage {
             let ty = self
                 .storage_layout
                 .types
@@ -96,12 +103,12 @@ impl std::fmt::Display for StorageLayoutInspectorOutput {
                 .unwrap_or(entry.type_name.as_str());
             writeln!(
                 f,
-                "{}. {} (slot {}, offset {}, type {})",
-                i + 1,
-                entry.label,
+                "slot {:>width$} offset {} {} {}",
                 entry.slot,
                 entry.offset,
-                ty
+                entry.label,
+                ty,
+                width = slot_width
             )?;
         }
         Ok(())
@@ -157,11 +164,7 @@ impl StorageLayoutInspector {
 
         match candidates.len() {
             0 => {
-                let mut names: Vec<String> = index
-                    .keys()
-                    .filter(|k| k.as_str() != name)
-                    .cloned()
-                    .collect();
+                let mut names: Vec<String> = index.keys().cloned().collect();
                 names.sort();
                 bail!(
                     "\"{name}\" not found.\n\nAvailable contracts: {}",
@@ -227,10 +230,7 @@ mod tests {
         let inspector = StorageLayoutInspector::new(Project::open(fixture_path()));
         let id = StorageLayoutId::new("ContractB");
         let output = inspector.inspect(&id).unwrap();
-        assert_eq!(
-            output.to_string(),
-            "Found 1 storages\n\n1. active (slot 0, offset 0, type bool)\n"
-        );
+        assert_eq!(output.to_string(), "slot 0 offset 0 active bool\n");
     }
 
     #[test]
@@ -240,7 +240,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         assert_eq!(
             output.to_string(),
-            "Found 2 storages\n\n1. count (slot 0, offset 0, type uint256)\n2. owner (slot 1, offset 0, type address)\n"
+            "slot 0 offset 0 count uint256\nslot 1 offset 0 owner address\n"
         );
     }
 
