@@ -1,10 +1,11 @@
 //! Hawk CLI: inspect Foundry projects from the command line.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use hawk::AbstractInspector;
+use hawk::ContractInspector;
 use hawk::InterfaceInspector;
 use hawk::LibraryInspector;
 use hawk::Project;
@@ -99,20 +100,6 @@ enum InspectSubcommand {
     },
 }
 
-/// Print items with a header and numbered list.
-fn print_items(project: &Path, items: &[String], label: &str) -> Result<()> {
-    let cwd = std::env::current_dir()?;
-    let project_abs = std::path::absolute(project)?;
-    let project_rel = project_abs.strip_prefix(&cwd).unwrap_or(&project_abs);
-
-    println!("found {} {}\n", items.len(), label);
-
-    for (i, line) in items.iter().enumerate() {
-        println!("{}. {}", i + 1, project_rel.join(line).display());
-    }
-    Ok(())
-}
-
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -141,8 +128,10 @@ fn main() -> Result<()> {
                 print!("{output}");
             }
             InspectSubcommand::Contracts { project } => {
-                let items = hawk::commands::contracts::list(&project)?;
-                print_items(&project, &items, "contracts")?;
+                let project = Project::open(&project);
+                let inspector = ContractInspector::new(project);
+                let output = inspector.inspect()?;
+                print!("{output}");
             }
             InspectSubcommand::Entrypoints {
                 deployable,

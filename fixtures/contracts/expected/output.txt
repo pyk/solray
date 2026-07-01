@@ -1,0 +1,7 @@
+summary:
+- 2 contracts in src directory
+- total 2 contracts
+
+contracts in src directory:
+1. Counter (file: src/Counter.sol)
+2. DataStore (file: src/DataStore.sol)

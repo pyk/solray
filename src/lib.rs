@@ -5,6 +5,8 @@ pub use entrypoints::EntrypointsResolver;
 pub use inheritance_resolver::InheritanceResolver;
 pub use inspectors::r#abstract::AbstractInspector;
 pub use inspectors::r#abstract::AbstractInspectorOutput;
+pub use inspectors::contract::ContractInspector;
+pub use inspectors::contract::ContractInspectorOutput;
 pub use inspectors::interface::InterfaceInspector;
 pub use inspectors::interface::InterfaceInspectorOutput;
 pub use inspectors::library::LibraryInspector;
