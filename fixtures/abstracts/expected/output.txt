@@ -5,8 +5,8 @@ summary:
 - total 4 abstracts
 
 abstracts in src directory:
-1. MyAbstract (file: src/AbstractOnly.sol)
-2. AbstractBase (file: src/Mixed.sol)
+1. AbstractBase (file: src/Mixed.sol)
+2. MyAbstract (file: src/AbstractOnly.sol)
 
 abstracts in lib directory:
 1. LibAbstract (file: lib/mylib/src/SomeLib.sol)

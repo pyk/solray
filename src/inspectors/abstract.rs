@@ -187,7 +187,7 @@ impl AbstractInspector {
             .into_par_iter()
             .filter_map(|path| parse_abstract(&path, project_root).ok().flatten())
             .collect();
-        abstracts.sort_by(|a, b| a.path.cmp(&b.path).then(a.name.cmp(&b.name)));
+        abstracts.sort_by(|a, b| a.name.cmp(&b.name).then(a.path.cmp(&b.path)));
         Ok(abstracts)
     }
 

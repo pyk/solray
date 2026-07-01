@@ -181,7 +181,7 @@ impl LibraryInspector {
             .into_par_iter()
             .filter_map(|path| parse_library(&path, project_root).ok().flatten())
             .collect();
-        libraries.sort_by(|a, b| a.path.cmp(&b.path).then(a.name.cmp(&b.name)));
+        libraries.sort_by(|a, b| a.name.cmp(&b.name).then(a.path.cmp(&b.path)));
         Ok(libraries)
     }
 
