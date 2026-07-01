@@ -218,32 +218,6 @@ impl Project {
         })
     }
 
-    /// Return only libraries.
-    pub fn libraries(&self) -> Result<Vec<Declaration>> {
-        self.declarations().map(|decls| {
-            decls
-                .into_iter()
-                .filter(|d| d.kind == DeclarationKind::Library)
-                .collect()
-        })
-    }
-
-    /// Return only interfaces.
-    pub fn interfaces(&self) -> Result<Vec<Declaration>> {
-        self.declarations().map(|decls| {
-            decls
-                .into_iter()
-                .filter(|d| d.kind == DeclarationKind::Interface)
-                .collect()
-        })
-    }
-
-    /// Find a declaration by exact name match (case-sensitive).
-    pub fn find_declaration(&self, name: &str) -> Result<Option<Declaration>> {
-        let decls = self.declarations()?;
-        Ok(decls.into_iter().find(|d| d.name == name))
-    }
-
     /// Find all declarations matching `name` exactly (case-sensitive).
     ///
     /// This is useful for detecting name collisions where the same declaration
