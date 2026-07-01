@@ -8,6 +8,7 @@ use hawk::AbstractInspector;
 use hawk::ArtifactId;
 use hawk::ContractInspector;
 use hawk::ExternalFunctionInspector;
+use hawk::InheritanceGraphInspector;
 use hawk::InterfaceInspector;
 use hawk::LibraryInspector;
 use hawk::Project;
@@ -67,9 +68,9 @@ enum InspectSubcommand {
         project: PathBuf,
     },
     /// Show the inheritance graph of a declaration
-    Inheritances {
-        /// The declaration name (contract, abstract, or interface)
-        decl: String,
+    InheritanceGraph {
+        /// The artifact ID (e.g. Name or File.sol:Name)
+        id: String,
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
@@ -144,8 +145,11 @@ fn main() -> Result<()> {
                 let output = inspector.inspect(&id)?;
                 print!("{output}");
             }
-            InspectSubcommand::Inheritances { decl, project } => {
-                let output = hawk::commands::inheritances::run(&decl, &project)?;
+            InspectSubcommand::InheritanceGraph { id, project } => {
+                let project = Project::open(&project);
+                let inspector = InheritanceGraphInspector::new(project);
+                let id = ArtifactId::new(&id);
+                let output = inspector.inspect(&id)?;
                 print!("{output}");
             }
             InspectSubcommand::Interfaces { project } => {

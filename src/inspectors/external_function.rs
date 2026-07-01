@@ -11,31 +11,8 @@ use serde::Deserialize;
 use solc::abi::{Abi, AbiItem, Function};
 
 use crate::artifact_index::ArtifactIndex;
+use crate::inspectors::artifact_id::ArtifactId;
 use crate::project::Project;
-
-/// Identifies an artifact by contract name and optional source file.
-pub struct ArtifactId {
-    /// The contract name (required).
-    pub name: String,
-    /// The source file path (optional).
-    pub file: Option<String>,
-}
-
-impl ArtifactId {
-    /// Parse an artifact ID from a string like `Name` or `File.sol:Name`.
-    pub fn new(id: &str) -> Self {
-        match id.rsplit_once(':') {
-            Some((path, name)) if !path.is_empty() && !name.is_empty() => Self {
-                name: name.to_string(),
-                file: Some(path.to_string()),
-            },
-            _ => Self {
-                name: id.to_string(),
-                file: None,
-            },
-        }
-    }
-}
 
 fn external_function_signature(function: &Function) -> String {
     format!(

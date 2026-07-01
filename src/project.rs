@@ -1,16 +1,13 @@
 //! Foundry project inspection.
 
-use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Result, bail, ensure};
 use rayon::prelude::*;
 use serde::Deserialize;
 use solc::ast::{ContractDefinition, ContractKind, SourceUnit, SourceUnitNode};
 use walkdir::WalkDir;
-
-use crate::inheritance::InheritanceNode;
 
 /// A single Solidity source-level declaration.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,14 +37,6 @@ pub struct ProjectDirectories {
     /// The library directories (configured via `libs`; defaults to
     /// `["lib", "node_modules"]`).
     pub libs: Vec<PathBuf>,
-}
-
-/// Internal: contract info extracted from an artifact AST for inheritance resolution.
-#[derive(Debug, Clone)]
-struct ContractInfo {
-    name: String,
-    file: PathBuf,
-    base_contracts: Vec<String>,
 }
 
 /// A Foundry project opened for inspection.
@@ -226,71 +215,6 @@ impl Project {
         let decls = self.declarations()?;
         Ok(decls.into_iter().filter(|d| d.name == name).collect())
     }
-
-    /// Build the inheritance tree for a contract identified by name.
-    ///
-    /// Returns an [`InheritanceNode`] where `name` and `file` represent the
-    /// root contract and `parents` contains the resolved base contracts
-    /// recursively.
-    pub fn inheritance_tree(&self, name: &str) -> Result<InheritanceNode> {
-        let infos = self.load_contract_infos()?;
-        let by_name: HashMap<&str, &ContractInfo> =
-            infos.iter().map(|ci| (ci.name.as_str(), ci)).collect();
-
-        let mut visited: HashSet<&str> = HashSet::new();
-        build_tree(name, &by_name, &mut visited)
-    }
-
-    /// Build the inheritance tree for a contract identified by name and file path.
-    ///
-    /// Unlike [`inheritance_tree`], this disambiguates which contract to use
-    /// as the root when multiple contracts share the same name. Base contracts
-    /// are still resolved by name alone.
-    pub fn inheritance_tree_by_path(
-        &self,
-        name: &str,
-        file_path: impl AsRef<Path>,
-    ) -> Result<InheritanceNode> {
-        let file_path = file_path.as_ref();
-        let infos = self.load_contract_infos()?;
-        let by_name: HashMap<&str, &ContractInfo> =
-            infos.iter().map(|ci| (ci.name.as_str(), ci)).collect();
-
-        let root_info = infos
-            .iter()
-            .find(|ci| ci.name == name && ci.file == file_path)
-            .with_context(|| {
-                format!("contract `{}` not found in `{}`", name, file_path.display())
-            })?;
-
-        let mut visited: HashSet<&str> = HashSet::new();
-        visited.insert(&root_info.name);
-
-        let parents: Vec<InheritanceNode> = root_info
-            .base_contracts
-            .iter()
-            .map(|base_name| build_tree(base_name, &by_name, &mut visited))
-            .collect::<Result<Vec<InheritanceNode>>>()?;
-
-        Ok(InheritanceNode {
-            name: root_info.name.clone(),
-            file: root_info.file.clone(),
-            parents,
-        })
-    }
-
-    /// Load contract info (name, file, base_contracts) from all artifacts.
-    fn load_contract_infos(&self) -> Result<Vec<ContractInfo>> {
-        if !self.out.exists() {
-            return Ok(Vec::new());
-        }
-        let paths = self.artifact_paths();
-        let results: Vec<ContractInfo> = paths
-            .into_par_iter()
-            .filter_map(|path| process_artifact_for_inheritance(path).ok().flatten())
-            .collect();
-        Ok(results)
-    }
 }
 
 fn classify_contract(cd: &ContractDefinition) -> DeclarationKind {
@@ -300,83 +224,6 @@ fn classify_contract(cd: &ContractDefinition) -> DeclarationKind {
         ContractKind::Interface => DeclarationKind::Interface,
         ContractKind::Library => DeclarationKind::Library,
     }
-}
-
-/// Extract the base contract names from a list of inheritance specifiers.
-fn base_contract_names(base_contracts: Vec<solc::ast::InheritanceSpecifier>) -> Vec<String> {
-    base_contracts
-        .into_iter()
-        .map(|bc| bc.base_name.name)
-        .collect()
-}
-
-/// Process a single artifact JSON file, returning a [`ContractInfo`] if a
-/// contract definition is found.
-fn process_artifact_for_inheritance(path: impl AsRef<Path>) -> Result<Option<ContractInfo>> {
-    let path = path.as_ref();
-    let contract_name = match path.file_stem().and_then(|s| s.to_str()) {
-        Some(name) => name,
-        None => return Ok(None),
-    };
-
-    let content = fs::read_to_string(path)?;
-    let artifact: Artifact = serde_json::from_str(&content)?;
-
-    let ast = match artifact.ast {
-        None => bail!(
-            "artifact `{}` is missing the AST; rebuild with `ast = true` in foundry.toml",
-            path.display()
-        ),
-        Some(ast) => ast,
-    };
-
-    let source_file = ast.absolute_path;
-    if let Some(cd) = ast.nodes.into_iter().find_map(|node| {
-        if let SourceUnitNode::ContractDefinition(cd) = node
-            && cd.name == contract_name
-        {
-            return Some(cd);
-        }
-        None
-    }) {
-        let bases = base_contract_names(cd.base_contracts);
-        Ok(Some(ContractInfo {
-            name: cd.name,
-            file: source_file,
-            base_contracts: bases,
-        }))
-    } else {
-        Ok(None)
-    }
-}
-
-/// Recursively build an [`InheritanceNode`] tree from a contract name.
-fn build_tree<'a>(
-    name: &'a str,
-    by_name: &HashMap<&str, &'a ContractInfo>,
-    visited: &mut HashSet<&'a str>,
-) -> Result<InheritanceNode> {
-    ensure!(
-        visited.insert(name),
-        "circular inheritance detected for `{}`",
-        name
-    );
-
-    let info = by_name
-        .get(name)
-        .with_context(|| format!("contract `{}` not found in artifacts", name))?;
-
-    let parents: Vec<InheritanceNode> = info
-        .base_contracts
-        .iter()
-        .map(|base_name| build_tree(base_name, by_name, visited))
-        .collect::<Result<Vec<InheritanceNode>>>()?;
-
-    Ok(InheritanceNode {
-        name: info.name.clone(),
-        file: info.file.clone(),
-        parents,
-    })
 }
 
 /// Process a single artifact JSON file, extracting its [`Declaration`] if one
