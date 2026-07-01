@@ -171,16 +171,6 @@ impl Project {
         })
     }
 
-    /// Return only abstract contracts.
-    pub fn abstract_contracts(&self) -> Result<Vec<Declaration>> {
-        self.declarations().map(|decls| {
-            decls
-                .into_iter()
-                .filter(|d| d.kind == DeclarationKind::AbstractContract)
-                .collect()
-        })
-    }
-
     /// Return only libraries.
     pub fn libraries(&self) -> Result<Vec<Declaration>> {
         self.declarations().map(|decls| {

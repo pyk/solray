@@ -3,9 +3,13 @@
 //! [`AbstractInspector`] scans the artifact directory and produces structured
 //! output for each abstract contract found.
 
+use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
+use rayon::prelude::*;
+use serde::Deserialize;
+use walkdir::WalkDir;
 
 use crate::project::Project;
 
@@ -18,11 +22,14 @@ pub struct Abstract {
 }
 
 impl Abstract {
-    /// Create a new [`Abstract`] from a name and path.
-    pub fn new(name: impl Into<String>, path: impl AsRef<Path>) -> Self {
+    /// Create a new [`Abstract`] from a name and source file.
+    fn new(name: &str, source_file: &Path, project_root: &Path) -> Self {
+        let rel = source_file
+            .strip_prefix(project_root)
+            .unwrap_or(source_file);
         Self {
-            name: name.into(),
-            path: path.as_ref().to_path_buf(),
+            name: name.to_string(),
+            path: rel.to_path_buf(),
         }
     }
 }
@@ -67,7 +74,7 @@ impl AbstractInspector {
     }
 
     /// Return the project root path.
-    pub fn project_path(&self) -> &std::path::Path {
+    pub fn project_path(&self) -> &Path {
         self.project.path()
     }
 
@@ -76,15 +83,136 @@ impl AbstractInspector {
         self.project.validate()?;
 
         let project_root_abs = std::path::absolute(self.project.path())?;
-        let declarations = self.project.abstract_contracts()?;
-        let abstracts: Vec<Abstract> = declarations
-            .into_iter()
-            .map(|d| {
-                let rel = d.file.strip_prefix(&project_root_abs).unwrap_or(&d.file);
-                Abstract::new(d.name, rel)
-            })
-            .collect();
+        let abstracts = self.load_abstracts(&project_root_abs)?;
         Ok(AbstractInspectorOutput::new(abstracts))
+    }
+
+    /// Walk the artifact directory and extract only abstract contracts.
+    fn load_abstracts(&self, project_root: &Path) -> Result<Vec<Abstract>> {
+        let paths = self.artifact_paths();
+        let abstracts: Vec<Abstract> = paths
+            .into_par_iter()
+            .filter_map(|path| parse_abstract(&path, project_root).ok().flatten())
+            .collect();
+        Ok(abstracts)
+    }
+
+    /// Collect all JSON artifact paths from the output directory,
+    /// excluding `build-info` files.
+    fn artifact_paths(&self) -> Vec<PathBuf> {
+        WalkDir::new(self.project.out_dir())
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                let p = e.path();
+                p.extension().and_then(|s| s.to_str()) == Some("json")
+                    && !p.to_string_lossy().contains("build-info")
+            })
+            .map(|e| e.path().to_path_buf())
+            .collect()
+    }
+}
+
+/// Quick check whether the raw file bytes contain `"abstract":true`.
+///
+/// This lets us skip JSON deserialization entirely for the vast majority of
+/// artifacts that contain no abstract contracts.
+fn might_be_abstract(path: impl AsRef<Path>) -> Result<bool> {
+    let bytes = fs::read(path)?;
+    let pattern = b"\"abstract\":";
+    Ok(bytes.windows(pattern.len()).any(|w| w == pattern))
+}
+
+/// Parse a single artifact JSON file, returning [`Some(Abstract)`] only if the
+/// contract defined in the artifact is abstract.
+fn parse_abstract(path: impl AsRef<Path>, project_root: &Path) -> Result<Option<Abstract>> {
+    let path = path.as_ref();
+    let contract_name = match path.file_stem().and_then(|s| s.to_str()) {
+        Some(name) => name,
+        None => return Ok(None),
+    };
+
+    // Fast path: skip files that definitely contain no abstract contracts.
+    if !might_be_abstract(path)? {
+        return Ok(None);
+    }
+
+    // Slow path: deserializing only the lightweight AST representation skips
+    // heavy fields such as bytecode, deployedBytecode, and deep children
+    // (function bodies, events, errors) inside contract definitions.
+    let content = fs::read_to_string(path)?;
+    let artifact: LightweightArtifact = serde_json::from_str(&content)?;
+
+    let ast = artifact.ast.with_context(|| {
+        format!(
+            "artifact `{}` is missing the AST; rebuild with `ast = true` in foundry.toml",
+            path.display()
+        )
+    })?;
+
+    if let Some(name) = ast
+        .nodes
+        .into_iter()
+        .find_map(|n| n.is_abstract(contract_name))
+    {
+        return Ok(Some(Abstract::new(
+            &name,
+            Path::new(&ast.absolute_path),
+            project_root,
+        )));
+    }
+
+    Ok(None)
+}
+
+/// Lightweight artifact representation that deserializes only the AST and
+/// skips all heavy fields (bytecode, deployedBytecode, storageLayout, etc.).
+#[derive(Deserialize)]
+struct LightweightArtifact {
+    #[serde(default)]
+    ast: Option<LightweightSourceUnit>,
+}
+
+/// Lightweight source unit that deserializes only top-level node metadata.
+#[derive(Deserialize)]
+struct LightweightSourceUnit {
+    #[serde(rename = "absolutePath")]
+    absolute_path: PathBuf,
+    #[serde(default)]
+    nodes: Vec<LightweightNode>,
+}
+
+/// Lightweight node that only deserializes the fields needed to identify
+/// abstract contracts. Heavy children (function bodies, events, errors) are
+/// skipped by serde.
+#[derive(Deserialize)]
+struct LightweightNode {
+    #[serde(rename = "nodeType")]
+    node_type: String,
+    name: Option<String>,
+    #[serde(default, rename = "abstract")]
+    abstract_fallback: bool,
+    #[serde(rename = "contractKind")]
+    contract_kind: Option<String>,
+}
+
+impl LightweightNode {
+    /// Return the contract name if this node is an abstract contract matching
+    /// `target_name`.
+    fn is_abstract(&self, target_name: &str) -> Option<String> {
+        if self.node_type != "ContractDefinition" {
+            return None;
+        }
+        if self.contract_kind.as_deref() != Some("contract") {
+            return None;
+        }
+        if !self.abstract_fallback {
+            return None;
+        }
+        if self.name.as_deref() != Some(target_name) {
+            return None;
+        }
+        self.name.clone()
     }
 }
 
@@ -97,7 +225,7 @@ mod tests {
     use crate::project::Project;
 
     fn fixture_project() -> Project {
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-contracts");
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/contracts");
         Project::open(path)
     }
 
@@ -118,13 +246,15 @@ mod tests {
 
     #[test]
     fn abstract_display_formats_as_path_colon_name() {
-        let abstract_ = Abstract::new("AbstractBase", "src/AbstractBase.sol");
+        let file = PathBuf::from("src/AbstractBase.sol");
+        let abstract_ = Abstract::new("AbstractBase", &file, Path::new(""));
         assert_eq!(abstract_.to_string(), "src/AbstractBase.sol:AbstractBase");
     }
 
     #[test]
     fn output_display_numbers_each_abstract() {
-        let abstract_ = Abstract::new("AbstractBase", "src/AbstractBase.sol");
+        let file = PathBuf::from("src/AbstractBase.sol");
+        let abstract_ = Abstract::new("AbstractBase", &file, Path::new(""));
         let output = AbstractInspectorOutput::new(vec![abstract_]);
         assert_eq!(
             output.to_string(),

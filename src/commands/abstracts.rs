@@ -7,7 +7,7 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::project::Project;
+use crate::project::{DeclarationKind, Project};
 
 /// List abstract contracts in the given Foundry project.
 ///
@@ -16,9 +16,10 @@ use crate::project::Project;
 pub fn list(path: impl AsRef<Path>) -> Result<Vec<String>> {
     let project = Project::open(path);
     project.validate()?;
-    let declarations = project.abstract_contracts()?;
+    let declarations = project.declarations()?;
     let lines: Vec<String> = declarations
-        .iter()
+        .into_iter()
+        .filter(|d| d.kind == DeclarationKind::AbstractContract)
         .map(|d| format!("{}:{}", d.file.display(), d.name))
         .collect();
     Ok(lines)
@@ -31,7 +32,7 @@ mod tests {
     use super::*;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-contracts")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/contracts")
     }
 
     #[test]

@@ -31,7 +31,7 @@ mod tests {
     use super::*;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-contracts")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/contracts")
     }
 
     #[test]
