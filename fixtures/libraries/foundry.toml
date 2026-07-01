@@ -1,0 +1,10 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib", "node_modules"]
+ast = true
+test = "test"
+
+remappings = [
+    "mylib/=lib/mylib/src/",
+]

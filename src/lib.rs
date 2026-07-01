@@ -5,6 +5,8 @@ pub use entrypoints::EntrypointsResolver;
 pub use inheritance_resolver::InheritanceResolver;
 pub use inspectors::r#abstract::AbstractInspector;
 pub use inspectors::r#abstract::AbstractInspectorOutput;
+pub use inspectors::library::LibraryInspector;
+pub use inspectors::library::LibraryInspectorOutput;
 pub use project::Project;
 pub use storage_layout::StorageLayoutResolver;
 

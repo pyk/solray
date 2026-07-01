@@ -1,0 +1,15 @@
+summary:
+- 2 libraries in src directory
+- 1 libraries in lib directory
+- 1 libraries in test directory
+- total 4 libraries
+
+libraries in src directory:
+1. ArrayUtils (file: src/Mixed.sol)
+2. SafeMath (file: src/SingleLib.sol)
+
+libraries in lib directory:
+1. LibUtils (file: lib/mylib/src/SomeLib.sol)
+
+libraries in test directory:
+1. TestHelpers (file: test/TestLib.sol)

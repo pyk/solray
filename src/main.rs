@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use hawk::AbstractInspector;
+use hawk::LibraryInspector;
 use hawk::Project;
 
 #[derive(Parser)]
@@ -158,8 +159,10 @@ fn main() -> Result<()> {
                 print_items(&project, &items, "interfaces")?;
             }
             InspectSubcommand::Libraries { project } => {
-                let items = hawk::commands::libraries::list(&project)?;
-                print_items(&project, &items, "libraries")?;
+                let project = Project::open(&project);
+                let inspector = LibraryInspector::new(project);
+                let output = inspector.inspect()?;
+                print!("{output}");
             }
             InspectSubcommand::Sources {
                 function_id,
