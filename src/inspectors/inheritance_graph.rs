@@ -82,10 +82,13 @@ impl fmt::Display for InheritanceGraphInspectorOutput {
         writeln!(f, "Inheritance graph:\n")?;
         write!(f, "{}", self.root)?;
 
-        let sources = self.root.flatten_sources();
+        let mut sources = self.root.flatten_sources();
+        sources.sort_by(|(file_a, name_a), (file_b, name_b)| {
+            name_a.cmp(name_b).then(file_a.cmp(file_b))
+        });
         writeln!(f, "\nSources:\n")?;
         for (i, (file, name)) in sources.iter().enumerate() {
-            writeln!(f, "{}. {}:{}", i + 1, file, name)?;
+            writeln!(f, "{}. {} (file: {})", i + 1, name, file)?;
         }
         Ok(())
     }
@@ -377,7 +380,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         assert_eq!(
             output.to_string(),
-            "Inheritance graph:\n\nBase\n\nSources:\n\n1. src/Base.sol:Base\n"
+            "Inheritance graph:\n\nBase\n\nSources:\n\n1. Base (file: src/Base.sol)\n"
         );
     }
 
@@ -388,7 +391,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         assert_eq!(
             output.to_string(),
-            "Inheritance graph:\n\nChild\n\u{2514}\u{2500}\u{2500} Middle\n    \u{2514}\u{2500}\u{2500} Base\n\nSources:\n\n1. src/Child.sol:Child\n2. src/Middle.sol:Middle\n3. src/Base.sol:Base\n"
+            "Inheritance graph:\n\nChild\n\u{2514}\u{2500}\u{2500} Middle\n    \u{2514}\u{2500}\u{2500} Base\n\nSources:\n\n1. Base (file: src/Base.sol)\n2. Child (file: src/Child.sol)\n3. Middle (file: src/Middle.sol)\n"
         );
     }
 
@@ -399,7 +402,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         assert_eq!(
             output.to_string(),
-            "Inheritance graph:\n\nMultiChild\n\u{251c}\u{2500}\u{2500} MultiBase\n\u{2514}\u{2500}\u{2500} AnotherBase\n\nSources:\n\n1. src/MultiChild.sol:MultiChild\n2. src/MultiBase.sol:MultiBase\n3. src/AnotherBase.sol:AnotherBase\n"
+            "Inheritance graph:\n\nMultiChild\n\u{251c}\u{2500}\u{2500} MultiBase\n\u{2514}\u{2500}\u{2500} AnotherBase\n\nSources:\n\n1. AnotherBase (file: src/AnotherBase.sol)\n2. MultiBase (file: src/MultiBase.sol)\n3. MultiChild (file: src/MultiChild.sol)\n"
         );
     }
 
@@ -432,7 +435,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         assert!(output.to_string().contains("Inheritance graph:"));
         assert!(output.to_string().contains("Dupe"));
-        assert!(output.to_string().contains("src/Dupe.sol:Dupe"));
+        assert!(output.to_string().contains("Dupe (file: src/Dupe.sol)"));
     }
 
     #[test]
@@ -442,7 +445,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         assert!(output.to_string().contains("Inheritance graph:"));
         assert!(output.to_string().contains("Dupe"));
-        assert!(output.to_string().contains("src/lib/Dupe.sol:Dupe"));
+        assert!(output.to_string().contains("Dupe (file: src/lib/Dupe.sol)"));
     }
 
     #[test]
