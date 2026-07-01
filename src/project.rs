@@ -418,3 +418,27 @@ fn process_artifact(path: impl AsRef<Path>) -> Result<Option<Declaration>> {
         Ok(None)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+
+    fn fixture_path() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/entrypoints")
+    }
+
+    #[test]
+    fn validate_storage_layout_requires_extra_output() {
+        let project = Project::open(fixture_path());
+        let err = project.validate_storage_layout().unwrap_err().to_string();
+        assert_eq!(
+            err,
+            format!(
+                "`storageLayout` must be set in the [profile.default].extra_output section of {}",
+                fixture_path().join("foundry.toml").display()
+            )
+        );
+    }
+}

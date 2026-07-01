@@ -4,3 +4,4 @@ pub mod r#abstract;
 pub mod contract;
 pub mod interface;
 pub mod library;
+pub mod storage_layout;

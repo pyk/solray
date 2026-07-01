@@ -9,6 +9,8 @@ use hawk::ContractInspector;
 use hawk::InterfaceInspector;
 use hawk::LibraryInspector;
 use hawk::Project;
+use hawk::StorageLayoutId;
+use hawk::StorageLayoutInspector;
 
 #[derive(Parser)]
 #[command(name = "hawk", about = "Inspect Foundry projects", version)]
@@ -90,10 +92,10 @@ enum InspectSubcommand {
         #[arg(long, default_value = ".")]
         project: PathBuf,
     },
-    /// List all storage entries exposed by a deployable contract
-    Storages {
-        /// The deployable contract name
-        deployable: String,
+    /// Show the storage layout of a contract
+    StorageLayout {
+        /// The storage layout ID (e.g. Name or File.sol:Name)
+        id: String,
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
@@ -163,11 +165,11 @@ fn main() -> Result<()> {
                 let output = hawk::commands::sources::run(&project, &function_id)?;
                 print!("{output}");
             }
-            InspectSubcommand::Storages {
-                deployable,
-                project,
-            } => {
-                let output = hawk::commands::storages::run(&deployable, &project)?;
+            InspectSubcommand::StorageLayout { id, project } => {
+                let project = Project::open(&project);
+                let inspector = StorageLayoutInspector::new(project);
+                let id = StorageLayoutId::new(&id);
+                let output = inspector.inspect(&id)?;
                 print!("{output}");
             }
         },

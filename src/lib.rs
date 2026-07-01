@@ -11,8 +11,10 @@ pub use inspectors::interface::InterfaceInspector;
 pub use inspectors::interface::InterfaceInspectorOutput;
 pub use inspectors::library::LibraryInspector;
 pub use inspectors::library::LibraryInspectorOutput;
+pub use inspectors::storage_layout::StorageLayoutId;
+pub use inspectors::storage_layout::StorageLayoutInspector;
+pub use inspectors::storage_layout::StorageLayoutInspectorOutput;
 pub use project::Project;
-pub use storage_layout::StorageLayoutResolver;
 
 pub mod artifact_index;
 pub mod build_info;
@@ -24,5 +26,4 @@ pub mod inheritance_resolver;
 pub mod inspectors;
 pub mod project;
 pub mod source_graph;
-pub mod storage_layout;
 pub mod symbol_index;
