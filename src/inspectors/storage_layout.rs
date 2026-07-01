@@ -164,12 +164,7 @@ impl StorageLayoutInspector {
 
         match candidates.len() {
             0 => {
-                let mut names: Vec<String> = index.keys().cloned().collect();
-                names.sort();
-                bail!(
-                    "\"{name}\" not found.\n\nAvailable contracts: {}",
-                    names.join(", ")
-                );
+                bail!("\"{name}\" not found.");
             }
             1 => {
                 let artifact = parse_artifact(&candidates[0])?;
@@ -249,10 +244,7 @@ mod tests {
         let inspector = StorageLayoutInspector::new(Project::open(fixture_path()));
         let id = StorageLayoutId::new("Missing");
         let err = inspector.inspect(&id).unwrap_err().to_string();
-        assert_eq!(
-            err,
-            "\"Missing\" not found.\n\nAvailable contracts: ContractA, ContractB"
-        );
+        assert_eq!(err, "\"Missing\" not found.");
     }
 
     #[test]

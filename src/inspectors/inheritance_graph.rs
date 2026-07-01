@@ -153,12 +153,7 @@ impl ResolutionContext {
 
         match candidates.len() {
             0 => {
-                let mut names: Vec<String> = index.keys().cloned().collect();
-                names.sort();
-                bail!(
-                    "\"{name}\" not found.\n\nAvailable contracts: {}",
-                    names.join(", ")
-                );
+                bail!("\"{name}\" not found.");
             }
             1 => Ok(candidates[0].clone()),
             n => {
@@ -411,10 +406,7 @@ mod tests {
         let inspector = InheritanceGraphInspector::new(Project::open(fixture_path()));
         let id = ArtifactId::new("Nonexistent");
         let err = inspector.inspect(&id).unwrap_err().to_string();
-        assert_eq!(
-            err,
-            "\"Nonexistent\" not found.\n\nAvailable contracts: AnotherBase, Base, Child, Middle, MultiBase, MultiChild"
-        );
+        assert_eq!(err, "\"Nonexistent\" not found.");
     }
 
     #[test]
