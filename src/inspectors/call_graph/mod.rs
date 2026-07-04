@@ -16,9 +16,11 @@ use solc::ast::{
 };
 
 use crate::artifact_index::ArtifactIndex;
+use crate::build_info::BuildInfo;
 use crate::inspectors::artifact_id::ArtifactId;
 use crate::inspectors::call_graph::node::CallGraphNode;
 use crate::inspectors::call_graph::source_renderer::offset_to_line_range;
+use crate::inspectors::function_source::symbol_index::SymbolIndex;
 use crate::project::Project;
 
 mod node;
@@ -103,12 +105,21 @@ enum ResolvedPath {
 /// Inspect a Foundry project for the call graph of a single function.
 pub struct CallGraphInspector {
     project: Project,
+    artifact_index: ArtifactIndex,
+    symbol_index: SymbolIndex,
 }
 
 impl CallGraphInspector {
     /// Build a [`CallGraphInspector`] for the given project.
     pub fn new(project: Project) -> Self {
-        Self { project }
+        let artifact_index = ArtifactIndex::build(project.out_dir());
+        let build_infos = BuildInfo::load_all(project.out_dir());
+        let symbol_index = SymbolIndex::build(&artifact_index, &build_infos);
+        Self {
+            project,
+            artifact_index,
+            symbol_index,
+        }
     }
 
     /// Inspect the call graph for the given [`FunctionId`].
@@ -128,7 +139,6 @@ impl CallGraphInspector {
             }
         };
 
-        let artifact_index = ArtifactIndex::build(self.project.out_dir());
         let cache: RefCell<HashMap<PathBuf, Vec<FunctionInfo>>> = RefCell::new(HashMap::new());
 
         let mut functions: HashMap<i64, FunctionInfo> = HashMap::new();
@@ -159,13 +169,7 @@ impl CallGraphInspector {
 
         let target_id = target_ids[0];
         let mut visited: HashSet<i64> = HashSet::new();
-        let root = self.build_call_node(
-            target_id,
-            &artifact_index,
-            &cache,
-            &mut functions,
-            &mut visited,
-        )?;
+        let root = self.build_call_node(target_id, &cache, &mut functions, &mut visited)?;
 
         Ok(CallGraphInspectorOutput::new(root, project_root))
     }
@@ -215,8 +219,11 @@ impl CallGraphInspector {
                 }
             }
             None => {
-                let index = ArtifactIndex::build(self.project.out_dir());
-                let candidates = index.get(&id.name).cloned().unwrap_or_default();
+                let candidates = self
+                    .artifact_index
+                    .get(&id.name)
+                    .cloned()
+                    .unwrap_or_default();
 
                 match candidates.len() {
                     0 => Ok(ResolvedPath::NotFound),
@@ -231,7 +238,6 @@ impl CallGraphInspector {
     fn build_call_node(
         &self,
         func_id: i64,
-        artifact_index: &ArtifactIndex,
         cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
         functions: &mut HashMap<i64, FunctionInfo>,
         visited: &mut HashSet<i64>,
@@ -259,7 +265,7 @@ impl CallGraphInspector {
             .and_then(|fi| fi.definition.body.as_ref().map(|b| b.statements.clone())); // checkrs: allow(clone_in_iterator)
 
         let children = if let Some(stmts) = body_stmts {
-            self.collect_calls(stmts, artifact_index, cache, functions, visited)?
+            self.collect_calls(stmts, cache, functions, visited)?
         } else {
             Vec::new()
         };
@@ -286,21 +292,13 @@ impl CallGraphInspector {
     fn collect_calls(
         &self,
         statements: Vec<solc::ast::Statement>,
-        artifact_index: &ArtifactIndex,
         cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
         functions: &mut HashMap<i64, FunctionInfo>,
         visited: &mut HashSet<i64>,
     ) -> Result<Vec<CallGraphNode>> {
         let mut nodes = Vec::new();
         for stmt in &statements {
-            self.collect_calls_from_statement(
-                stmt,
-                artifact_index,
-                cache,
-                functions,
-                visited,
-                &mut nodes,
-            )?;
+            self.collect_calls_from_statement(stmt, cache, functions, visited, &mut nodes)?;
         }
         Ok(nodes)
     }
@@ -309,7 +307,6 @@ impl CallGraphInspector {
     fn collect_calls_from_statement(
         &self,
         stmt: &solc::ast::Statement,
-        artifact_index: &ArtifactIndex,
         cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
         functions: &mut HashMap<i64, FunctionInfo>,
         visited: &mut HashSet<i64>,
@@ -319,7 +316,6 @@ impl CallGraphInspector {
             solc::ast::Statement::ExpressionStatement(es) => {
                 self.collect_calls_from_expression(
                     &es.expression,
-                    artifact_index,
                     cache,
                     functions,
                     visited,
@@ -328,20 +324,12 @@ impl CallGraphInspector {
             }
             solc::ast::Statement::Block(block) => {
                 for s in &block.statements {
-                    self.collect_calls_from_statement(
-                        s,
-                        artifact_index,
-                        cache,
-                        functions,
-                        visited,
-                        nodes,
-                    )?;
+                    self.collect_calls_from_statement(s, cache, functions, visited, nodes)?;
                 }
             }
             solc::ast::Statement::IfStatement(ifs) => {
                 self.collect_calls_from_expression(
                     &ifs.condition,
-                    artifact_index,
                     cache,
                     functions,
                     visited,
@@ -349,7 +337,6 @@ impl CallGraphInspector {
                 )?;
                 self.collect_calls_from_statement(
                     &ifs.true_body,
-                    artifact_index,
                     cache,
                     functions,
                     visited,
@@ -357,29 +344,16 @@ impl CallGraphInspector {
                 )?;
                 if let Some(ref false_body) = ifs.false_body {
                     self.collect_calls_from_statement(
-                        false_body,
-                        artifact_index,
-                        cache,
-                        functions,
-                        visited,
-                        nodes,
+                        false_body, cache, functions, visited, nodes,
                     )?;
                 }
             }
             solc::ast::Statement::ForStatement(fors) => {
                 if let Some(ref init) = fors.initialization_expression {
-                    self.collect_calls_from_expression(
-                        init,
-                        artifact_index,
-                        cache,
-                        functions,
-                        visited,
-                        nodes,
-                    )?;
+                    self.collect_calls_from_expression(init, cache, functions, visited, nodes)?;
                 }
                 self.collect_calls_from_expression(
                     &fors.condition,
-                    artifact_index,
                     cache,
                     functions,
                     visited,
@@ -387,53 +361,25 @@ impl CallGraphInspector {
                 )?;
                 if let Some(ref loop_expr) = fors.loop_expression {
                     self.collect_calls_from_expression(
-                        loop_expr,
-                        artifact_index,
-                        cache,
-                        functions,
-                        visited,
-                        nodes,
+                        loop_expr, cache, functions, visited, nodes,
                     )?;
                 }
-                self.collect_calls_from_statement(
-                    &fors.body,
-                    artifact_index,
-                    cache,
-                    functions,
-                    visited,
-                    nodes,
-                )?;
+                self.collect_calls_from_statement(&fors.body, cache, functions, visited, nodes)?;
             }
             solc::ast::Statement::WhileStatement(whiles) => {
                 self.collect_calls_from_expression(
                     &whiles.condition,
-                    artifact_index,
                     cache,
                     functions,
                     visited,
                     nodes,
                 )?;
-                self.collect_calls_from_statement(
-                    &whiles.body,
-                    artifact_index,
-                    cache,
-                    functions,
-                    visited,
-                    nodes,
-                )?;
+                self.collect_calls_from_statement(&whiles.body, cache, functions, visited, nodes)?;
             }
             solc::ast::Statement::DoWhileStatement(dw) => {
-                self.collect_calls_from_statement(
-                    &dw.body,
-                    artifact_index,
-                    cache,
-                    functions,
-                    visited,
-                    nodes,
-                )?;
+                self.collect_calls_from_statement(&dw.body, cache, functions, visited, nodes)?;
                 self.collect_calls_from_expression(
                     &dw.condition,
-                    artifact_index,
                     cache,
                     functions,
                     visited,
@@ -442,26 +388,12 @@ impl CallGraphInspector {
             }
             solc::ast::Statement::Return(ret) => {
                 if let Some(ref expr) = ret.expression {
-                    self.collect_calls_from_expression(
-                        expr,
-                        artifact_index,
-                        cache,
-                        functions,
-                        visited,
-                        nodes,
-                    )?;
+                    self.collect_calls_from_expression(expr, cache, functions, visited, nodes)?;
                 }
             }
             solc::ast::Statement::VariableDeclarationStatement(vds) => {
                 if let Some(ref expr) = vds.initial_value {
-                    self.collect_calls_from_expression(
-                        expr,
-                        artifact_index,
-                        cache,
-                        functions,
-                        visited,
-                        nodes,
-                    )?;
+                    self.collect_calls_from_expression(expr, cache, functions, visited, nodes)?;
                 }
             }
             _ => {}
@@ -473,7 +405,6 @@ impl CallGraphInspector {
     fn collect_calls_from_expression(
         &self,
         expr: &Expression,
-        artifact_index: &ArtifactIndex,
         cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
         functions: &mut HashMap<i64, FunctionInfo>,
         visited: &mut HashSet<i64>,
@@ -483,14 +414,9 @@ impl CallGraphInspector {
             Expression::FunctionCall(fc) => {
                 match &*fc.expression {
                     FunctionCallExpression::MemberAccess(ma) => match ma.referenced_declaration {
-                        Some(id) => self.push_loaded_function(
-                            id,
-                            artifact_index,
-                            cache,
-                            functions,
-                            visited,
-                            nodes,
-                        )?,
+                        Some(id) => {
+                            self.push_loaded_function(id, cache, functions, visited, nodes)?
+                        }
                         None if is_low_level_call(&ma.member_name) => {
                             let sig = format!("(address).{}()", ma.member_name);
                             nodes.push(CallGraphNode::new(
@@ -506,60 +432,29 @@ impl CallGraphInspector {
                     },
                     FunctionCallExpression::Identifier(id) => {
                         id.referenced_declaration.map_or(Ok(()), |id| {
-                            self.push_loaded_function(
-                                id,
-                                artifact_index,
-                                cache,
-                                functions,
-                                visited,
-                                nodes,
-                            )
+                            self.push_loaded_function(id, cache, functions, visited, nodes)
                         })?;
                     }
                     FunctionCallExpression::FunctionCallOptions(fco) => {
-                        resolve_called_function_id_from_fc_expression(&fco.expression).map_or(
-                            Ok(()),
-                            |id| {
-                                self.push_loaded_function(
-                                    id,
-                                    artifact_index,
-                                    cache,
-                                    functions,
-                                    visited,
-                                    nodes,
-                                )
-                            },
-                        )?;
+                        resolve_called_function_id_from_fc_expression(&fco.expression)
+                            .map_or(Ok(()), |id| {
+                                self.push_loaded_function(id, cache, functions, visited, nodes)
+                            })?;
                     }
                     _ => {}
                 }
                 for arg in &fc.arguments {
-                    self.collect_calls_from_expression(
-                        arg,
-                        artifact_index,
-                        cache,
-                        functions,
-                        visited,
-                        nodes,
-                    )?;
+                    self.collect_calls_from_expression(arg, cache, functions, visited, nodes)?;
                 }
                 if let FunctionCallExpression::FunctionCallOptions(fco) = &*fc.expression {
                     for opt in &fco.options {
-                        self.collect_calls_from_expression(
-                            opt,
-                            artifact_index,
-                            cache,
-                            functions,
-                            visited,
-                            nodes,
-                        )?;
+                        self.collect_calls_from_expression(opt, cache, functions, visited, nodes)?;
                     }
                 }
             }
             Expression::Assignment(assign) => {
                 self.collect_calls_from_expression(
                     &assign.right_hand_side,
-                    artifact_index,
                     cache,
                     functions,
                     visited,
@@ -567,7 +462,6 @@ impl CallGraphInspector {
                 )?;
                 self.collect_calls_from_expression(
                     &assign.left_hand_side,
-                    artifact_index,
                     cache,
                     functions,
                     visited,
@@ -577,7 +471,6 @@ impl CallGraphInspector {
             Expression::MemberAccess(ma) => {
                 self.collect_calls_from_expression(
                     &ma.expression,
-                    artifact_index,
                     cache,
                     functions,
                     visited,
@@ -587,7 +480,6 @@ impl CallGraphInspector {
             Expression::BinaryOperation(binop) => {
                 self.collect_calls_from_expression(
                     &binop.left_expression,
-                    artifact_index,
                     cache,
                     functions,
                     visited,
@@ -595,7 +487,6 @@ impl CallGraphInspector {
                 )?;
                 self.collect_calls_from_expression(
                     &binop.right_expression,
-                    artifact_index,
                     cache,
                     functions,
                     visited,
@@ -605,7 +496,6 @@ impl CallGraphInspector {
             Expression::UnaryOperation(unop) => {
                 self.collect_calls_from_expression(
                     &unop.sub_expression,
-                    artifact_index,
                     cache,
                     functions,
                     visited,
@@ -615,7 +505,6 @@ impl CallGraphInspector {
             Expression::Conditional(cond) => {
                 self.collect_calls_from_expression(
                     &cond.condition,
-                    artifact_index,
                     cache,
                     functions,
                     visited,
@@ -623,7 +512,6 @@ impl CallGraphInspector {
                 )?;
                 self.collect_calls_from_expression(
                     &cond.true_expression,
-                    artifact_index,
                     cache,
                     functions,
                     visited,
@@ -631,7 +519,6 @@ impl CallGraphInspector {
                 )?;
                 self.collect_calls_from_expression(
                     &cond.false_expression,
-                    artifact_index,
                     cache,
                     functions,
                     visited,
@@ -640,14 +527,7 @@ impl CallGraphInspector {
             }
             Expression::TupleExpression(tuple) => {
                 for expr in tuple.components.iter().flatten() {
-                    self.collect_calls_from_expression(
-                        expr,
-                        artifact_index,
-                        cache,
-                        functions,
-                        visited,
-                        nodes,
-                    )?;
+                    self.collect_calls_from_expression(expr, cache, functions, visited, nodes)?;
                 }
             }
             _ => {}
@@ -659,40 +539,41 @@ impl CallGraphInspector {
     fn push_loaded_function(
         &self,
         id: i64,
-        artifact_index: &ArtifactIndex,
         cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
         functions: &mut HashMap<i64, FunctionInfo>,
         visited: &mut HashSet<i64>,
         nodes: &mut Vec<CallGraphNode>,
     ) -> Result<()> {
         if !functions.contains_key(&id) {
-            self.ensure_function_loaded(id, artifact_index, cache, functions)?;
+            self.ensure_function_loaded(id, cache, functions)?;
         }
 
         if functions.contains_key(&id) {
-            let node = self.build_call_node(id, artifact_index, cache, functions, visited)?;
+            let node = self.build_call_node(id, cache, functions, visited)?;
             nodes.push(node);
         }
         Ok(())
     }
 
-    /// Ensure a function ID is loaded by scanning artifacts from the index.
+    /// Ensure a function ID is loaded by looking up its artifact path in the
+    /// pre-built symbol index and loading only that artifact.
     fn ensure_function_loaded(
         &self,
         id: i64,
-        artifact_index: &ArtifactIndex,
         cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
         functions: &mut HashMap<i64, FunctionInfo>,
     ) -> Result<()> {
-        for artifact_path in artifact_index.all_entries() {
-            if cache.borrow().contains_key(artifact_path) {
-                continue;
-            }
-            load_artifact_functions(artifact_path, functions, cache)?;
-            if functions.contains_key(&id) {
-                return Ok(());
-            }
+        if functions.contains_key(&id) {
+            return Ok(());
         }
+        let Some(entry) = self.symbol_index.get(id) else {
+            return Ok(());
+        };
+        let artifact_path = &self
+            .symbol_index
+            .artifact_info(entry.artifact_id)
+            .artifact_path;
+        load_artifact_functions(artifact_path, functions, cache)?;
         Ok(())
     }
 }
