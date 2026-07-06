@@ -45,7 +45,7 @@ pub struct ExternalFunctionInfo {
     pub visibility: Visibility,
     /// State mutability.
     pub mutability: StateMutability,
-    /// Modifier invocations (e.g. `["onlyOwner", "nonReentrant(WITH_PAUSE_CHECK)"]`).
+    /// Modifier names (e.g. `["onlyOwner", "nonReentrant"]`).
     pub modifiers: Vec<String>,
 }
 
@@ -367,14 +367,7 @@ impl FuncInfo {
             modifiers: fn_def
                 .modifiers
                 .iter()
-                .map(|m| {
-                    let name = &m.modifier_name.name;
-                    if m.arguments.is_some() {
-                        format!("{name}(...)")
-                    } else {
-                        name.to_string()
-                    }
-                })
+                .map(|m| m.modifier_name.name.to_string())
                 .collect(),
         }
     }
