@@ -1,0 +1,18 @@
+[global]
+flavor = "pandoc"
+exclude = ["target", "node_modules"]
+respect-gitignore = true
+
+[MD013]
+line-length = 80
+reflow = true
+
+[MD025]
+front-matter-title = ""
+
+[MD036]
+enabled = false
+
+[MD060]
+enabled = true
+style = "aligned"
