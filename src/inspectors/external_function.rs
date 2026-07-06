@@ -10,10 +10,10 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
-use solc::abi::{Abi, AbiItem, Function as AbiFunction};
+use solc::abi::{Abi, AbiItem, Function as AbiFunction, StateMutability};
 use solc::ast::{
     ContractDefinition, ContractDefinitionNode, FunctionDefinition, SourceLocation, SourceUnit,
-    SourceUnitNode, StateMutability as AstStateMutability, VariableDeclaration, Visibility,
+    SourceUnitNode, VariableDeclaration, Visibility,
 };
 
 use crate::artifact_index::ArtifactIndex;
@@ -42,9 +42,9 @@ pub struct ExternalFunctionInfo {
     /// Resolved source location, if known.
     pub source: Option<SourceInfo>,
     /// Solidity visibility.
-    pub visibility: String,
-    /// State mutability string (e.g. `payable`, `nonpayable`, `view`, `pure`).
-    pub mutability: String,
+    pub visibility: Visibility,
+    /// State mutability.
+    pub mutability: StateMutability,
     /// Modifier invocations (e.g. `["onlyOwner", "nonReentrant(WITH_PAUSE_CHECK)"]`).
     pub modifiers: Vec<String>,
 }
@@ -157,8 +157,16 @@ fn write_section(
         if let Some(ref src) = info.source {
             writeln!(f, "   source: {}:{}", src.file, src.line)?;
         }
-        writeln!(f, "   visibility: {}", info.visibility)?;
-        writeln!(f, "   mutability: {}", info.mutability)?;
+        writeln!(
+            f,
+            "   visibility: {}",
+            format!("{:?}", info.visibility).to_lowercase()
+        )?;
+        writeln!(
+            f,
+            "   mutability: {}",
+            format!("{:?}", info.mutability).to_lowercase()
+        )?;
         if info.modifiers.is_empty() {
             writeln!(f, "   modifiers: none")?;
         } else {
@@ -229,7 +237,6 @@ impl ExternalFunctionInspector {
                     let fi = info.cloned();
                     let (source, visibility, modifiers) = match fi {
                         Some(f) => {
-                            let vis = f.visibility_string();
                             let mods = f.modifier_strings();
                             let file = f.file.unwrap_or_default();
                             let line = f.line.unwrap_or(0);
@@ -238,12 +245,12 @@ impl ExternalFunctionInspector {
                                 location: f.location,
                                 line,
                             };
-                            (Some(src_info), vis, mods)
+                            (Some(src_info), f.visibility, mods)
                         }
-                        None => (None, "external".to_string(), vec![]),
+                        None => (None, Visibility::External, vec![]),
                     };
 
-                    let mutability = abi_state_mutability_string(&function.state_mutability);
+                    let mutability = function.state_mutability.clone(); // checkrs: allow(clone_in_loops)
                     let func_info = ExternalFunctionInfo {
                         signature,
                         source,
@@ -252,8 +259,8 @@ impl ExternalFunctionInspector {
                         modifiers,
                     };
 
-                    if function.state_mutability == solc::abi::StateMutability::View
-                        || function.state_mutability == solc::abi::StateMutability::Pure
+                    if function.state_mutability == StateMutability::View
+                        || function.state_mutability == StateMutability::Pure
                     {
                         read_only.push(func_info);
                     } else {
@@ -261,12 +268,21 @@ impl ExternalFunctionInspector {
                     }
                 }
                 AbiItem::Receive(_) => {
-                    let info = resolve_special("receive", &index, &contract_source_file, "payable");
+                    let info = resolve_special(
+                        "receive",
+                        &index,
+                        &contract_source_file,
+                        StateMutability::Payable,
+                    );
                     special.push(info);
                 }
                 AbiItem::Fallback(_) => {
-                    let info =
-                        resolve_special("fallback", &index, &contract_source_file, "nonpayable");
+                    let info = resolve_special(
+                        "fallback",
+                        &index,
+                        &contract_source_file,
+                        StateMutability::Nonpayable,
+                    );
                     special.push(info);
                 }
                 _ => {}
@@ -338,8 +354,6 @@ struct FuncInfo {
     line: Option<usize>,
     location: SourceLocation,
     visibility: Visibility,
-    #[expect(dead_code)]
-    state_mutability: AstStateMutability,
     modifiers: Vec<String>,
 }
 
@@ -350,7 +364,6 @@ impl FuncInfo {
             file,
             line,
             visibility: fn_def.visibility.clone(),
-            state_mutability: fn_def.state_mutability.clone(),
             modifiers: fn_def
                 .modifiers
                 .iter()
@@ -372,13 +385,8 @@ impl FuncInfo {
             file,
             line,
             visibility: var.visibility.clone(),
-            state_mutability: AstStateMutability::View,
             modifiers: vec![],
         }
-    }
-
-    fn visibility_string(&self) -> String {
-        format!("{:?}", self.visibility).to_lowercase()
     }
 
     fn modifier_strings(&self) -> Vec<String> {
@@ -616,20 +624,11 @@ fn external_function_signature(function: &AbiFunction) -> String {
     )
 }
 
-fn abi_state_mutability_string(m: &solc::abi::StateMutability) -> String {
-    match m {
-        solc::abi::StateMutability::Pure => "pure".to_string(),
-        solc::abi::StateMutability::View => "view".to_string(),
-        solc::abi::StateMutability::Nonpayable => "nonpayable".to_string(),
-        solc::abi::StateMutability::Payable => "payable".to_string(),
-    }
-}
-
 fn resolve_special(
     name: &str,
     _index: &FunctionIndex,
     source_file: &Option<String>,
-    mutability: &str,
+    mutability: StateMutability,
 ) -> ExternalFunctionInfo {
     let source = source_file.clone().map(|file| SourceInfo {
         file,
@@ -639,8 +638,8 @@ fn resolve_special(
     ExternalFunctionInfo {
         signature: format!("{name}()"),
         source,
-        visibility: "external".to_string(),
-        mutability: mutability.to_string(),
+        visibility: Visibility::External,
+        mutability,
         modifiers: vec![],
     }
 }
