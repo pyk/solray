@@ -222,7 +222,7 @@ impl ExternalFunctionInspector {
         let index = build_function_index(&self.project, &artifact, &id.name)?;
 
         let mut state_changing = Vec::new();
-        let callback = Vec::new();
+        let mut callback = Vec::new();
         let mut special = Vec::new();
         let mut read_only = Vec::new();
 
@@ -259,7 +259,9 @@ impl ExternalFunctionInspector {
                         modifiers,
                     };
 
-                    if function.state_mutability == StateMutability::View
+                    if is_callback_function(&function.name) {
+                        callback.push(func_info);
+                    } else if function.state_mutability == StateMutability::View
                         || function.state_mutability == StateMutability::Pure
                     {
                         read_only.push(func_info);
@@ -635,6 +637,14 @@ fn external_function_signature(function: &AbiFunction) -> String {
             .map(|p| p.r#type.as_str())
             .collect::<Vec<&str>>()
             .join(",")
+    )
+}
+
+/// Returns `true` if the function name corresponds to a well-known ERC callback.
+fn is_callback_function(name: &str) -> bool {
+    matches!(
+        name,
+        "onERC721Received" | "onERC1155Received" | "onERC1155BatchReceived"
     )
 }
 
