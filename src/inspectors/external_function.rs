@@ -12,8 +12,8 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use solc::abi::{Abi, AbiItem, Function as AbiFunction, StateMutability};
 use solc::ast::{
-    ContractDefinition, ContractDefinitionNode, FunctionDefinition, SourceLocation, SourceUnit,
-    SourceUnitNode, VariableDeclaration, Visibility,
+    ContractDefinition, ContractDefinitionNode, FunctionDefinition, FunctionKind, SourceLocation,
+    SourceUnit, SourceUnitNode, VariableDeclaration, Visibility,
 };
 
 use crate::artifact_index::ArtifactIndex;
@@ -271,6 +271,8 @@ impl ExternalFunctionInspector {
                     let info = resolve_special(
                         "receive",
                         &index,
+                        &contract_name,
+                        &FunctionKind::Receive,
                         &contract_source_file,
                         StateMutability::Payable,
                     );
@@ -280,6 +282,8 @@ impl ExternalFunctionInspector {
                     let info = resolve_special(
                         "fallback",
                         &index,
+                        &contract_name,
+                        &FunctionKind::Fallback,
                         &contract_source_file,
                         StateMutability::Nonpayable,
                     );
@@ -391,6 +395,8 @@ impl FuncInfo {
 struct FunctionIndex {
     /// Key: (contract_name, function_name) -> Vec of FuncInfo (for overloads).
     by_name: HashMap<(String, String), Vec<FuncInfo>>,
+    /// Key: (contract_name, kind_name) -> FuncInfo for special functions (fallback, receive).
+    by_kind: HashMap<(String, String), FuncInfo>,
     /// File cache for computing line numbers.
     line_cache: HashMap<PathBuf, Vec<usize>>,
 }
@@ -399,6 +405,7 @@ impl FunctionIndex {
     fn new() -> Self {
         Self {
             by_name: HashMap::new(),
+            by_kind: HashMap::new(),
             line_cache: HashMap::new(),
         }
     }
@@ -419,10 +426,19 @@ impl FunctionIndex {
             .as_ref()
             .and_then(|f| self.byte_offset_to_line(f, fn_def.src.offset));
         let info = FuncInfo::from_ast(fn_def, display_file, line);
-        self.by_name
-            .entry((contract_name.to_string(), fn_def.name.clone()))
-            .or_default()
-            .push(info);
+        match fn_def.kind {
+            FunctionKind::Receive | FunctionKind::Fallback => {
+                let kind_name = format!("{:?}", fn_def.kind);
+                self.by_kind
+                    .insert((contract_name.to_string(), kind_name), info);
+            }
+            _ => {
+                self.by_name
+                    .entry((contract_name.to_string(), fn_def.name.clone()))
+                    .or_default()
+                    .push(info);
+            }
+        }
     }
 
     fn register_variable(
@@ -465,6 +481,11 @@ impl FunctionIndex {
 
     fn resolve_function_by_abi(&self, function: &AbiFunction) -> Option<&FuncInfo> {
         self.resolve_function(&function.name, function.inputs.len())
+    }
+
+    fn resolve_by_kind(&self, contract_name: &str, kind: &FunctionKind) -> Option<&FuncInfo> {
+        let kind_name = format!("{kind:?}");
+        self.by_kind.get(&(contract_name.to_string(), kind_name))
     }
 
     fn byte_offset_to_line(&mut self, file: &Path, offset: usize) -> Option<usize> {
@@ -619,15 +640,28 @@ fn external_function_signature(function: &AbiFunction) -> String {
 
 fn resolve_special(
     name: &str,
-    _index: &FunctionIndex,
+    index: &FunctionIndex,
+    contract_name: &str,
+    kind: &FunctionKind,
     source_file: &Option<String>,
     mutability: StateMutability,
 ) -> ExternalFunctionInfo {
-    let source = source_file.clone().map(|file| SourceInfo {
-        file,
-        location: SourceLocation::default(),
-        line: 0,
-    });
+    let source = match index.resolve_by_kind(contract_name, kind) {
+        Some(info) => {
+            let file = info.file.clone().unwrap_or_default();
+            let line = info.line.unwrap_or(0);
+            Some(SourceInfo {
+                file,
+                location: info.location.clone(),
+                line,
+            })
+        }
+        None => source_file.clone().map(|file| SourceInfo {
+            file,
+            location: SourceLocation::default(),
+            line: 0,
+        }),
+    };
     ExternalFunctionInfo {
         signature: format!("{name}()"),
         source,
