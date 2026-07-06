@@ -27,6 +27,14 @@ fn external_function_signature(function: &Function) -> String {
     )
 }
 
+fn receive_signature() -> String {
+    "receive()".to_string()
+}
+
+fn fallback_signature() -> String {
+    "fallback()".to_string()
+}
+
 /// The output of an [`ExternalFunctionInspector`] inspection.
 #[derive(Debug)]
 pub struct ExternalFunctionInspectorOutput {
@@ -80,6 +88,8 @@ impl ExternalFunctionInspector {
             .iter()
             .filter_map(|item| match item {
                 AbiItem::Function(function) => Some(external_function_signature(function)),
+                AbiItem::Receive(_) => Some(receive_signature()),
+                AbiItem::Fallback(_) => Some(fallback_signature()),
                 _ => None,
             })
             .collect();
@@ -159,7 +169,7 @@ mod tests {
     use crate::project::Project;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/entrypoints")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/external-functions")
     }
 
     #[test]
@@ -190,6 +200,28 @@ mod tests {
         let id = ArtifactId::new("Missing");
         let err = inspector.inspect(&id).unwrap_err().to_string();
         assert_eq!(err, "\"Missing\" not found.");
+    }
+
+    #[test]
+    fn inspect_lists_direct_receive_and_fallback() {
+        let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("DirectFallback");
+        let output = inspector.inspect(&id).unwrap();
+        assert_eq!(
+            output.to_string(),
+            "Found 3 external functions\n\n1. fallback()\n2. receive()\n3. doSomething()\n"
+        );
+    }
+
+    #[test]
+    fn inspect_lists_inherited_receive_and_fallback() {
+        let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("ChildIsFallback");
+        let output = inspector.inspect(&id).unwrap();
+        assert_eq!(
+            output.to_string(),
+            "Found 4 external functions\n\n1. fallback()\n2. receive()\n3. childFunc()\n4. parentFunc()\n"
+        );
     }
 
     #[test]
