@@ -71,6 +71,9 @@ enum InspectSubcommand {
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
+        /// Show read-only functions in the output
+        #[arg(long)]
+        include_read_only: bool,
     },
     /// Show the inheritance graph of a declaration
     InheritanceGraph {
@@ -150,11 +153,15 @@ fn main() -> Result<()> {
                 let output = inspector.inspect()?;
                 print!("{output}");
             }
-            InspectSubcommand::ExternalFunctions { id, project } => {
+            InspectSubcommand::ExternalFunctions {
+                id,
+                project,
+                include_read_only,
+            } => {
                 let project = Project::open(&project);
                 let inspector = ExternalFunctionInspector::new(project);
                 let id = ArtifactId::new(&id);
-                let output = inspector.inspect(&id)?;
+                let output = inspector.inspect(&id, include_read_only)?;
                 print!("{output}");
             }
             InspectSubcommand::InheritanceGraph { id, project } => {
