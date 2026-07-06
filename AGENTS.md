@@ -1,15 +1,40 @@
-You are working on a `hawk` project.
+# Hawk CLI
+
+Hawk is a Solidity source code explorer. Currently it only supports
+foundry-based projects.
+
+The main goal of Hawk is to help anyone to do security reviews faster.
+
+Hawk is designed to be library-first, which means the CLI is the consumer of
+the library.
+
+Available Hawk commands:
+
+- `hawk inspect contracts`: List all deployable contracts.
+- `hawk inspect abstracts`: List all abstract contracts.
+- `hawk inspect libraries`: List all libraries.
+- `hawk inspect interfaces`: List all interfaces.
+- `hawk inspect inheritance-graph <contract>`: Show inheritance graph of a
+  contract/interface.
+- `hawk inspect external-functions <contract>`: List all externally callable
+  functions, including `receive` and `fallback` functions if they exist.
+- `hawk inspect storage-layout <contract>`: Show storage layout of a contract.
+- `hawk inspect call-graph <contract> <function>`: Show the complete call graph
+  of a function.
+- `hawk inspect function-source <contract> <function>`: Show the complete source
+  code of a function.
 
 ## Non-negotiable rules
 
-List of CRITICAL rules that you must follow every time. Failing to do so will have a
-severe negative impact on the project and the user.
+List of CRITICAL rules that you must follow every time. Failing to do so will
+have a severe negative impact on the project and the user.
 
 ### General Rules
 
 - You must run `make check` and `make test` before finishing a task.
 - You must use `cargo txt` to view crate documentation.
-- You must not create fixture artifacts manually. Run `forge build` to generate them.
+- You must not create fixture artifacts manually. Run `forge build` to generate
+  them.
 
 ### Code Design Rules
 
@@ -26,37 +51,20 @@ severe negative impact on the project and the user.
 - You must not prefix function names with the type name (bad: `build_project`).
 - You must use free functions only when there is no natural owner.
 - You must use option structs for methods with many parameters.
-- You must use operation types (Analyzer, Linker, Builder) for complex workflows.
-- You must use context objects for internal workflows to prevent parameter explosion.
+- You must use operation types (Analyzer, Linker, Builder) for complex
+  workflows.
+- You must use context objects for internal workflows to prevent parameter
+  explosion.
 - You must avoid deep module hierarchies.
 
 ### Testing Rules
 
-- You must assert exact error messages in tests with `assert_eq!`, never `.contains()`.
+- You must assert exact error messages in tests with `assert_eq!`, never
+  `.contains()`.
 
-## Project Overview
+## Tool References
 
-`hawk` is CLI that can be used to inspect any foundry project.
-
-The main goal of the `hawk` is to help security researcher to do audit faster.
-
-## Project Structure
-
-- `hawk` is designed to be library first, which mean the CLI is the consumer of the
-  library.
-
-## `hawk` commands
-
-- `hawk inspect contracts`: List all deployable contracts.
-- `hawk inspect abstracts`: List all abtract contracts.
-- `hawk inspect libraries`: List all libraries.
-- `hawk inspect interfaces`: List all interfaces.
-- `hawk inspect inheritances <declaration>`: Show inheritance graph of a
-  contract/interface.
-- `hawk inspect calls Contract::function`: Show the complete callgraph of a function.
-- `hawk inspect source Contract::function`: Show the complete source code of a function.
-
-## cargo txt
+### cargo txt
 
 1. Build documentation: `cargo txt build <crate>`
 2. List all items: `cargo txt list <lib_name>`
@@ -78,7 +86,7 @@ cargo txt show serde
 cargo txt show serde::Deserialize
 ```
 
-## checkrs
+### checkrs
 
 To suppress the lint use the `// checkrs: allow(<name>)` for example:
 
