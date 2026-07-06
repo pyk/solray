@@ -1,13 +1,13 @@
 .PHONY: check
 check: # Run code quality tools
-	@echo "Run formatter"
+	@echo "Run rust formatter"
 	@cargo fmt
 	@echo "Run clippy"
 	@cargo clippy -- -D warnings
 	@echo "Run checkrs"
 	@checkrs run src/
-	@echo "Run flowmark"
-	@uvx --from flowmark==0.7.2 flowmark -w 88 --list-spacing tight --nobackup -c --inplace .
+	@echo "Run markdown formatter"
+	@uvx --from rumdl==0.2.22 rumdl fmt --silent .
 
 .PHONY: bin
 bin: # Install binary
