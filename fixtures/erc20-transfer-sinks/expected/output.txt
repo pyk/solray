@@ -1,0 +1,12 @@
+## ERC20 Transfer Sinks
+
+6 ERC20 transfer sinks found.
+
+| # | Contract | Function | Transfer | Source Location |
+| - | -------- | -------- | -------- | --------------- |
+| 1 | `TokenSender` | `sendToken` | `token.safeTransfer(to, amount)` | `src/TokenTransfer.sol:13` |
+| 2 | `TokenSender` | `sendTokenDirect` | `token.transfer(to, amount)` | `src/TokenTransfer.sol:17` |
+| 3 | `TokenSender` | `sendMultiple` | `token.safeTransfer(to, amount0)` | `src/TokenTransfer.sol:21` |
+| 4 | `TokenSender` | `sendMultiple` | `token.safeTransfer(to, amount1)` | `src/TokenTransfer.sol:22` |
+| 5 | `TokenLib` | `send` | `token_.safeTransfer(to, amount)` | `src/TokenTransfer.sol:28` |
+| 6 | `TokenLib` | `transferDirect` | `token_.transfer(to, amount)` | `src/TokenTransfer.sol:32` |

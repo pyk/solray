@@ -8,6 +8,7 @@ use hawk::AbstractInspector;
 use hawk::ArtifactId;
 use hawk::CallGraphInspector;
 use hawk::ContractInspector;
+use hawk::Erc20TransferSinkScanner;
 use hawk::ExternalFunctionInspector;
 use hawk::FunctionId;
 use hawk::FunctionSourceInspector;
@@ -29,6 +30,14 @@ struct Cli {
 enum Command {
     /// Inspect a Foundry project.
     Inspect(InspectArgs),
+    /// Scan a Foundry project for patterns of interest.
+    Scan(ScanArgs),
+}
+
+#[derive(clap::Args)]
+struct ScanArgs {
+    #[command(subcommand)]
+    subcommand: ScanSubcommand,
 }
 
 #[derive(clap::Args)]
@@ -115,10 +124,28 @@ enum InspectSubcommand {
     },
 }
 
+#[derive(Subcommand)]
+enum ScanSubcommand {
+    /// Scan for ERC20 transfer and safeTransfer calls.
+    Erc20TransferSink {
+        /// Path to the Foundry project
+        #[arg(long, default_value = ".")]
+        project: PathBuf,
+    },
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Command::Scan(args) => match args.subcommand {
+            ScanSubcommand::Erc20TransferSink { project } => {
+                let project = Project::open(&project);
+                let scanner = Erc20TransferSinkScanner::new(project);
+                let output = scanner.scan()?;
+                print!("{output}");
+            }
+        },
         Command::Inspect(args) => match args.subcommand {
             InspectSubcommand::Abstracts { project } => {
                 let project = Project::open(&project);

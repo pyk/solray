@@ -1,5 +1,9 @@
 //! Hawk: inspect Foundry projects.
 
+pub use scanners::erc20_transfer_sink::Erc20TransferSink;
+pub use scanners::erc20_transfer_sink::Erc20TransferSinkScanner;
+pub use scanners::erc20_transfer_sink::Erc20TransferSinkScannerOutput;
+
 pub use inspectors::r#abstract::AbstractInspector;
 pub use inspectors::r#abstract::AbstractInspectorOutput;
 pub use inspectors::artifact_id::ArtifactId;
@@ -31,3 +35,4 @@ pub mod build_info;
 
 pub mod inspectors;
 pub mod project;
+pub mod scanners;
