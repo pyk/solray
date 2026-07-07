@@ -477,34 +477,52 @@ fn collect_from_contract_node(
     results: &mut Vec<ResolvedSymbol>,
     ctx: &RefCtx,
 ) {
-    if let ContractDefinitionNode::FunctionDefinition(fd) = node
-        && let Some(ref body) = fd.body
-    {
-        let body_start = body.src.offset;
-        let body_end = body_start + body.src.length;
-        if body_start < range_end && body_end > range_start {
-            let fn_ctx = RefCtx {
-                current_fn_id: Some(fd.id),
-                ..*ctx
+    match node {
+        ContractDefinitionNode::FunctionDefinition(fd) => {
+            let Some(ref body) = fd.body else {
+                return;
             };
-            for param in &fd.parameters.parameters {
-                collect_from_type_name(&param.type_name, seen_ids, results, &fn_ctx);
-            }
-            for param in &fd.return_parameters.parameters {
-                collect_from_type_name(&param.type_name, seen_ids, results, &fn_ctx);
-            }
-            for modifier in &fd.modifiers {
-                if let Some(id) = modifier.modifier_name.referenced_declaration {
-                    resolve_and_add_symbol(id, seen_ids, results, &fn_ctx);
+            let body_start = body.src.offset;
+            let body_end = body_start + body.src.length;
+            if body_start < range_end && body_end > range_start {
+                let fn_ctx = RefCtx {
+                    current_fn_id: Some(fd.id),
+                    ..*ctx
+                };
+                for param in &fd.parameters.parameters {
+                    collect_from_type_name(&param.type_name, seen_ids, results, &fn_ctx);
                 }
-                if let Some(ref args) = modifier.arguments {
-                    for arg in args {
-                        collect_from_expression(arg, seen_ids, results, &fn_ctx);
+                for param in &fd.return_parameters.parameters {
+                    collect_from_type_name(&param.type_name, seen_ids, results, &fn_ctx);
+                }
+                for modifier in &fd.modifiers {
+                    if let Some(id) = modifier.modifier_name.referenced_declaration {
+                        resolve_and_add_symbol(id, seen_ids, results, &fn_ctx);
+                    }
+                    if let Some(ref args) = modifier.arguments {
+                        for arg in args {
+                            collect_from_expression(arg, seen_ids, results, &fn_ctx);
+                        }
                     }
                 }
+                collect_from_statements(&body.statements, seen_ids, results, &fn_ctx);
             }
-            collect_from_statements(&body.statements, seen_ids, results, &fn_ctx);
         }
+        ContractDefinitionNode::ModifierDefinition(md) => {
+            let body_start = md.body.src.offset;
+            let body_end = body_start + md.body.src.length;
+            if body_start < range_end && body_end > range_start {
+                let md_ctx = RefCtx {
+                    current_fn_id: Some(md.id),
+                    ..*ctx
+                };
+                for param in &md.parameters.parameters {
+                    collect_from_type_name(&param.type_name, seen_ids, results, &md_ctx);
+                }
+                collect_from_statements(&md.body.statements, seen_ids, results, &md_ctx);
+            }
+        }
+        _ => {}
     }
 }
 

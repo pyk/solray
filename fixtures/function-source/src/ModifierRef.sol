@@ -6,13 +6,18 @@ contract ModifierRef {
     uint256 private _count;
 
     modifier onlyOwner() {
-        require(msg.sender == address(this), "not owner");
+        _checkOwner();
         _;
     }
 
     modifier nonZero(uint256 value) {
         require(value > 0, "zero");
         _;
+    }
+
+    /// @notice Ensure the sender is the owner.
+    function _checkOwner() internal view {
+        require(msg.sender == address(this), "not owner");
     }
 
     /// @notice Increment by a value.

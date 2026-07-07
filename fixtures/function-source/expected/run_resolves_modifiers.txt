@@ -1,4 +1,4 @@
-// ModifierRef::increment(uint256) | fixtures/function-source/src/ModifierRef.sol:20
+// ModifierRef::increment(uint256) | fixtures/function-source/src/ModifierRef.sol:25
 
 /// @notice Increment by a value.
 /// @param value The amount to increment.
@@ -23,8 +23,16 @@ modifier nonZero(uint256 value) {
 // onlyOwner | fixtures/function-source/src/ModifierRef.sol:8
 
 modifier onlyOwner() {
-    require(msg.sender == address(this), "not owner");
+    _checkOwner();
     _;
+}
+
+
+// ModifierRef::_checkOwner() | fixtures/function-source/src/ModifierRef.sol:19
+
+/// @notice Ensure the sender is the owner.
+function _checkOwner() internal view {
+    require(msg.sender == address(this), "not owner");
 }
 
 
