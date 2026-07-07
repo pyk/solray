@@ -60,9 +60,12 @@ impl CallGraphNode {
         out: &mut Vec<(PathBuf, String)>,
         seen: &mut HashSet<(PathBuf, String)>,
     ) {
-        let key = (self.file.clone(), self.src.clone());
-        if seen.insert(key) {
-            out.push((self.file.clone(), self.src.clone()));
+        // Skip synthetic nodes (e.g. low-level calls) that have no file path.
+        if !self.file.as_os_str().is_empty() {
+            let key = (self.file.clone(), self.src.clone());
+            if seen.insert(key) {
+                out.push((self.file.clone(), self.src.clone()));
+            }
         }
         for child in &self.children {
             child.flatten_sources_recursive(out, seen);
