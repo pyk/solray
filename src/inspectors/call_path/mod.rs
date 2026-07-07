@@ -8,10 +8,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
-use crate::call_graph::{
-    CallGraph, FunctionId, Node, call_graph_reaches_target, extract_func_name_from_sig,
-    function_node_matches_target,
-};
+use crate::call_graph::{CallGraph, CallGraphNode, FunctionId};
 use crate::inspectors::call_graph::source_renderer::offset_to_line_range;
 use crate::project::Project;
 
@@ -20,7 +17,7 @@ use crate::project::Project;
 /// Shows compact call paths from external functions to a target function.
 #[derive(Debug)]
 pub struct CallPathInspectorOutput {
-    roots: Vec<Node>,
+    roots: Vec<CallGraphNode>,
     project_root: PathBuf,
     target_function: String,
     target_file: PathBuf,
@@ -30,7 +27,7 @@ pub struct CallPathInspectorOutput {
 impl CallPathInspectorOutput {
     /// Create a new [`CallPathInspectorOutput`].
     pub fn new(
-        roots: Vec<Node>,
+        roots: Vec<CallGraphNode>,
         project_root: PathBuf,
         target_function: &str,
         target_file: PathBuf,
@@ -137,19 +134,19 @@ fn format_target_display(target: &str) -> String {
     target.to_string()
 }
 
-/// Format a [`Node`] for call-path display (no visibility, no params).
-fn format_call_path_node(node: &Node) -> String {
-    let func_name = extract_func_name_from_sig(&node.signature);
+/// Format a [`CallGraphNode`] for call-path display (no visibility, no params).
+fn format_call_path_node(node: &CallGraphNode) -> String {
+    let func_name = node.func_name();
     format!("{}::{}", node.contract_name, func_name)
 }
 
 /// Extract the linear path from root to the target node.
-fn extract_path_to_target<'a>(root: &'a Node, target: &str) -> Vec<&'a Node> {
-    if function_node_matches_target(root, target) {
+fn extract_path_to_target<'a>(root: &'a CallGraphNode, target: &str) -> Vec<&'a CallGraphNode> {
+    if root.matches_target(target) {
         return vec![root];
     }
     for child in &root.children {
-        if call_graph_reaches_target(child, target) {
+        if child.reaches_target(target) {
             let mut path = extract_path_to_target(child, target);
             path.insert(0, root);
             return path;

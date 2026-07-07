@@ -21,13 +21,11 @@ use crate::inspectors::artifact_id::ArtifactId;
 use crate::inspectors::function_source::symbol_index::SymbolIndex;
 use crate::project::Project;
 
-// Public types
-
 /// A node in a call graph.
 ///
 /// Each node represents a function call that may contain child calls.
 #[derive(Debug, Clone)]
-pub struct Node {
+pub struct CallGraphNode {
     /// Human-readable signature, e.g. `Main::execute(uint256)`.
     pub signature: String,
     /// The contract name that defines this function.
@@ -39,10 +37,10 @@ pub struct Node {
     /// Source location range for the function (offset:length).
     pub src: String,
     /// Calls made within this function.
-    pub children: Vec<Node>,
+    pub children: Vec<CallGraphNode>,
 }
 
-impl Node {
+impl CallGraphNode {
     /// Create a new call graph node.
     pub fn new(
         signature: &str,
@@ -50,7 +48,7 @@ impl Node {
         file: PathBuf,
         visibility: &str,
         src: &str,
-        children: Vec<Node>,
+        children: Vec<CallGraphNode>,
     ) -> Self {
         Self {
             signature: signature.to_string(),
@@ -85,16 +83,67 @@ impl Node {
             child.flatten_sources_recursive(out, seen);
         }
     }
+
+    /// Check if this node or any of its descendants matches the target function signature.
+    pub fn reaches_target(&self, target: &str) -> bool {
+        if self.matches_target(target) {
+            return true;
+        }
+        for child in &self.children {
+            if child.reaches_target(target) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Extract the function name from this node's signature.
+    ///
+    /// For example, `"Main::execute(uint256)"` returns `"execute"`.
+    pub fn func_name(&self) -> &str {
+        self.signature
+            .split("::")
+            .nth(1)
+            .and_then(|part| part.split('(').next())
+            .and_then(|part| part.split('<').next())
+            .unwrap_or("")
+    }
+
+    /// Check if this single node matches the given target function signature.
+    pub fn matches_target(&self, target: &str) -> bool {
+        if let Some((contract_part, func_part)) = target.split_once("::") {
+            self.contract_name == contract_part && self.func_name() == func_part
+        } else {
+            self.func_name() == target
+        }
+    }
+
+    /// Find the first descendant node matching the target function.
+    pub fn find_matching(&self, target: &str) -> Option<&Self> {
+        if self.matches_target(target) {
+            return Some(self);
+        }
+        for child in &self.children {
+            if let Some(found) = child.find_matching(target) {
+                return Some(found);
+            }
+        }
+        None
+    }
 }
 
-impl fmt::Display for Node {
+impl fmt::Display for CallGraphNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{} ({})", self.signature, self.visibility)?;
         fmt_children(&self.children, f, "")
     }
 }
 
-fn fmt_children(children: &[Node], f: &mut fmt::Formatter<'_>, prefix: &str) -> fmt::Result {
+fn fmt_children(
+    children: &[CallGraphNode],
+    f: &mut fmt::Formatter<'_>,
+    prefix: &str,
+) -> fmt::Result {
     let len = children.len();
     for (i, child) in children.iter().enumerate() {
         let is_last = i == len - 1;
@@ -145,7 +194,7 @@ impl FunctionId {
 /// Result of finding external entry points that can reach a target function.
 pub struct CallPaths {
     /// Root nodes (external/public functions) that reach the target.
-    pub roots: Vec<Node>,
+    pub roots: Vec<CallGraphNode>,
     /// Source file of the target function.
     pub target_file: PathBuf,
     /// Source location (offset:length) of the target function.
@@ -222,7 +271,7 @@ impl CallGraph {
         &self,
         id: &FunctionId,
         ambiguity_candidates: Option<&[PathBuf]>,
-    ) -> Result<Node> {
+    ) -> Result<CallGraphNode> {
         let artifact_path = self.resolve_artifact(id.artifact_id())?;
 
         let cache: RefCell<HashMap<PathBuf, Vec<FunctionInfo>>> = RefCell::new(HashMap::new());
@@ -287,7 +336,7 @@ impl CallGraph {
         for &func_id in &external_ids {
             let mut visited: HashSet<i64> = HashSet::new();
             let root = self.build_call_node(func_id, &cache, &mut functions, &mut visited)?;
-            if call_graph_reaches_target(&root, target_function) {
+            if root.reaches_target(target_function) {
                 matching_roots.push(root);
             }
         }
@@ -326,9 +375,6 @@ impl CallGraph {
             target_src,
         })
     }
-
-    // -- Internal helpers ---------------------------------------------------
-
     /// Resolve an artifact ID, returning the path and any ambiguity candidates.
     pub fn resolve_artifact_with_candidates(
         &self,
@@ -439,7 +485,7 @@ impl CallGraph {
         cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
         functions: &mut HashMap<i64, FunctionInfo>,
         visited: &mut HashSet<i64>,
-    ) -> Result<Node> {
+    ) -> Result<CallGraphNode> {
         if !visited.insert(func_id) {
             let info = &functions[&func_id];
             let sig = build_signature(info);
@@ -448,7 +494,7 @@ impl CallGraph {
                 "{}:{}",
                 info.definition.src.offset, info.definition.src.length
             );
-            return Ok(Node::new(
+            return Ok(CallGraphNode::new(
                 &sig,
                 &info.contract_name,
                 info.file.clone(),
@@ -476,7 +522,7 @@ impl CallGraph {
             info.definition.src.offset, info.definition.src.length
         );
 
-        Ok(Node::new(
+        Ok(CallGraphNode::new(
             &sig,
             &info.contract_name,
             info.file.clone(),
@@ -492,7 +538,7 @@ impl CallGraph {
         cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
         functions: &mut HashMap<i64, FunctionInfo>,
         visited: &mut HashSet<i64>,
-    ) -> Result<Vec<Node>> {
+    ) -> Result<Vec<CallGraphNode>> {
         let mut nodes = Vec::new();
         for stmt in &statements {
             self.collect_calls_from_statement(stmt, cache, functions, visited, &mut nodes)?;
@@ -506,7 +552,7 @@ impl CallGraph {
         cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
         functions: &mut HashMap<i64, FunctionInfo>,
         visited: &mut HashSet<i64>,
-        nodes: &mut Vec<Node>,
+        nodes: &mut Vec<CallGraphNode>,
     ) -> Result<()> {
         match stmt {
             solc::ast::Statement::ExpressionStatement(es) => {
@@ -603,7 +649,7 @@ impl CallGraph {
         cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
         functions: &mut HashMap<i64, FunctionInfo>,
         visited: &mut HashSet<i64>,
-        nodes: &mut Vec<Node>,
+        nodes: &mut Vec<CallGraphNode>,
     ) -> Result<()> {
         match expr {
             Expression::FunctionCall(fc) => {
@@ -614,7 +660,7 @@ impl CallGraph {
                         }
                         None if is_low_level_call(&ma.member_name) => {
                             let sig = format!("(address).{}()", ma.member_name);
-                            nodes.push(Node::new(
+                            nodes.push(CallGraphNode::new(
                                 &sig,
                                 "",
                                 PathBuf::new(),
@@ -736,7 +782,7 @@ impl CallGraph {
         cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
         functions: &mut HashMap<i64, FunctionInfo>,
         visited: &mut HashSet<i64>,
-        nodes: &mut Vec<Node>,
+        nodes: &mut Vec<CallGraphNode>,
     ) -> Result<()> {
         if !functions.contains_key(&id) {
             self.ensure_function_loaded(id, cache, functions)?;
@@ -770,60 +816,13 @@ impl CallGraph {
     }
 }
 
-// Reachability helpers (public, operate on [`Node`] only)
-
-/// Check if the target function is reachable from the given call graph node.
-pub fn call_graph_reaches_target(node: &Node, target: &str) -> bool {
-    if function_node_matches_target(node, target) {
-        return true;
-    }
-    for child in &node.children {
-        if call_graph_reaches_target(child, target) {
-            return true;
-        }
-    }
-    false
-}
-
-/// Extract the function name from a signature like `"Contract::functionName(params)"`.
-pub fn extract_func_name_from_sig(sig: &str) -> &str {
-    sig.split("::")
-        .nth(1)
-        .and_then(|part| part.split('(').next())
-        .and_then(|part| part.split('<').next())
-        .unwrap_or("")
-}
-
-/// Check if a single call graph node matches the target function.
-pub fn function_node_matches_target(node: &Node, target: &str) -> bool {
-    if let Some((contract_part, func_part)) = target.split_once("::") {
-        node.contract_name == contract_part
-            && extract_func_name_from_sig(&node.signature) == func_part
-    } else {
-        extract_func_name_from_sig(&node.signature) == target
-    }
-}
-
-/// Find the first node matching the target function in a tree.
-pub fn find_matching_node<'a>(node: &'a Node, target: &str) -> Option<&'a Node> {
-    if function_node_matches_target(node, target) {
-        return Some(node);
-    }
-    for child in &node.children {
-        if let Some(found) = find_matching_node(child, target) {
-            return Some(found);
-        }
-    }
-    None
-}
-
 /// Get the file and src for a target function by searching the roots.
-pub fn find_target_source_in_roots<'a>(
-    roots: &'a [Node],
+fn find_target_source_in_roots<'a>(
+    roots: &'a [CallGraphNode],
     target: &str,
 ) -> Option<(&'a PathBuf, &'a str)> {
     for root in roots {
-        if let Some(node) = find_matching_node(root, target)
+        if let Some(node) = root.find_matching(target)
             && !node.file.as_os_str().is_empty()
         {
             return Some((&node.file, &node.src));
@@ -1041,7 +1040,7 @@ mod tests {
 
     #[test]
     fn display_simple_function() {
-        let node = Node::new(
+        let node = CallGraphNode::new(
             "Main::execute(uint256)",
             "Main",
             PathBuf::from("src/Main.sol"),
@@ -1054,14 +1053,14 @@ mod tests {
 
     #[test]
     fn display_nested_function_calls() {
-        let node = Node::new(
+        let node = CallGraphNode::new(
             "Main::execute(uint256)",
             "Main",
             PathBuf::from("src/Main.sol"),
             "public",
             "276:110",
             vec![
-                Node::new(
+                CallGraphNode::new(
                     "Helper::assist(uint256)",
                     "Helper",
                     PathBuf::from("src/Helper.sol"),
@@ -1069,13 +1068,13 @@ mod tests {
                     "109:72",
                     vec![],
                 ),
-                Node::new(
+                CallGraphNode::new(
                     "Main::internalWork()",
                     "Main",
                     PathBuf::from("src/Main.sol"),
                     "internal",
                     "392:79",
-                    vec![Node::new(
+                    vec![CallGraphNode::new(
                         "Base::baseWork()",
                         "Base",
                         PathBuf::from("src/Main.sol"),
@@ -1097,13 +1096,13 @@ mod tests {
 
     #[test]
     fn flatten_sources_collects_depth_first() {
-        let node = Node::new(
+        let node = CallGraphNode::new(
             "Main::execute(uint256)",
             "Main",
             PathBuf::from("src/Main.sol"),
             "public",
             "276:110",
-            vec![Node::new(
+            vec![CallGraphNode::new(
                 "Helper::assist(uint256)",
                 "Helper",
                 PathBuf::from("src/Helper.sol"),

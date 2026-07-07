@@ -5,8 +5,8 @@ pub use scanners::erc20_transfer_sink::Erc20TransferSinkScanner;
 pub use scanners::erc20_transfer_sink::Erc20TransferSinkScannerOutput;
 
 pub use call_graph::CallGraph;
+pub use call_graph::CallGraphNode;
 pub use call_graph::FunctionId;
-pub use call_graph::Node;
 pub use inspectors::r#abstract::AbstractInspector;
 pub use inspectors::r#abstract::AbstractInspectorOutput;
 pub use inspectors::artifact_id::ArtifactId;

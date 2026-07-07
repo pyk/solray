@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
-use crate::call_graph::{CallGraph, FunctionId, Node};
+use crate::call_graph::{CallGraph, CallGraphNode, FunctionId};
 use crate::inspectors::call_graph::source_renderer::offset_to_line_range;
 use crate::project::Project;
 
@@ -17,13 +17,13 @@ pub mod source_renderer;
 /// The output of a [`CallGraphInspector`] inspection.
 #[derive(Debug)]
 pub struct CallGraphInspectorOutput {
-    root: Node,
+    root: CallGraphNode,
     project_root: PathBuf,
 }
 
 impl CallGraphInspectorOutput {
     /// Create a new [`CallGraphInspectorOutput`] from a root call graph node.
-    pub fn new(root: Node, project_root: PathBuf) -> Self {
+    pub fn new(root: CallGraphNode, project_root: PathBuf) -> Self {
         Self { root, project_root }
     }
 }
