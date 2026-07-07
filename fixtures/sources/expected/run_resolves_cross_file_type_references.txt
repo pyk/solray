@@ -1,5 +1,4 @@
-// symbol: CrossFileConsumer::translate(TypesLib.Point)
-// path: fixtures/sources/src/CrossFileConsumer.sol#L7-L10
+// CrossFileConsumer::translate(TypesLib.Point) | fixtures/sources/src/CrossFileConsumer.sol:7
 
 function translate(TypesLib.Point memory p) public pure returns (TypesLib.Point memory) {
     TypesLib.Point memory q = p;
@@ -7,8 +6,7 @@ function translate(TypesLib.Point memory p) public pure returns (TypesLib.Point 
 }
 
 
-// symbol: Point
-// path: fixtures/sources/src/TypesLib.sol#L5-L8
+// Point | fixtures/sources/src/TypesLib.sol:5
 
 struct Point {
     uint256 x;

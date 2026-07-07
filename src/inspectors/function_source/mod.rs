@@ -76,8 +76,12 @@ impl std::fmt::Display for FunctionSourceInspectorOutput {
                 c.clone() // checkrs: allow(clone_in_loops)
             } else {
                 let Ok(c) = fs::read_to_string(&full_path) else {
-                    writeln!(f, "// symbol: {}", symbol.symbol)?;
-                    writeln!(f, "// path: {} (unable to read)\n\n", rel_path.display())?;
+                    writeln!(
+                        f,
+                        "// {} | {}:? (unable to read)\n",
+                        symbol.symbol,
+                        rel_path.display()
+                    )?;
                     continue;
                 };
                 file_contents.insert(symbol.file.clone(), c.clone()); // checkrs: allow(clone_in_loops)
@@ -86,13 +90,6 @@ impl std::fmt::Display for FunctionSourceInspectorOutput {
 
             let line_offsets = build_line_offsets(&content);
             let start_line = byte_offset_to_line(symbol.offset, &line_offsets);
-            let end_line = byte_offset_to_line(
-                symbol
-                    .offset
-                    .saturating_add(symbol.length)
-                    .saturating_sub(1),
-                &line_offsets,
-            );
 
             let natspec = extract_natspec(&content, symbol.offset);
             let source_text = &content[symbol.offset..symbol.offset + symbol.length];
@@ -101,13 +98,12 @@ impl std::fmt::Display for FunctionSourceInspectorOutput {
             let natspec = dedent(&natspec, base);
             let source_text = dedent(source_text, base);
 
-            writeln!(f, "// symbol: {}", symbol.symbol)?;
             write!(
                 f,
-                "// path: {}#L{}-L{}\n\n",
+                "// {} | {}:{}\n\n",
+                symbol.symbol,
                 rel_path.display(),
                 start_line,
-                end_line
             )?;
             if !natspec.is_empty() {
                 write!(f, "{}", natspec)?;
@@ -1108,6 +1104,6 @@ mod tests {
     #[test]
     fn inspect_shows_source_for_path_qualified_contract() {
         let output = inspect("Main.sol:Main", "execute").unwrap();
-        assert!(output.to_string().contains("// symbol:"));
+        assert!(output.to_string().contains("// Main::execute(uint256) |"));
     }
 }

@@ -1,5 +1,4 @@
-// symbol: ReturnTypeRef::makeWidget(uint256,string)
-// path: fixtures/sources/src/ReturnTypeRef.sol#L12-L20
+// ReturnTypeRef::makeWidget(uint256,string) | fixtures/sources/src/ReturnTypeRef.sol:12
 
 /// @notice Returns a Widget. The Widget type only appears in the
 ///         return type, not in the body.
@@ -14,8 +13,7 @@ function makeWidget(uint256 id, string memory name)
 }
 
 
-// symbol: Widget
-// path: fixtures/sources/src/ReturnTypeRef.sol#L5-L8
+// Widget | fixtures/sources/src/ReturnTypeRef.sol:5
 
 struct Widget {
     uint256 id;

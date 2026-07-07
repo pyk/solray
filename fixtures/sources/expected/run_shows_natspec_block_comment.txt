@@ -1,5 +1,4 @@
-// symbol: NatspecBlock::compute(uint256)
-// path: fixtures/sources/src/NatspecBlock.sol#L10-L12
+// NatspecBlock::compute(uint256) | fixtures/sources/src/NatspecBlock.sol:10
 
 /**
  * @notice This function uses block-comment natspec.

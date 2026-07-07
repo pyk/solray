@@ -1,5 +1,4 @@
-// symbol: Overloaded::beforeTokenTransfer(address,address,uint256)
-// path: fixtures/sources/src/Overloaded.sol#L5-L5
+// Overloaded::beforeTokenTransfer(address,address,uint256) | fixtures/sources/src/Overloaded.sol:5
 
 function beforeTokenTransfer(address sender, address recipient, uint256 amount) public {}
 

@@ -1,13 +1,11 @@
-// symbol: BlockComment::getItem()
-// path: fixtures/sources/src/BlockComment.sol#L13-L15
+// BlockComment::getItem() | fixtures/sources/src/BlockComment.sol:13
 
 function getItem() public pure returns (Item memory) {
     return Item(42);
 }
 
 
-// symbol: Item
-// path: fixtures/sources/src/BlockComment.sol#L9-L11
+// Item | fixtures/sources/src/BlockComment.sol:9
 
 /*
  *  A value holder with a regular block comment.
