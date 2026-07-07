@@ -1,0 +1,58 @@
+## Call Paths
+
+Target: `parentWork`
+Source: `src/Main.sol:21`
+
+5 paths found.
+
+### Path 1
+
+```
+Parent::parentExternal
+src/Main.sol:26
+└── Parent::parentWork
+    src/Main.sol:21
+```
+
+### Path 2
+
+```
+Target::fallback
+src/Main.sol:60
+└── Target::targetInternal
+    src/Main.sol:36
+    └── Parent::parentWork
+        src/Main.sol:21
+```
+
+### Path 3
+
+```
+Target::otherExternal
+src/Main.sol:47
+└── Parent::parentWork
+    src/Main.sol:21
+```
+
+### Path 4
+
+```
+Target::receive
+src/Main.sol:56
+└── Target::targetInternal
+    src/Main.sol:36
+    └── Parent::parentWork
+        src/Main.sol:21
+```
+
+### Path 5
+
+```
+Target::targetExternal
+src/Main.sol:43
+└── Target::targetInternal
+    src/Main.sol:36
+    └── Parent::parentWork
+        src/Main.sol:21
+```
+

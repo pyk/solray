@@ -1,0 +1,8 @@
+## Call Paths
+
+Target: `nonExistent`
+Source: Not found
+
+0 paths found.
+
+No external functions reach "nonExistent".

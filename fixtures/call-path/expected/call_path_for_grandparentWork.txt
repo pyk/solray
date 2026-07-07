@@ -1,0 +1,77 @@
+## Call Paths
+
+Target: `grandparentWork`
+Source: `src/Main.sol:9`
+
+6 paths found.
+
+### Path 1
+
+```
+Grandparent::grandparentExternal
+src/Main.sol:13
+└── Grandparent::grandparentWork
+    src/Main.sol:9
+```
+
+### Path 2
+
+```
+Parent::parentExternal
+src/Main.sol:26
+└── Parent::parentWork
+    src/Main.sol:21
+    └── Grandparent::grandparentWork
+        src/Main.sol:9
+```
+
+### Path 3
+
+```
+Target::fallback
+src/Main.sol:60
+└── Target::targetInternal
+    src/Main.sol:36
+    └── Parent::parentWork
+        src/Main.sol:21
+        └── Grandparent::grandparentWork
+            src/Main.sol:9
+```
+
+### Path 4
+
+```
+Target::otherExternal
+src/Main.sol:47
+└── Parent::parentWork
+    src/Main.sol:21
+    └── Grandparent::grandparentWork
+        src/Main.sol:9
+```
+
+### Path 5
+
+```
+Target::receive
+src/Main.sol:56
+└── Target::targetInternal
+    src/Main.sol:36
+    └── Parent::parentWork
+        src/Main.sol:21
+        └── Grandparent::grandparentWork
+            src/Main.sol:9
+```
+
+### Path 6
+
+```
+Target::targetExternal
+src/Main.sol:43
+└── Target::targetInternal
+    src/Main.sol:36
+    └── Parent::parentWork
+        src/Main.sol:21
+        └── Grandparent::grandparentWork
+            src/Main.sol:9
+```
+

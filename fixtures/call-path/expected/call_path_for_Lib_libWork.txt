@@ -1,0 +1,49 @@
+## Call Paths
+
+Target: `Lib::libWork`
+Source: `src/Library.sol:5`
+
+4 paths found.
+
+### Path 1
+
+```
+Target::externalCallingLib
+src/Main.sol:51
+└── Lib::libWork
+    src/Library.sol:5
+```
+
+### Path 2
+
+```
+Target::fallback
+src/Main.sol:60
+└── Target::targetInternal
+    src/Main.sol:36
+    └── Lib::libWork
+        src/Library.sol:5
+```
+
+### Path 3
+
+```
+Target::receive
+src/Main.sol:56
+└── Target::targetInternal
+    src/Main.sol:36
+    └── Lib::libWork
+        src/Library.sol:5
+```
+
+### Path 4
+
+```
+Target::targetExternal
+src/Main.sol:43
+└── Target::targetInternal
+    src/Main.sol:36
+    └── Lib::libWork
+        src/Library.sol:5
+```
+

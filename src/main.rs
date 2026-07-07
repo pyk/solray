@@ -7,6 +7,7 @@ use clap::{Parser, Subcommand};
 use hawk::AbstractInspector;
 use hawk::ArtifactId;
 use hawk::CallGraphInspector;
+use hawk::CallPathInspector;
 use hawk::ContractInspector;
 use hawk::Erc20TransferSinkScanner;
 use hawk::ExternalFunctionInspector;
@@ -63,12 +64,19 @@ enum InspectSubcommand {
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
-        /// Reverse call graph: show external functions that can reach the target
-        #[arg(long)]
-        reverse: bool,
         /// Enable trace logging for performance diagnostics
         #[arg(short, long)]
         verbose: bool,
+    },
+    /// Show call paths from entry functions to a target function
+    CallPath {
+        /// The artifact ID (e.g. Name or File.sol:Name)
+        contract: String,
+        /// The target function name (or Contract::function for library functions)
+        function: String,
+        /// Path to the Foundry project
+        #[arg(long, default_value = ".")]
+        project: PathBuf,
     },
     /// List all deployable contracts
     Contracts {
@@ -160,7 +168,6 @@ fn main() -> Result<()> {
                 contract,
                 function,
                 project,
-                reverse,
                 verbose,
             } => {
                 if verbose {
@@ -175,13 +182,20 @@ fn main() -> Result<()> {
                 let inspector = CallGraphInspector::new(project);
                 let artifact_id = ArtifactId::new(&contract);
                 let function_id = FunctionId::new(artifact_id, &function);
-                if reverse {
-                    let output = inspector.inspect_reverse(&function_id, &function)?;
-                    print!("{output}");
-                } else {
-                    let output = inspector.inspect(&function_id)?;
-                    print!("{output}");
-                }
+                let output = inspector.inspect(&function_id)?;
+                print!("{output}");
+            }
+            InspectSubcommand::CallPath {
+                contract,
+                function,
+                project,
+            } => {
+                let project = Project::open(&project);
+                let inspector = CallPathInspector::new(project);
+                let artifact_id = ArtifactId::new(&contract);
+                let function_id = FunctionId::new(artifact_id, &function);
+                let output = inspector.inspect(&function_id, &function)?;
+                print!("{output}");
             }
             InspectSubcommand::Contracts { project } => {
                 let project = Project::open(&project);

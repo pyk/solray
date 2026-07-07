@@ -1,0 +1,34 @@
+## Call Paths
+
+Target: `targetInternal`
+Source: `src/Main.sol:36`
+
+3 paths found.
+
+### Path 1
+
+```
+Target::fallback
+src/Main.sol:60
+└── Target::targetInternal
+    src/Main.sol:36
+```
+
+### Path 2
+
+```
+Target::receive
+src/Main.sol:56
+└── Target::targetInternal
+    src/Main.sol:36
+```
+
+### Path 3
+
+```
+Target::targetExternal
+src/Main.sol:43
+└── Target::targetInternal
+    src/Main.sol:36
+```
+
