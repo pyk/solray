@@ -1,0 +1,16 @@
+## Call Paths
+
+Target: `internalWork`
+Source: `src/Unchecked.sol:7`
+
+1 paths found.
+
+### Path 1
+
+```
+UncheckedTarget::externalWork
+src/Unchecked.sol:11
+└── UncheckedTarget::internalWork
+    src/Unchecked.sol:7
+```
+

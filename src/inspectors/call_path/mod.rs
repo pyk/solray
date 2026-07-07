@@ -266,6 +266,17 @@ mod tests {
     }
 
     #[test]
+    fn call_path_for_unchecked_block() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("UncheckedTarget", "internalWork");
+        let output = inspector.inspect(&id, "internalWork").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!("../../../fixtures/call-path/expected/call_path_for_unchecked_block.txt")
+        );
+    }
+
+    #[test]
     fn call_path_returns_empty_when_target_not_found() {
         let inspector = CallPathInspector::new(fixture_call_path_project());
         let id = make_id("Target", "nonExistent");

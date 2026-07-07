@@ -569,6 +569,11 @@ impl CallGraph {
                     self.collect_calls_from_statement(s, cache, functions, visited, nodes)?;
                 }
             }
+            solc::ast::Statement::UncheckedBlock(ub) => {
+                for s in &ub.statements {
+                    self.collect_calls_from_statement(s, cache, functions, visited, nodes)?;
+                }
+            }
             solc::ast::Statement::IfStatement(ifs) => {
                 self.collect_calls_from_expression(
                     &ifs.condition,
