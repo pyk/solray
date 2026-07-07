@@ -219,7 +219,7 @@ impl ExternalFunctionInspector {
                 .map(|r| r.to_string_lossy().to_string())
         });
 
-        let index = build_function_index(&self.project, &artifact, &id.name)?;
+        let index = build_function_index(&self.project, &artifact)?;
 
         let mut state_changing = Vec::new();
         let mut callback = Vec::new();
@@ -231,8 +231,8 @@ impl ExternalFunctionInspector {
                 AbiItem::Function(function) => {
                     let signature = external_function_signature(function);
                     let info = index
-                        .resolve_function(&function.name, function.inputs.len())
-                        .or_else(|| index.resolve_function_by_abi(function));
+                        .resolve_function(&contract_name, &function.name, function.inputs.len())
+                        .or_else(|| index.resolve_function_by_abi(&contract_name, function));
 
                     let fi = info.cloned();
                     let (source, visibility, modifiers) = match fi {
@@ -468,7 +468,21 @@ impl FunctionIndex {
             .push(info);
     }
 
-    fn resolve_function(&self, name: &str, _param_count: usize) -> Option<&FuncInfo> {
+    fn resolve_function(
+        &self,
+        contract_name: &str,
+        name: &str,
+        _param_count: usize,
+    ) -> Option<&FuncInfo> {
+        // Prefer functions defined in the target contract.
+        if let Some(infos) = self
+            .by_name
+            .get(&(contract_name.to_string(), name.to_string()))
+            && let Some(info) = infos.first()
+        {
+            return Some(info);
+        }
+        // Fall back to any registered contract (inherited functions).
         let mut candidates: Vec<&FuncInfo> = self
             .by_name
             .iter()
@@ -478,11 +492,29 @@ impl FunctionIndex {
         if candidates.is_empty() {
             return None;
         }
+        // Prefer candidates from non-interface source files.
+        for info in &candidates {
+            let is_interface = match info.file.as_deref() {
+                Some(f) => Path::new(f)
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .map(|s| s.starts_with('I'))
+                    .unwrap_or(false),
+                None => false,
+            };
+            if !is_interface {
+                return Some(info);
+            }
+        }
         Some(candidates.remove(0))
     }
 
-    fn resolve_function_by_abi(&self, function: &AbiFunction) -> Option<&FuncInfo> {
-        self.resolve_function(&function.name, function.inputs.len())
+    fn resolve_function_by_abi(
+        &self,
+        contract_name: &str,
+        function: &AbiFunction,
+    ) -> Option<&FuncInfo> {
+        self.resolve_function(contract_name, &function.name, function.inputs.len())
     }
 
     fn resolve_by_kind(&self, contract_name: &str, kind: &FunctionKind) -> Option<&FuncInfo> {
@@ -542,14 +574,9 @@ impl FullArtifact {
 
 /// Build a [`FunctionIndex`] by scanning the target artifact and all
 /// artifacts that could declare functions the contract inherits.
-fn build_function_index(
-    project: &Project,
-    artifact: &FullArtifact,
-    target_name: &str,
-) -> Result<FunctionIndex> {
+fn build_function_index(project: &Project, artifact: &FullArtifact) -> Result<FunctionIndex> {
     let mut index = FunctionIndex::new();
 
-    let mut relevant_contracts: Vec<String> = Vec::new();
     if let Some(ref ast) = artifact.ast {
         let source_file = artifact.source_file(project.path());
         for node in &ast.nodes {
@@ -557,7 +584,6 @@ fn build_function_index(
                 SourceUnitNode::ContractDefinition(cd) => cd,
                 _ => continue,
             };
-            relevant_contracts.push(cd.name.clone()); // checkrs: allow(clone_in_loops)
             index_contract(&mut index, cd, &source_file, project.path());
         }
     }
@@ -584,9 +610,7 @@ fn build_function_index(
                 SourceUnitNode::ContractDefinition(cd) => cd,
                 _ => continue,
             };
-            if relevant_contracts.contains(&cd.name) || target_name == cd.name {
-                index_contract(&mut index, cd, &source_file, project.path());
-            }
+            index_contract(&mut index, cd, &source_file, project.path());
         }
     }
 
@@ -750,6 +774,48 @@ mod tests {
         assert!(text.contains("receive()"));
         assert!(text.contains("childFunc()"));
         assert!(text.contains("parentFunc()"));
+    }
+
+    #[test]
+    fn inspect_shows_non_zero_line_for_fallback_and_receive() {
+        let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("DirectFallback");
+        let output = inspector.inspect(&id, true).unwrap();
+        let text = output.to_string();
+        // fallback should show line 9, not 0
+        assert!(text.contains("source: src/DirectFallback.sol:9"));
+        // receive should show line 7, not 0
+        assert!(text.contains("source: src/DirectFallback.sol:7"));
+    }
+
+    #[test]
+    fn inspect_classifies_callbacks_with_source() {
+        let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("CallbackReceiver");
+        let output = inspector.inspect(&id, true).unwrap();
+        assert_eq!(output.callback.len(), 2);
+        assert_eq!(output.state_changing.len(), 1);
+        // Callbacks should have source locations.
+        let text = output.to_string();
+        assert!(text.contains("CALLBACK FUNCTIONS"));
+        assert!(text.contains("onERC721Received"));
+        assert!(text.contains("onERC1155Received"));
+        assert!(text.contains("source: src/Callbacks.sol"));
+        assert!(text.contains("2 callback functions"));
+    }
+
+    #[test]
+    fn inspect_shows_source_for_inherited_functions() {
+        let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("ViewsChild");
+        let output = inspector.inspect(&id, true).unwrap();
+        assert_eq!(output.read_only.len(), 3);
+        // Inherited view functions should have source from the parent file.
+        let text = output.to_string();
+        assert!(text.contains("source: src/ViewsBase.sol"));
+        assert!(text.contains("active()"));
+        assert!(text.contains("owner()"));
+        assert!(text.contains("value()"));
     }
 
     #[test]
