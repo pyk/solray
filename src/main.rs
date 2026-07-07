@@ -63,6 +63,9 @@ enum InspectSubcommand {
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
+        /// Reverse call graph: show external functions that can reach the target
+        #[arg(long)]
+        reverse: bool,
         /// Enable trace logging for performance diagnostics
         #[arg(short, long)]
         verbose: bool,
@@ -157,6 +160,7 @@ fn main() -> Result<()> {
                 contract,
                 function,
                 project,
+                reverse,
                 verbose,
             } => {
                 if verbose {
@@ -171,8 +175,13 @@ fn main() -> Result<()> {
                 let inspector = CallGraphInspector::new(project);
                 let artifact_id = ArtifactId::new(&contract);
                 let function_id = FunctionId::new(artifact_id, &function);
-                let output = inspector.inspect(&function_id)?;
-                print!("{output}");
+                if reverse {
+                    let output = inspector.inspect_reverse(&function_id, &function)?;
+                    print!("{output}");
+                } else {
+                    let output = inspector.inspect(&function_id)?;
+                    print!("{output}");
+                }
             }
             InspectSubcommand::Contracts { project } => {
                 let project = Project::open(&project);

@@ -11,8 +11,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Result, bail};
 use serde::Deserialize;
 use solc::ast::{
-    ContractDefinitionNode, Expression, FunctionCallExpression, FunctionDefinition, SourceUnit,
-    SourceUnitNode, TypeName, VariableDeclaration, Visibility,
+    ContractDefinition, ContractDefinitionNode, Expression, FunctionCallExpression,
+    FunctionDefinition, FunctionKind, SourceUnit, SourceUnitNode, TypeName, VariableDeclaration,
+    Visibility,
 };
 
 use crate::artifact_index::ArtifactIndex;
@@ -82,6 +83,74 @@ impl std::fmt::Display for CallGraphInspectorOutput {
         writeln!(f, "\nResolved from {} sources:\n", sources.len())?;
 
         for (i, (file, src)) in sources.iter().enumerate() {
+            let full_path = project_abs.join(file);
+            let rel_path = full_path.strip_prefix(&cwd).unwrap_or(&full_path);
+            let line_range = offset_to_line_range(&full_path, src, &mut line_maps);
+            writeln!(f, "{}. {}#{}", i + 1, rel_path.display(), line_range)?;
+        }
+
+        Ok(())
+    }
+}
+
+/// The output of a reverse [`CallGraphInspector`] inspection.
+///
+/// Shows multiple call graphs for all external functions that can reach
+/// a given target function.
+#[derive(Debug)]
+pub struct CallGraphReverseInspectorOutput {
+    roots: Vec<CallGraphNode>,
+    project_root: PathBuf,
+    target_function: String,
+}
+
+impl CallGraphReverseInspectorOutput {
+    /// Create a new [`CallGraphReverseInspectorOutput`].
+    pub fn new(roots: Vec<CallGraphNode>, project_root: PathBuf, target_function: &str) -> Self {
+        Self {
+            roots,
+            project_root,
+            target_function: target_function.to_string(),
+        }
+    }
+}
+
+impl std::fmt::Display for CallGraphReverseInspectorOutput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut all_sources: Vec<(PathBuf, String)> = Vec::new();
+        let mut seen_sources: HashSet<(PathBuf, String)> = HashSet::new();
+
+        writeln!(f, "Reverse call graph:\n")?;
+        writeln!(f, "Target function: {}\n", self.target_function)?;
+
+        if self.roots.is_empty() {
+            writeln!(
+                f,
+                "No external functions reach \"{}\".",
+                self.target_function
+            )?;
+            return Ok(());
+        }
+
+        for (i, root) in self.roots.iter().enumerate() {
+            writeln!(f, "{}. {}", i + 1, root)?;
+            for pair in root.flatten_sources() {
+                let key = (pair.0.clone(), pair.1.clone()); // checkrs: allow(clone_in_loops)
+                if seen_sources.insert(key) {
+                    all_sources.push(pair);
+                }
+            }
+        }
+
+        let cwd = std::env::current_dir().unwrap_or_else(|_| self.project_root.clone());
+        let project_abs =
+            std::path::absolute(&self.project_root).unwrap_or_else(|_| self.project_root.clone());
+
+        let mut line_maps: HashMap<PathBuf, Vec<usize>> = HashMap::new();
+
+        writeln!(f, "\nResolved from {} sources:\n", all_sources.len())?;
+
+        for (i, (file, src)) in all_sources.iter().enumerate() {
             let full_path = project_abs.join(file);
             let rel_path = full_path.strip_prefix(&cwd).unwrap_or(&full_path);
             let line_range = offset_to_line_range(&full_path, src, &mut line_maps);
@@ -172,6 +241,117 @@ impl CallGraphInspector {
         let root = self.build_call_node(target_id, &cache, &mut functions, &mut visited)?;
 
         Ok(CallGraphInspectorOutput::new(root, project_root))
+    }
+
+    /// Inspect reverse call graph: find all external functions (including
+    /// inherited, `receive`, and `fallback`) in the given contract that can
+    /// reach the specified target function.
+    ///
+    /// The `target_function` may be a simple name (e.g., `"internalWork"`)
+    /// or a library-specific path (e.g., `"Lib::libWork"`).
+    pub fn inspect_reverse(
+        &self,
+        id: &FunctionId,
+        target_function: &str,
+    ) -> Result<CallGraphReverseInspectorOutput> {
+        let resolved = self.resolve_artifact_path(id.artifact_id())?;
+
+        let (artifact_path, _ambiguity_candidates) = match resolved {
+            ResolvedPath::Single(path) => (path, None),
+            ResolvedPath::Ambiguous(candidates) => (candidates[0].clone(), Some(candidates)),
+            ResolvedPath::NotFound => {
+                bail!("\"{}\" not found.", id.artifact_id().name);
+            }
+        };
+
+        let cache: RefCell<HashMap<PathBuf, Vec<FunctionInfo>>> = RefCell::new(HashMap::new());
+        let mut functions: HashMap<i64, FunctionInfo> = HashMap::new();
+        load_artifact_functions(&artifact_path, &mut functions, &cache)?;
+
+        let project_root = self.project.path().to_path_buf();
+        let target_name = id.artifact_id().name.as_str();
+
+        // Build the inheritance chain: collect all contract names reachable
+        // from the target contract.
+        let contract_names = self.build_inheritance_chain(target_name, &artifact_path)?;
+
+        // Collect all external/public function IDs from the inheritance chain.
+        let external_ids: Vec<i64> = functions
+            .iter()
+            .filter(|(_, fi)| {
+                contract_names.contains(&fi.contract_name)
+                    && matches!(fi.visibility, Visibility::External | Visibility::Public)
+            })
+            .map(|(id, _)| *id)
+            .collect();
+
+        // Build call graphs for each external function and check reachability.
+        let mut matching_roots = Vec::new();
+        for &func_id in &external_ids {
+            let mut visited: HashSet<i64> = HashSet::new();
+            let root = self.build_call_node(func_id, &cache, &mut functions, &mut visited)?;
+            if call_graph_reaches_target(&root, target_function) {
+                matching_roots.push(root);
+            }
+        }
+
+        // Sort roots by their signature for deterministic output.
+        matching_roots.sort_by(|a, b| a.signature.cmp(&b.signature));
+
+        Ok(CallGraphReverseInspectorOutput::new(
+            matching_roots,
+            project_root,
+            target_function,
+        ))
+    }
+
+    /// Walk the inheritance chain of the given contract, returning the set
+    /// of all contract names in the chain.
+    fn build_inheritance_chain(
+        &self,
+        contract_name: &str,
+        artifact_path: impl AsRef<Path>,
+    ) -> Result<HashSet<String>> {
+        let content = fs::read_to_string(artifact_path.as_ref())?;
+        let artifact: Artifact = serde_json::from_str(&content)?;
+
+        let ast = match artifact.ast {
+            None => return Ok(HashSet::from([contract_name.to_string()])),
+            Some(ast) => ast,
+        };
+
+        // Find all contract definitions in this artifact.
+        let contracts: Vec<ContractDefinition> = ast
+            .nodes
+            .into_iter()
+            .filter_map(|node| match node {
+                SourceUnitNode::ContractDefinition(cd) => Some(cd),
+                _ => None,
+            })
+            .collect();
+
+        // Build a name -> contract map for easy lookup.
+        let contract_map: HashMap<String, ContractDefinition> = contracts
+            .into_iter()
+            .map(|cd| (cd.name.clone(), cd)) // checkrs: allow(clone_in_iterator)
+            .collect();
+
+        let mut chain = HashSet::new();
+        let mut to_visit = vec![contract_name.to_string()];
+
+        while let Some(name) = to_visit.pop() {
+            if !chain.insert(name.clone()) { // checkrs: allow(clone_in_loops)
+                // checkrs: allow(clone_in_loops)
+            }
+            if let Some(cd) = contract_map.get(&name) {
+                for base in &cd.base_contracts {
+                    let base_name = &base.base_name.name;
+                    to_visit.push(base_name.clone()); // checkrs: allow(clone_in_loops)
+                }
+            }
+        }
+
+        Ok(chain)
     }
 
     /// Emit an ambiguity error showing all candidate artifact paths.
@@ -692,10 +872,15 @@ fn extract_contract_functions(
 
 /// Build a human-readable function signature.
 fn build_signature(info: &FunctionInfo) -> String {
+    let name = match info.definition.kind {
+        FunctionKind::Receive => "receive",
+        FunctionKind::Fallback => "fallback",
+        _ => &info.name,
+    };
     format!(
         "{}::{}({})",
         info.contract_name,
-        info.name,
+        name,
         format_params(&info.parameters)
     )
 }
@@ -778,6 +963,44 @@ fn is_low_level_call(member_name: &str) -> bool {
     )
 }
 
+/// Check if the target function is reachable from the given call graph node.
+///
+/// The target may be a simple function name (e.g., `"internalWork"`) or a
+/// contract-specific path (e.g., `"Lib::libWork"`).
+fn call_graph_reaches_target(node: &CallGraphNode, target: &str) -> bool {
+    if function_node_matches_target(node, target) {
+        return true;
+    }
+    for child in &node.children {
+        if call_graph_reaches_target(child, target) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Extract the function name from a signature like `"Contract::functionName(params)"`.
+fn extract_func_name_from_sig(sig: &str) -> &str {
+    // Split on "::" and take the part after it, then split on '(' or '<' for generics/templates.
+    sig.split("::")
+        .nth(1)
+        .and_then(|part| part.split('(').next())
+        .and_then(|part| part.split('<').next())
+        .unwrap_or("")
+}
+
+/// Check if a single call graph node matches the target function.
+fn function_node_matches_target(node: &CallGraphNode, target: &str) -> bool {
+    if let Some((contract_part, func_part)) = target.split_once("::") {
+        // Target is library-specific: e.g. "Lib::libWork"
+        node.contract_name == contract_part
+            && extract_func_name_from_sig(&node.signature) == func_part
+    } else {
+        // Simple function name match.
+        extract_func_name_from_sig(&node.signature) == target
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -792,6 +1015,11 @@ mod tests {
     fn fixture_ambiguous_project() -> Project {
         let root =
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inheritances-ambiguous");
+        Project::open(root)
+    }
+
+    fn fixture_reverse_project() -> Project {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/reverse-calls");
         Project::open(root)
     }
 
@@ -880,6 +1108,87 @@ mod tests {
         assert_eq!(
             output,
             include_str!("../../../fixtures/calls/expected/call_graph_includes_low_level_call.txt")
+        );
+    }
+
+    // -- Reverse call graph tests --
+
+    #[test]
+    fn reverse_call_graph_for_target_internal() {
+        let inspector = CallGraphInspector::new(fixture_reverse_project());
+        let id = make_id("Target", "targetInternal");
+        let output = inspector.inspect_reverse(&id, "targetInternal").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/reverse-calls/expected/reverse_call_graph_for_targetInternal.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn reverse_call_graph_for_parent_work() {
+        let inspector = CallGraphInspector::new(fixture_reverse_project());
+        let id = make_id("Target", "parentWork");
+        let output = inspector.inspect_reverse(&id, "parentWork").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/reverse-calls/expected/reverse_call_graph_for_parentWork.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn reverse_call_graph_for_grandparent_work() {
+        let inspector = CallGraphInspector::new(fixture_reverse_project());
+        let id = make_id("Target", "grandparentWork");
+        let output = inspector.inspect_reverse(&id, "grandparentWork").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/reverse-calls/expected/reverse_call_graph_for_grandparentWork.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn reverse_call_graph_for_lib_lib_work() {
+        let inspector = CallGraphInspector::new(fixture_reverse_project());
+        let id = make_id("Target", "Lib::libWork");
+        let output = inspector.inspect_reverse(&id, "Lib::libWork").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/reverse-calls/expected/reverse_call_graph_for_Lib_libWork.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn reverse_call_graph_returns_empty_when_target_not_found() {
+        let inspector = CallGraphInspector::new(fixture_reverse_project());
+        let id = make_id("Target", "nonExistent");
+        let output = inspector.inspect_reverse(&id, "nonExistent").unwrap();
+        let result = output.to_string();
+        assert!(result.contains("No external functions reach"));
+        assert!(result.contains("nonExistent"));
+    }
+
+    #[test]
+    fn reverse_call_graph_errors_for_unknown_contract() {
+        let inspector = CallGraphInspector::new(fixture_reverse_project());
+        let id = make_id("NonExistentContract", "foo");
+        let err = inspector
+            .inspect_reverse(&id, "foo")
+            .unwrap_err()
+            .to_string();
+        assert_eq!(
+            err,
+            include_str!(
+                "../../../fixtures/reverse-calls/expected/reverse_call_graph_errors_for_unknown_contract.txt"
+            )
+            .trim_end()
         );
     }
 }

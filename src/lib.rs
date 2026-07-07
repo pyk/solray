@@ -9,6 +9,7 @@ pub use inspectors::r#abstract::AbstractInspectorOutput;
 pub use inspectors::artifact_id::ArtifactId;
 pub use inspectors::call_graph::CallGraphInspector;
 pub use inspectors::call_graph::CallGraphInspectorOutput;
+pub use inspectors::call_graph::CallGraphReverseInspectorOutput;
 pub use inspectors::call_graph::FunctionId;
 pub use inspectors::contract::ContractInspector;
 pub use inspectors::contract::ContractInspectorOutput;

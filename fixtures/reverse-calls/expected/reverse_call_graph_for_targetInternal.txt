@@ -1,0 +1,32 @@
+Reverse call graph:
+
+Target function: targetInternal
+
+1. Target::fallback() (external)
+└── Target::targetInternal() (internal)
+    ├── Parent::parentWork() (internal)
+    │   └── Grandparent::grandparentWork() (internal)
+    └── Lib::libWork(uint256) (internal)
+
+2. Target::receive() (external)
+└── Target::targetInternal() (internal)
+    ├── Parent::parentWork() (internal)
+    │   └── Grandparent::grandparentWork() (internal)
+    └── Lib::libWork(uint256) (internal)
+
+3. Target::targetExternal() (external)
+└── Target::targetInternal() (internal)
+    ├── Parent::parentWork() (internal)
+    │   └── Grandparent::grandparentWork() (internal)
+    └── Lib::libWork(uint256) (internal)
+
+
+Resolved from 7 sources:
+
+1. fixtures/reverse-calls/src/Main.sol#L60-L62
+2. fixtures/reverse-calls/src/Main.sol#L36-L41
+3. fixtures/reverse-calls/src/Main.sol#L21-L24
+4. fixtures/reverse-calls/src/Main.sol#L9-L11
+5. fixtures/reverse-calls/src/Library.sol#L5-L7
+6. fixtures/reverse-calls/src/Main.sol#L56-L58
+7. fixtures/reverse-calls/src/Main.sol#L43-L45
