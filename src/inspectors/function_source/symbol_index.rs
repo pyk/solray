@@ -343,7 +343,7 @@ mod tests {
     use crate::build_info::BuildInfo;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/sources")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/function-source")
     }
 
     #[test]

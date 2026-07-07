@@ -1,0 +1,5 @@
+// Overloaded::beforeTokenTransfer(address,address,uint256) | fixtures/function-source/src/Overloaded.sol:5
+
+function beforeTokenTransfer(address sender, address recipient, uint256 amount) public {}
+
+

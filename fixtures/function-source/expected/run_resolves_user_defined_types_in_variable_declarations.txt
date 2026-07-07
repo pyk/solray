@@ -1,4 +1,4 @@
-// TypeRefs::passThrough(Point) | fixtures/sources/src/TypeRefs.sol:19
+// TypeRefs::passThrough(Point) | fixtures/function-source/src/TypeRefs.sol:19
 
 function passThrough(Point memory p) public pure returns (Point memory) {
     Point memory q = p;
@@ -6,7 +6,7 @@ function passThrough(Point memory p) public pure returns (Point memory) {
 }
 
 
-// Point | fixtures/sources/src/TypeRefs.sol:5
+// Point | fixtures/function-source/src/TypeRefs.sol:5
 
 struct Point {
     uint256 x;

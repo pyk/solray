@@ -493,6 +493,16 @@ fn collect_from_contract_node(
             for param in &fd.return_parameters.parameters {
                 collect_from_type_name(&param.type_name, seen_ids, results, &fn_ctx);
             }
+            for modifier in &fd.modifiers {
+                if let Some(id) = modifier.modifier_name.referenced_declaration {
+                    resolve_and_add_symbol(id, seen_ids, results, &fn_ctx);
+                }
+                if let Some(ref args) = modifier.arguments {
+                    for arg in args {
+                        collect_from_expression(arg, seen_ids, results, &fn_ctx);
+                    }
+                }
+            }
             collect_from_statements(&body.statements, seen_ids, results, &fn_ctx);
         }
     }
@@ -953,7 +963,7 @@ mod tests {
     use crate::project::Project;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/sources")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/function-source")
     }
 
     fn inspect(contract: &str, function_name: &str) -> Result<FunctionSourceInspectorOutput> {
@@ -969,7 +979,9 @@ mod tests {
         let output = inspect("Main", "execute").unwrap();
         assert_eq!(
             output.to_string(),
-            include_str!("../../../fixtures/sources/expected/run_shows_source_for_execute.txt")
+            include_str!(
+                "../../../fixtures/function-source/expected/run_shows_source_for_execute.txt"
+            )
         );
     }
 
@@ -979,7 +991,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/sources/expected/run_shows_source_with_recursive_refs.txt"
+                "../../../fixtures/function-source/expected/run_shows_source_with_recursive_refs.txt"
             )
         );
     }
@@ -990,7 +1002,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/sources/expected/run_shows_source_for_overloaded_with_params.txt"
+                "../../../fixtures/function-source/expected/run_shows_source_for_overloaded_with_params.txt"
             )
         );
     }
@@ -1000,7 +1012,9 @@ mod tests {
         let err = inspect("Unknown", "function").unwrap_err().to_string();
         assert_eq!(
             err,
-            include_str!("../../../fixtures/sources/expected/run_errors_for_unknown_contract.txt")
+            include_str!(
+                "../../../fixtures/function-source/expected/run_errors_for_unknown_contract.txt"
+            )
         );
     }
 
@@ -1009,7 +1023,9 @@ mod tests {
         let err = inspect("Main", "unknownFunction").unwrap_err().to_string();
         assert_eq!(
             err,
-            include_str!("../../../fixtures/sources/expected/run_errors_for_unknown_function.txt")
+            include_str!(
+                "../../../fixtures/function-source/expected/run_errors_for_unknown_function.txt"
+            )
         );
     }
 
@@ -1021,7 +1037,7 @@ mod tests {
         assert_eq!(
             err,
             include_str!(
-                "../../../fixtures/sources/expected/run_errors_for_overloaded_function.txt"
+                "../../../fixtures/function-source/expected/run_errors_for_overloaded_function.txt"
             )
         );
     }
@@ -1031,7 +1047,9 @@ mod tests {
         let output = inspect("NatspecBlock", "compute").unwrap();
         assert_eq!(
             output.to_string(),
-            include_str!("../../../fixtures/sources/expected/run_shows_natspec_block_comment.txt")
+            include_str!(
+                "../../../fixtures/function-source/expected/run_shows_natspec_block_comment.txt"
+            )
         );
     }
 
@@ -1041,7 +1059,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/sources/expected/run_resolves_user_defined_types_in_variable_declarations.txt"
+                "../../../fixtures/function-source/expected/run_resolves_user_defined_types_in_variable_declarations.txt"
             )
         );
     }
@@ -1052,7 +1070,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/sources/expected/run_resolves_cross_file_type_references.txt"
+                "../../../fixtures/function-source/expected/run_resolves_cross_file_type_references.txt"
             )
         );
     }
@@ -1063,7 +1081,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/sources/expected/run_resolves_index_access_expressions.txt"
+                "../../../fixtures/function-source/expected/run_resolves_index_access_expressions.txt"
             )
         );
     }
@@ -1074,7 +1092,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/sources/expected/incremental_build_does_not_leak_symbols.txt"
+                "../../../fixtures/function-source/expected/incremental_build_does_not_leak_symbols.txt"
             )
         );
     }
@@ -1085,7 +1103,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/sources/expected/run_resolves_function_return_types.txt"
+                "../../../fixtures/function-source/expected/run_resolves_function_return_types.txt"
             )
         );
     }
@@ -1096,7 +1114,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/sources/expected/run_extracts_regular_block_comments.txt"
+                "../../../fixtures/function-source/expected/run_extracts_regular_block_comments.txt"
             )
         );
     }
@@ -1105,5 +1123,14 @@ mod tests {
     fn inspect_shows_source_for_path_qualified_contract() {
         let output = inspect("Main.sol:Main", "execute").unwrap();
         assert!(output.to_string().contains("// Main::execute(uint256) |"));
+    }
+
+    #[test]
+    fn inspect_resolves_modifiers() {
+        let output = inspect("ModifierRef", "increment").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!("../../../fixtures/function-source/expected/run_resolves_modifiers.txt")
+        );
     }
 }

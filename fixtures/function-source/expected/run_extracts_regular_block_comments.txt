@@ -1,11 +1,11 @@
-// BlockComment::getItem() | fixtures/sources/src/BlockComment.sol:13
+// BlockComment::getItem() | fixtures/function-source/src/BlockComment.sol:13
 
 function getItem() public pure returns (Item memory) {
     return Item(42);
 }
 
 
-// Item | fixtures/sources/src/BlockComment.sol:9
+// Item | fixtures/function-source/src/BlockComment.sol:9
 
 /*
  *  A value holder with a regular block comment.
