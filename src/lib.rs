@@ -4,12 +4,14 @@ pub use scanners::erc20_transfer_sink::Erc20TransferSink;
 pub use scanners::erc20_transfer_sink::Erc20TransferSinkScanner;
 pub use scanners::erc20_transfer_sink::Erc20TransferSinkScannerOutput;
 
+pub use call_graph::CallGraph;
+pub use call_graph::FunctionId;
+pub use call_graph::Node;
 pub use inspectors::r#abstract::AbstractInspector;
 pub use inspectors::r#abstract::AbstractInspectorOutput;
 pub use inspectors::artifact_id::ArtifactId;
 pub use inspectors::call_graph::CallGraphInspector;
 pub use inspectors::call_graph::CallGraphInspectorOutput;
-pub use inspectors::call_graph::FunctionId;
 pub use inspectors::call_path::CallPathInspector;
 pub use inspectors::call_path::CallPathInspectorOutput;
 pub use inspectors::contract::ContractInspector;
@@ -34,6 +36,7 @@ pub use project::Project;
 
 pub mod artifact_index;
 pub mod build_info;
+pub mod call_graph;
 
 pub mod inspectors;
 pub mod project;
