@@ -127,6 +127,8 @@ impl Erc20TransferSinkScanner {
     pub fn scan(&self) -> Result<Erc20TransferSinkScannerOutput> {
         self.project.validate()?;
         let project_root = std::path::absolute(self.project.path())?;
+        let directories = self.project.directories()?;
+        let src_dir = directories.src;
         let artifact_paths = self.artifact_paths();
 
         let mut sinks = Vec::new();
@@ -139,6 +141,9 @@ impl Erc20TransferSinkScanner {
                 sinks.append(&mut found);
             }
         }
+
+        // Only report sinks from the project's configured `src` directory.
+        sinks.retain(|sink| sink.file.starts_with(&src_dir));
 
         Ok(Erc20TransferSinkScannerOutput::new(sinks, project_root))
     }
@@ -513,5 +518,23 @@ mod tests {
             output.to_string(),
             "## ERC20 Transfer Sinks\n\n0 ERC20 transfer sinks found.\n\n"
         );
+    }
+
+    #[test]
+    fn scan_excludes_transfer_sinks_outside_src() {
+        // The fixture has a test contract (test/TestTokenTransfer.sol) with a
+        // safeTransfer call. This asserts it is filtered out so only sinks
+        // inside the configured `src` directory are reported.
+        let scanner = Erc20TransferSinkScanner::new(Project::open(fixture_path()));
+        let output = scanner.scan().unwrap();
+        for sink in &output.sinks {
+            assert!(
+                sink.file.starts_with("src"),
+                "sink file `{}` is not under src/",
+                sink.file.display()
+            );
+        }
+        // We know exactly 6 sinks exist in src/ from the fixture.
+        assert_eq!(output.sinks.len(), 6);
     }
 }
