@@ -20,6 +20,7 @@ pub struct CallPathInspectorOutput {
     roots: Vec<CallGraphNode>,
     project_root: PathBuf,
     target_function: String,
+    scoped_target: String,
     target_file: PathBuf,
     target_line: String,
 }
@@ -30,6 +31,7 @@ impl CallPathInspectorOutput {
         roots: Vec<CallGraphNode>,
         project_root: PathBuf,
         target_function: &str,
+        scoped_target: &str,
         target_file: PathBuf,
         target_line: &str,
     ) -> Self {
@@ -37,6 +39,7 @@ impl CallPathInspectorOutput {
             roots,
             project_root,
             target_function: target_function.to_string(),
+            scoped_target: scoped_target.to_string(),
             target_file,
             target_line: target_line.to_string(),
         }
@@ -80,7 +83,7 @@ impl std::fmt::Display for CallPathInspectorOutput {
         for (i, root) in self.roots.iter().enumerate() {
             writeln!(f, "### Path {}\n", i + 1)?;
 
-            let path = extract_path_to_target(root, &self.target_function);
+            let path = extract_path_to_target(root, &self.scoped_target);
 
             writeln!(f, "```")?;
             for (j, node) in path.iter().enumerate() {
@@ -125,13 +128,9 @@ impl std::fmt::Display for CallPathInspectorOutput {
     }
 }
 
-/// Format a target function string for display (strip visibility, params).
+/// Format a target function string for display (strip params).
 fn format_target_display(target: &str) -> String {
-    if let Some((contract, rest)) = target.split_once("::") {
-        let func = rest.split('(').next().unwrap_or(rest);
-        return format!("{}::{}", contract, func);
-    }
-    target.to_string()
+    target.split('(').next().unwrap_or(target).to_string()
 }
 
 /// Format a [`CallGraphNode`] for call-path display (no visibility, no params).
@@ -197,6 +196,7 @@ impl CallPathInspector {
             paths.roots,
             project_root,
             target_function,
+            &paths.scoped_target,
             paths.target_file,
             &target_line,
         ))
@@ -257,8 +257,8 @@ mod tests {
     #[test]
     fn call_path_for_lib_lib_work() {
         let inspector = CallPathInspector::new(fixture_call_path_project());
-        let id = make_id("Target", "Lib::libWork");
-        let output = inspector.inspect(&id, "Lib::libWork").unwrap();
+        let id = make_id("Lib", "libWork");
+        let output = inspector.inspect(&id, "libWork").unwrap();
         assert_eq!(
             output.to_string(),
             include_str!("../../../fixtures/call-path/expected/call_path_for_Lib_libWork.txt")
@@ -277,14 +277,38 @@ mod tests {
     }
 
     #[test]
-    fn call_path_returns_empty_when_target_not_found() {
+    fn call_path_errors_when_target_not_found_in_contract() {
         let inspector = CallPathInspector::new(fixture_call_path_project());
         let id = make_id("Target", "nonExistent");
-        let output = inspector.inspect(&id, "nonExistent").unwrap();
+        let err = inspector
+            .inspect(&id, "nonExistent")
+            .unwrap_err()
+            .to_string();
+        assert_eq!(err, "\"nonExistent\" not found in \"Target\".");
+    }
+
+    #[test]
+    fn call_path_for_parent_work_targeted_from_parent() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("Parent", "parentWork");
+        let output = inspector.inspect(&id, "parentWork").unwrap();
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/call-path/expected/call_path_returns_empty_when_target_not_found.txt"
+                "../../../fixtures/call-path/expected/call_path_for_parent_work_targeted_from_parent.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_path_for_lib_lib_work_targeted_from_lib() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("Lib", "libWork");
+        let output = inspector.inspect(&id, "libWork").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/call-path/expected/call_path_for_lib_lib_work_targeted_from_lib.txt"
             )
         );
     }

@@ -7,7 +7,7 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Result, bail};
+use anyhow::{Result, bail, ensure};
 use serde::Deserialize;
 use solc::ast::{
     ContractDefinition, ContractDefinitionNode, Expression, FunctionCallExpression,
@@ -109,7 +109,12 @@ impl CallGraphNode {
             .unwrap_or("")
     }
 
-    /// Check if this single node matches the given target function signature.
+    /// Check if this single node matches the given target.
+    ///
+    /// The target can be:
+    /// - A bare function name (e.g., `"removeLiquidity"`) to match any contract.
+    /// - A scoped name (e.g., `"LiquidityLib::removeLiquidity"`) to match a
+    ///   specific contract and function.
     pub fn matches_target(&self, target: &str) -> bool {
         if let Some((contract_part, func_part)) = target.split_once("::") {
             self.contract_name == contract_part && self.func_name() == func_part
@@ -199,6 +204,8 @@ pub struct CallPaths {
     pub target_file: PathBuf,
     /// Source location (offset:length) of the target function.
     pub target_src: String,
+    /// Scoped target string ("Contract::function") used for matching.
+    pub scoped_target: String,
 }
 
 // Internal types
@@ -310,69 +317,120 @@ impl CallGraph {
     /// Returns [`CallPaths`] containing the matching root nodes and the
     /// target function's source location.
     pub fn find_call_paths(&self, id: &FunctionId, target_function: &str) -> Result<CallPaths> {
+        // 1. Validate the contract artifact exists.
         let artifact_path = self.resolve_artifact(id.artifact_id())?;
 
+        // 2. Load functions from the target artifact to validate the function.
         let cache: RefCell<HashMap<PathBuf, Vec<FunctionInfo>>> = RefCell::new(HashMap::new());
         let mut functions: HashMap<i64, FunctionInfo> = HashMap::new();
         load_artifact_functions(&artifact_path, &mut functions, &cache)?;
 
-        let target_name = id.artifact_id().name.as_str();
-
-        // Build the inheritance chain.
-        let contract_names = self.build_inheritance_chain(target_name, &artifact_path)?;
-
-        // Collect external/public function IDs from the inheritance chain.
-        let external_ids: Vec<i64> = functions
-            .iter()
-            .filter(|(_, fi)| {
-                contract_names.contains(&fi.contract_name)
-                    && matches!(fi.visibility, Visibility::External | Visibility::Public)
-            })
-            .map(|(id, _)| *id)
+        let target_funcs: Vec<&FunctionInfo> = functions
+            .values()
+            .filter(|fi| fi.name == target_function)
             .collect();
 
-        // Build call graphs for each external function and check reachability.
+        ensure!(
+            !target_funcs.is_empty(),
+            "\"{}\" not found in \"{}\".",
+            target_function,
+            id.artifact_id().name
+        );
+
+        ensure!(
+            target_funcs.len() <= 1,
+            "\"{}\" has multiple overloads in \"{}\"; use the full signature.",
+            target_function,
+            id.artifact_id().name
+        );
+
+        // 3. Build the scoped target ("Contract::function") so that matching
+        //    only finds nodes from the specific contract that defines the
+        //    function (which may be a parent of the user-specified artifact).
+        let defining_contract = &target_funcs[0].contract_name;
+        let scoped_target = format!("{}::{}", defining_contract, target_function);
+
+        // 4. Determine the project's src directory to filter which artifacts
+        //    to search. We only look for call paths from source files within
+        //    the configured src directory (e.g., "src" or "contracts"), not
+        //    from test or library files.
+        let project_root = self.project.path();
+        let src_dir = self
+            .project
+            .directories()
+            .ok()
+            .map(|d| d.src)
+            .unwrap_or_else(|| PathBuf::from("src"));
+
+        // 5. Collect src-filtered source files, one per source file to avoid
+        //    ID collisions across compilation units.
+        let mut source_files: Vec<(PathBuf, PathBuf)> = Vec::new();
+        let mut seen_sources: HashSet<PathBuf> = HashSet::new();
+        for path in self.artifact_index.all_entries() {
+            let Some(source) = extract_artifact_source(path) else {
+                continue;
+            };
+            if !seen_sources.insert(source.clone()) {
+                continue;
+            }
+            if !is_in_src_dir(&source, project_root, &src_dir) {
+                continue;
+            }
+            source_files.push((path.clone(), source)); // checkrs: allow(clone_in_loops)
+        }
+
         let mut matching_roots = Vec::new();
-        for &func_id in &external_ids {
-            let mut visited: HashSet<i64> = HashSet::new();
-            let root = self.build_call_node(func_id, &cache, &mut functions, &mut visited)?;
-            if root.reaches_target(target_function) {
-                matching_roots.push(root);
+        let mut target_file = PathBuf::new();
+        let mut target_src = String::new();
+        let mut target_found = false;
+
+        for (artifact_path, _source) in &source_files {
+            let cache: RefCell<HashMap<PathBuf, Vec<FunctionInfo>>> = RefCell::new(HashMap::new());
+            let mut functions: HashMap<i64, FunctionInfo> = HashMap::new();
+            load_artifact_functions(artifact_path, &mut functions, &cache)?;
+
+            // Collect external/public function IDs from this source file.
+            let external_ids: Vec<i64> = functions
+                .iter()
+                .filter(|(_, fi)| {
+                    matches!(fi.visibility, Visibility::External | Visibility::Public)
+                })
+                .map(|(id, _)| *id)
+                .collect();
+
+            for &func_id in &external_ids {
+                let mut visited: HashSet<i64> = HashSet::new();
+                let root = self.build_call_node(func_id, &cache, &mut functions, &mut visited)?;
+                // Use the scoped target (Contract::function) so we only match
+                // nodes from the specific target contract.
+                if root.reaches_target(&scoped_target) {
+                    matching_roots.push(root);
+                }
+            }
+
+            // Find target source location from this source file's functions.
+            if !target_found
+                && let Some(fi) = functions.values().find(|fi| fi.name == target_function)
+            {
+                target_file = fi.file.clone(); // checkrs: allow(clone_in_loops)
+                target_src = format!("{}:{}", fi.definition.src.offset, fi.definition.src.length);
+                target_found = true;
             }
         }
 
         matching_roots.sort_by(|a, b| a.signature.cmp(&b.signature));
 
-        // Find target source location from the roots.
-        let (target_file, target_src) = {
-            let found = find_target_source_in_roots(&matching_roots, target_function)
-                .map(|(f, s)| (f.clone(), s.to_string())); // checkrs: allow(clone_in_iterator)
-            found.unwrap_or_else(|| {
-                let func_name = if target_function.contains("::") {
-                    target_function
-                        .split("::")
-                        .nth(1)
-                        .unwrap_or(target_function)
-                } else {
-                    target_function
-                };
-                let maybe_found: Option<(PathBuf, String)> = functions
-                    .values()
-                    .find(|fi| fi.name == func_name) // checkrs: allow(clone_in_iterator)
-                    .map(|fi| {
-                        let file = fi.file.clone();
-                        let src =
-                            format!("{}:{}", fi.definition.src.offset, fi.definition.src.length);
-                        (file, src)
-                    });
-                maybe_found.unwrap_or_default()
-            })
-        };
+        // Prefer target source from matching roots when available.
+        if let Some((f, s)) = find_target_source_in_roots(&matching_roots, &scoped_target) {
+            target_file = f.clone();
+            target_src = s.to_string();
+        }
 
         Ok(CallPaths {
             roots: matching_roots,
             target_file,
             target_src,
+            scoped_target,
         })
     }
     /// Resolve an artifact ID, returning the path and any ambiguity candidates.
@@ -431,52 +489,6 @@ impl CallGraph {
                 }
             }
         }
-    }
-
-    fn build_inheritance_chain(
-        &self,
-        contract_name: &str,
-        artifact_path: impl AsRef<Path>,
-    ) -> Result<HashSet<String>> {
-        let content = fs::read_to_string(artifact_path.as_ref())?;
-        let artifact: Artifact = serde_json::from_str(&content)?;
-
-        let ast = match artifact.ast {
-            None => return Ok(HashSet::from([contract_name.to_string()])),
-            Some(ast) => ast,
-        };
-
-        let contracts: Vec<ContractDefinition> = ast
-            .nodes
-            .into_iter()
-            .filter_map(|node| match node {
-                SourceUnitNode::ContractDefinition(cd) => Some(cd),
-                _ => None,
-            })
-            .collect();
-
-        let contract_map: HashMap<String, ContractDefinition> = contracts
-            .into_iter()
-            .map(|cd| (cd.name.clone(), cd)) // checkrs: allow(clone_in_iterator)
-            .collect();
-
-        let mut chain = HashSet::new();
-        let mut to_visit = vec![contract_name.to_string()];
-
-        while let Some(name) = to_visit.pop() {
-            // checkrs: allow(clone_in_loops)
-            if !chain.insert(name.clone()) {
-                continue;
-            }
-            if let Some(cd) = contract_map.get(&name) {
-                for base in &cd.base_contracts {
-                    let base_name = &base.base_name.name;
-                    to_visit.push(base_name.clone()); // checkrs: allow(clone_in_loops)
-                }
-            }
-        }
-
-        Ok(chain)
     }
 
     fn build_call_node(
@@ -806,9 +818,6 @@ impl CallGraph {
         cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
         functions: &mut HashMap<i64, FunctionInfo>,
     ) -> Result<()> {
-        if functions.contains_key(&id) {
-            return Ok(());
-        }
         let Some(entry) = self.symbol_index.get(id) else {
             return Ok(());
         };
@@ -816,6 +825,9 @@ impl CallGraph {
             .symbol_index
             .artifact_info(entry.artifact_id)
             .artifact_path;
+        // Always load from the correct artifact, even if the ID is already
+        // present in `functions`. The same AST node ID can refer to different
+        // functions across compilation units (different .sol files).
         load_artifact_functions(artifact_path, functions, cache)?;
         Ok(())
     }
@@ -874,6 +886,33 @@ fn load_artifact_functions(
         }
     }
     Ok(())
+}
+
+/// Extract the source file path from an artifact JSON file.
+fn extract_artifact_source(path: impl AsRef<Path>) -> Option<PathBuf> {
+    let content = fs::read_to_string(path.as_ref()).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&content).ok()?;
+    value
+        .get("ast")?
+        .get("absolutePath")?
+        .as_str()
+        .map(PathBuf::from)
+}
+
+/// Check if a source file path is under the project's configured `src` directory.
+fn is_in_src_dir(
+    source: impl AsRef<Path>,
+    project_root: impl AsRef<Path>,
+    src_dir: impl AsRef<Path>,
+) -> bool {
+    // The source path from the artifact is an absolute path. Compute the
+    // relative path from the project root and check if it starts with the
+    // configured src directory (e.g., "src" or "contracts").
+    let relative = source
+        .as_ref()
+        .strip_prefix(project_root.as_ref())
+        .unwrap_or(source.as_ref());
+    relative.starts_with(src_dir.as_ref())
 }
 
 fn parse_artifact_functions(path: impl AsRef<Path>) -> Result<Vec<FunctionInfo>> {
