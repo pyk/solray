@@ -1,4 +1,18 @@
-# Solray
+<p align="center">
+  <a href="https://pyk.sh">
+    Solray
+  </a>
+</p>
+
+<p align="center">
+    Solidity Source Code Explorer
+<p>
+
+<p align="center">
+  <img src="https://img.shields.io/crates/v/solray.svg?colorA=00f&colorB=fff&style=flat&logo=rust" alt="Crates.io">
+  <img src="https://img.shields.io/crates/d/solray?colorA=00f&colorB=fff&style=flat&logo=rust" alt="Downloads">
+  <img src="https://img.shields.io/github/license/pyk/solray?colorA=00f&colorB=fff&style=flat" alt="MIT License">
+</p>
 
 **Solray** is a Solidity source code explorer for Foundry-based projects. It
 helps security reviewers and developers understand contract codebases by
