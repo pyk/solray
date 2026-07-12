@@ -14,6 +14,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   from an interface defined in a separate file. The modifier inspector now
   includes interfaces (alongside contracts and libraries) when parsing
   artifacts, preventing infinite recursion in parent resolution.
+- Replaced an `unwrap()` with a `context()` call in
+  `ExternalFunctionInspector::resolve_artifact_path`, eliminating the last
+  `unwrap_usage` suppression in the codebase.
 
 ## [0.2.0] - 2026-07-12
 
