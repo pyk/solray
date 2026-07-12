@@ -8,6 +8,13 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- `solray inspect modifiers` no longer stack-overflows when a contract inherits
+  from an interface defined in a separate file. The modifier inspector now
+  includes interfaces (alongside contracts and libraries) when parsing
+  artifacts, preventing infinite recursion in parent resolution.
+
 ## [0.2.0] - 2026-07-12
 
 ### Added
