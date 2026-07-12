@@ -33,8 +33,7 @@ layouts, and more, without leaving the terminal.
 - **Call path**: show call paths from entry functions to a target function.
 - **Function source**: resolve and display the complete source code of a
   function.
-- **Pattern scanning**: scan the codebase for patterns of interest (e.g., ERC20
-  transfer sinks).
+- **Pattern scanning**: scan the codebase for code patterns.
 
 ## Installation
 
@@ -150,6 +149,9 @@ Scan for patterns of interest across the codebase.
 ```bash
 # Find all ERC20 transfer/safeTransfer call sites
 solray scan erc20-transfer-sink
+
+# Find all asset transfer calls (ERC20, ETH) and ETH receivers
+solray scan asset-transfers
 ```
 
 The scan only inspects source files under the project's `src/` directory (as
@@ -191,6 +193,7 @@ has its own inspector or scanner type:
 | `CallPathInspector`         | Show call paths to a function       |
 | `FunctionSourceInspector`   | Show function source code           |
 | `Erc20TransferSinkScanner`  | Scan for ERC20 transfer calls       |
+| `AssetTransferScanner`      | Scan for all asset transfer patterns |
 
 ## Development
 
