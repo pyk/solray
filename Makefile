@@ -7,7 +7,7 @@ check: # Run code quality tools
 	@echo "Run checkrs"
 	@checkrs run src/
 	@echo "Run markdown formatter"
-	@uvx --from panache-cli==2.61.0 panache format .
+	@uvx --from panache-cli==2.61.0 panache format --check .
 
 .PHONY: bin
 bin: # Install binary
