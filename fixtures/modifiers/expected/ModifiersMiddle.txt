@@ -1,0 +1,7 @@
+Contract: ModifiersMiddle
+Source: src/ModifiersMiddle.sol
+
+Found 2 modifiers.
+
+1. onlyMiddle (source: src/ModifiersMiddle.sol:7)
+2. onlyBase (source: src/ModifiersBase.sol:5)

@@ -1,0 +1,8 @@
+Contract: ModifiersChild
+Source: src/ModifiersChild.sol
+
+Found 3 modifiers.
+
+1. onlyChild (source: src/ModifiersChild.sol:7)
+2. onlyMiddle (source: src/ModifiersMiddle.sol:7)
+3. onlyBase (source: src/ModifiersBase.sol:5)

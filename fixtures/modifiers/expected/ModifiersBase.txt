@@ -1,0 +1,6 @@
+Contract: ModifiersBase
+Source: src/ModifiersBase.sol
+
+Found 1 modifiers.
+
+1. onlyBase (source: src/ModifiersBase.sol:5)

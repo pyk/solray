@@ -10,4 +10,5 @@ pub mod function_source;
 pub mod inheritance_graph;
 pub mod interface;
 pub mod library;
+pub mod modifier;
 pub mod storage_layout;

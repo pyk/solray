@@ -16,6 +16,7 @@ use hawk::FunctionSourceInspector;
 use hawk::InheritanceGraphInspector;
 use hawk::InterfaceInspector;
 use hawk::LibraryInspector;
+use hawk::ModifierInspector;
 use hawk::Project;
 use hawk::StorageLayoutId;
 use hawk::StorageLayoutInspector;
@@ -105,6 +106,14 @@ enum InspectSubcommand {
     },
     /// List all interfaces
     Interfaces {
+        /// Path to the Foundry project
+        #[arg(long, default_value = ".")]
+        project: PathBuf,
+    },
+    /// List all modifiers in a contract
+    Modifiers {
+        /// The artifact ID (e.g. Name or File.sol:Name)
+        id: String,
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
@@ -225,6 +234,13 @@ fn main() -> Result<()> {
                 let project = Project::open(&project);
                 let inspector = InterfaceInspector::new(project);
                 let output = inspector.inspect()?;
+                print!("{output}");
+            }
+            InspectSubcommand::Modifiers { id, project } => {
+                let project = Project::open(&project);
+                let inspector = ModifierInspector::new(project);
+                let id = ArtifactId::new(&id);
+                let output = inspector.inspect(&id)?;
                 print!("{output}");
             }
             InspectSubcommand::Libraries { project } => {
