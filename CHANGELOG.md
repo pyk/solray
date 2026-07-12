@@ -8,6 +8,21 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-12
+
+### Added
+
+- `solray scan asset-transfers`: scan the source tree for asset transfer calls
+  and ETH receivers across ERC20 and native ETH transfers
+- `AssetTransferScanner`: library type for programmatic asset transfer
+  detection
+- CLI help text updated for consistency
+
+### Changed
+
+- Re-export `AssetTransfer`, `AssetTransferKind`, `AssetTransferScanner`,
+  `AssetTransferScannerOutput` from `solray` crate root
+
 ## [0.1.0] - 2026-07-12
 
 ### Added
@@ -42,3 +57,7 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   programmatic use
 - Support for incremental builds, cross-file references, and NatSpec blocks in
   function source resolution
+
+[unreleased]: https://github.com/pyk/solray/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/pyk/solray/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/pyk/solray/releases/tag/v0.1.0
