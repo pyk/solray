@@ -320,8 +320,10 @@ impl ExternalFunctionInspector {
                 match candidates.len() {
                     0 => bail!("\"{}\" not found.", id.name),
                     1 => {
-                        // checkrs: allow(unwrap_usage)
-                        let path = candidates.into_iter().next().unwrap();
+                        let path = candidates
+                            .into_iter()
+                            .next()
+                            .context("expected one candidate but got none")?;
                         Ok(path)
                     }
                     n => {
