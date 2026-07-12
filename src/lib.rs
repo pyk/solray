@@ -1,5 +1,9 @@
 //! Solray: inspect Foundry projects.
 
+pub use scanners::asset_transfers::AssetTransfer;
+pub use scanners::asset_transfers::AssetTransferKind;
+pub use scanners::asset_transfers::AssetTransferScanner;
+pub use scanners::asset_transfers::AssetTransferScannerOutput;
 pub use scanners::erc20_transfer_sink::Erc20TransferSink;
 pub use scanners::erc20_transfer_sink::Erc20TransferSinkScanner;
 pub use scanners::erc20_transfer_sink::Erc20TransferSinkScannerOutput;

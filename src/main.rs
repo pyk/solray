@@ -6,6 +6,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use solray::AbstractInspector;
 use solray::ArtifactId;
+use solray::AssetTransferScanner;
 use solray::CallGraphInspector;
 use solray::CallPathInspector;
 use solray::ContractInspector;
@@ -152,6 +153,13 @@ enum ScanSubcommand {
         #[arg(long, default_value = ".")]
         project: PathBuf,
     },
+    /// Scan for asset transfer calls (ERC20 transfers, ETH transfers, and
+    /// low-level calls with value).
+    AssetTransfers {
+        /// Path to the Foundry project
+        #[arg(long, default_value = ".")]
+        project: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -162,6 +170,12 @@ fn main() -> Result<()> {
             ScanSubcommand::Erc20TransferSink { project } => {
                 let project = Project::open(&project);
                 let scanner = Erc20TransferSinkScanner::new(project);
+                let output = scanner.scan()?;
+                print!("{output}");
+            }
+            ScanSubcommand::AssetTransfers { project } => {
+                let project = Project::open(&project);
+                let scanner = AssetTransferScanner::new(project);
                 let output = scanner.scan()?;
                 print!("{output}");
             }

@@ -1,0 +1,25 @@
+## Asset Transfers
+
+19 asset transfers found.
+
+| # | Contract | Function | Visibility | Expression | Kind | Source Location |
+| - | -------- | -------- | ---------- | ---------- | ---- | --------------- |
+| 1 | `ERC20TransferBase` | `_basePrivateTransfer` | private | `baseToken.transfer(to, amount)` | Transfer ERC20 | `src/ERC20TransferBase.sol:10` |
+| 2 | `ERC20TransferFromBase` | `_basePrivateTransferFrom` | private | `baseToken.transferFrom(from, to, amount)` | Transfer From ERC20 | `src/ERC20TransferFromBase.sol:10` |
+| 3 | `ERC20TransferFromTest` | `_privateTransferFrom` | private | `token.transferFrom(from, to, amount)` | Transfer From ERC20 | `src/ERC20TransferFromTest.sol:14` |
+| 4 | `ERC20TransferFromTest` | `erc20CastTransferFrom` | external | `IERC20(address(token)).transferFrom(from, to, amount)` | Transfer From ERC20 | `src/ERC20TransferFromTest.sol:19` |
+| 5 | `ERC20TransferFromTest` | `erc20SafeTransferFromLib` | external | `token.safeTransferFrom(from, to, amount)` | Safe Transfer From ERC20 | `src/ERC20TransferFromTest.sol:24` |
+| 6 | `ERC20TransferFromTest` | `erc20DirectSafeTransferFrom` | external | `SafeERC20.safeTransferFrom( token, from, to, amount )` | Safe Transfer From ERC20 | `src/ERC20TransferFromTest.sol:29` |
+| 7 | `ERC20TransferTest` | `_privateTransfer` | private | `token.transfer(to, amount)` | Transfer ERC20 | `src/ERC20TransferTest.sol:14` |
+| 8 | `ERC20TransferTest` | `erc20CastTransfer` | external | `IERC20(address(token)).transfer(to, amount)` | Transfer ERC20 | `src/ERC20TransferTest.sol:19` |
+| 9 | `ERC20TransferTest` | `erc20SafeTransferLib` | external | `token.safeTransfer(to, amount)` | Safe Transfer ERC20 | `src/ERC20TransferTest.sol:24` |
+| 10 | `ERC20TransferTest` | `erc20DirectSafeTransfer` | external | `SafeERC20.safeTransfer(token, to, amount)` | Safe Transfer ERC20 | `src/ERC20TransferTest.sol:29` |
+| 11 | `ETHTransfer` | `receive` | external | `receive() external payable` | Receive ETH | `src/ETHTransfer.sol:6` |
+| 12 | `ETHTransfer` | `ethSend` | external | `function ethSend(address payable to) external payable` | Receive ETH | `src/ETHTransfer.sol:9` |
+| 13 | `ETHTransfer` | `ethSend` | external | `to.send(msg.value)` | Send ETH | `src/ETHTransfer.sol:10` |
+| 14 | `ETHTransfer` | `ethTransfer` | external | `function ethTransfer(address payable to) external payable` | Receive ETH | `src/ETHTransfer.sol:15` |
+| 15 | `ETHTransfer` | `ethTransfer` | external | `to.transfer(msg.value)` | Transfer ETH | `src/ETHTransfer.sol:16` |
+| 16 | `ETHTransfer` | `ethCall` | external | `function ethCall(address payable to) external payable` | Receive ETH | `src/ETHTransfer.sol:20` |
+| 17 | `ETHTransfer` | `ethCall` | external | `to.call{value: msg.value}("")` | Call ETH | `src/ETHTransfer.sol:21` |
+| 18 | `ETHTransfer` | `acceptEth` | external | `function acceptEth() external payable` | Receive ETH | `src/ETHTransfer.sol:26` |
+| 19 | `ETHTransfer` | `acceptEthPublic` | public | `function acceptEthPublic() public payable` | Receive ETH | `src/ETHTransfer.sol:29` |
