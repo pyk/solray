@@ -1,5 +1,5 @@
 <p align="center">
-  <stong>
+  <strong>
     Solray
   </strong>
 </p>
@@ -209,17 +209,6 @@ make build-fixtures
 The project requires `ast = true` in `foundry.toml` for all fixtures. Fixtures
 are checked into the repository and rebuilt with `make build-fixtures`.
 
-## Project structure
+## License
 
-```
-src/
-  main.rs                  CLI entry point
-  lib.rs                   Public API re-exports
-  project.rs               Project opening and validation
-  build_info.rs            Build-info file parsing for source ID resolution
-  artifact_index.rs        Artifact index
-  call_graph.rs            Call graph data types
-  inspectors/              Inspector types (one per domain concept)
-  scanners/                Scanner types for pattern detection
-fixtures/                  Test fixtures (Foundry projects)
-```
+MIT
