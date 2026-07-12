@@ -18,7 +18,6 @@ jobs:
             - uses: Swatinem/rust-cache@v2
             - uses: foundry-rs/foundry-toolchain@v1
             - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
-            - run: uv tool install checkrs --from git+https://github.com/pyk/checkrs
             - run: make build-fixtures
             - run: make check
             - run: make test
