@@ -1,0 +1,6 @@
+Contract: ModifiersInterfaceChild
+Source: src/ModifiersInterfaceChild.sol
+
+Found 1 modifiers.
+
+1. onlyChild (source: src/ModifiersInterfaceChild.sol:7)

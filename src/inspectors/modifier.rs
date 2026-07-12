@@ -242,6 +242,7 @@ impl ResolutionContext {
         for node in &ast.nodes {
             if let SourceUnitNode::ContractDefinition(cd) = node
                 && (cd.contract_kind == ContractKind::Contract
+                    || cd.contract_kind == ContractKind::Interface
                     || cd.contract_kind == ContractKind::Library)
             {
                 let bases: Vec<String> = cd
@@ -279,6 +280,7 @@ impl ResolutionContext {
         Ok(result)
     }
 
+    /// Find and recursively resolve parent contracts not yet in `sources`.
     /// Find and recursively resolve parent contracts not yet in `sources`.
     fn resolve_parents(
         &self,
@@ -421,6 +423,17 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         let text = output.to_string();
         let expected = include_str!("../../fixtures/modifiers/expected/ModifiersBase.txt");
+        assert_eq!(text, expected);
+    }
+
+    #[test]
+    fn inspect_modifiers_with_interface_base() {
+        let inspector = ModifierInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("ModifiersInterfaceChild");
+        let output = inspector.inspect(&id).unwrap();
+        let text = output.to_string();
+        let expected =
+            include_str!("../../fixtures/modifiers/expected/ModifiersInterfaceChild.txt");
         assert_eq!(text, expected);
     }
 }
