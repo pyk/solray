@@ -58,6 +58,8 @@ your Cargo bin directory.
 ### Prerequisites
 
 - [Rust](https://rustup.rs/) (edition 2024)
+- Run `forge build` first. Solray reads the compiled artifacts from the
+  Foundry project's output directory.
 - A Foundry project with `ast = true` set in `foundry.toml`:
 
 ```toml
