@@ -1,4 +1,4 @@
-//! Hawk: inspect Foundry projects.
+//! Solray: inspect Foundry projects.
 
 pub use scanners::erc20_transfer_sink::Erc20TransferSink;
 pub use scanners::erc20_transfer_sink::Erc20TransferSinkScanner;

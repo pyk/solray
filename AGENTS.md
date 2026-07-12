@@ -1,29 +1,30 @@
-# Hawk CLI
+# Solray CLI
 
-Hawk is a Solidity source code explorer. Currently it only supports
+Solray is a Solidity source code explorer. Currently it only supports
 foundry-based projects.
 
-The main goal of Hawk is to help anyone to do security reviews faster.
+The main goal of Solray is to help anyone to do security reviews faster.
 
-Hawk is designed to be library-first, which means the CLI is the consumer of
+Solray is designed to be library-first, which means the CLI is the consumer of
 the library.
 
-Available Hawk commands:
+Available Solray commands:
 
-- `hawk inspect contracts`: List all deployable contracts.
-- `hawk inspect abstracts`: List all abstract contracts.
-- `hawk inspect libraries`: List all libraries.
-- `hawk inspect interfaces`: List all interfaces.
-- `hawk inspect inheritance-graph <contract>`: Show inheritance graph of a
+- `solray inspect contracts`: List all deployable contracts.
+- `solray inspect abstracts`: List all abstract contracts.
+- `solray inspect libraries`: List all libraries.
+- `solray inspect interfaces`: List all interfaces.
+- `solray inspect inheritance-graph <contract>`: Show inheritance graph of a
   contract/interface.
-- `hawk inspect external-functions <contract>`: List all externally callable
+- `solray inspect external-functions <contract>`: List all externally callable
   functions, including `receive` and `fallback` functions if they exist.
-- `hawk inspect modifiers <contract>`: List all modifiers in a contract,
+- `solray inspect modifiers <contract>`: List all modifiers in a contract,
   including inherited ones.
-- `hawk inspect storage-layout <contract>`: Show storage layout of a contract.
-- `hawk inspect call-graph <contract> <function>`: Show the complete call graph
-  of a function.
-- `hawk inspect function-source <contract> <function>`: Show the complete
+- `solray inspect storage-layout <contract>`: Show storage layout of a
+  contract.
+- `solray inspect call-graph <contract> <function>`: Show the complete call
+  graph of a function.
+- `solray inspect function-source <contract> <function>`: Show the complete
   source code of a function.
 
 ## Non-negotiable rules

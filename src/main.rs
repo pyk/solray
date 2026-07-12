@@ -1,28 +1,28 @@
-//! Hawk CLI: inspect Foundry projects from the command line.
+//! Solray CLI: inspect Foundry projects from the command line.
 
 use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use hawk::AbstractInspector;
-use hawk::ArtifactId;
-use hawk::CallGraphInspector;
-use hawk::CallPathInspector;
-use hawk::ContractInspector;
-use hawk::Erc20TransferSinkScanner;
-use hawk::ExternalFunctionInspector;
-use hawk::FunctionId;
-use hawk::FunctionSourceInspector;
-use hawk::InheritanceGraphInspector;
-use hawk::InterfaceInspector;
-use hawk::LibraryInspector;
-use hawk::ModifierInspector;
-use hawk::Project;
-use hawk::StorageLayoutId;
-use hawk::StorageLayoutInspector;
+use solray::AbstractInspector;
+use solray::ArtifactId;
+use solray::CallGraphInspector;
+use solray::CallPathInspector;
+use solray::ContractInspector;
+use solray::Erc20TransferSinkScanner;
+use solray::ExternalFunctionInspector;
+use solray::FunctionId;
+use solray::FunctionSourceInspector;
+use solray::InheritanceGraphInspector;
+use solray::InterfaceInspector;
+use solray::LibraryInspector;
+use solray::ModifierInspector;
+use solray::Project;
+use solray::StorageLayoutId;
+use solray::StorageLayoutInspector;
 
 #[derive(Parser)]
-#[command(name = "hawk", about = "Inspect Foundry projects", version)]
+#[command(name = "solray", about = "Inspect Foundry projects", version)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -281,7 +281,7 @@ mod tests {
 
     #[test]
     fn version_comes_from_cargo_package_version() {
-        let expected = format!("hawk {}\n", env!("CARGO_PKG_VERSION"));
+        let expected = format!("solray {}\n", env!("CARGO_PKG_VERSION"));
         assert_eq!(Cli::command().render_version(), expected);
     }
 }

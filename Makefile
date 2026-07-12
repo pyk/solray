@@ -11,7 +11,7 @@ check: # Run code quality tools
 
 .PHONY: bin
 bin: # Install binary
-	@echo "Install hawk binary"
+	@echo "Install solray binary"
 	@cargo install --path . --locked
 
 .PHONY: test
