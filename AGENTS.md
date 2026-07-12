@@ -18,11 +18,13 @@ Available Hawk commands:
   contract/interface.
 - `hawk inspect external-functions <contract>`: List all externally callable
   functions, including `receive` and `fallback` functions if they exist.
+- `hawk inspect modifiers <contract>`: List all modifiers in a contract,
+  including inherited ones.
 - `hawk inspect storage-layout <contract>`: Show storage layout of a contract.
 - `hawk inspect call-graph <contract> <function>`: Show the complete call graph
   of a function.
-- `hawk inspect function-source <contract> <function>`: Show the complete source
-  code of a function.
+- `hawk inspect function-source <contract> <function>`: Show the complete
+  source code of a function.
 
 ## Non-negotiable rules
 
