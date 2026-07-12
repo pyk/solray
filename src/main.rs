@@ -22,7 +22,7 @@ use solray::StorageLayoutId;
 use solray::StorageLayoutInspector;
 
 #[derive(Parser)]
-#[command(name = "solray", about = "Inspect Foundry projects", version)]
+#[command(name = "solray", about = "Solidity source code explorer", version)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -30,9 +30,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Inspect a Foundry project.
+    /// Explore contract structure and details
     Inspect(InspectArgs),
-    /// Scan a Foundry project for patterns of interest.
+    /// Search for specific code patterns across the codebase
     Scan(ScanArgs),
 }
 
@@ -96,7 +96,7 @@ enum InspectSubcommand {
         #[arg(long)]
         include_read_only: bool,
     },
-    /// Show the inheritance graph of a declaration
+    /// Show the inheritance graph of a contract or interface
     InheritanceGraph {
         /// The artifact ID (e.g. Name or File.sol:Name)
         id: String,
@@ -136,7 +136,7 @@ enum InspectSubcommand {
     },
     /// Show the storage layout of a contract
     StorageLayout {
-        /// The storage layout ID (e.g. Name or File.sol:Name)
+        /// The artifact ID (e.g. Name or File.sol:Name)
         id: String,
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
