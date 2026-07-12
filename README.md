@@ -1,7 +1,7 @@
 <p align="center">
-  <a href="https://pyk.sh">
+  <stong>
     Solray
-  </a>
+  </strong>
 </p>
 
 <p align="center">
@@ -38,9 +38,15 @@ layouts, and more, without leaving the terminal.
 
 ## Installation
 
+### From crates.io
+
+```bash
+cargo install solray
+```
+
 ### From source
 
-```sh
+```bash
 git clone https://github.com/pyk/solray.git
 cd solray
 make bin
@@ -74,7 +80,7 @@ Solray has two main commands: `inspect` and `scan`.
 
 Explore the structure of a Foundry project.
 
-```sh
+```bash
 # List all deployable contracts
 solray inspect contracts
 
@@ -90,7 +96,7 @@ solray inspect libraries
 
 #### Inspecting a single contract
 
-```sh
+```bash
 # Show the inheritance graph of a contract
 solray inspect inheritance-graph Token
 
@@ -107,7 +113,7 @@ solray inspect storage-layout Token
 
 #### Function-level inspection
 
-```sh
+```bash
 # Show the complete call graph of a function
 solray inspect call-graph Token transfer
 
@@ -122,7 +128,7 @@ solray inspect function-source Token transfer
 
 All commands accept `--project` (defaults to the current directory):
 
-```sh
+```bash
 solray inspect contracts --project /path/to/forge-project
 ```
 
@@ -131,7 +137,7 @@ solray inspect contracts --project /path/to/forge-project
 When a contract name is ambiguous (same name in multiple files), use the
 `File.sol:Name` syntax:
 
-```sh
+```bash
 solray inspect inheritance-graph "src/Token.sol:Token"
 ```
 
@@ -139,7 +145,7 @@ solray inspect inheritance-graph "src/Token.sol:Token"
 
 Scan for patterns of interest across the codebase.
 
-```sh
+```bash
 # Find all ERC20 transfer/safeTransfer call sites
 solray scan erc20-transfer-sink
 ```
@@ -186,7 +192,7 @@ has its own inspector or scanner type:
 
 ## Development
 
-```sh
+```bash
 # Run checks (format, clippy, checkrs, markdown)
 make check
 
