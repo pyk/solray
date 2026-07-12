@@ -1,8 +1,6 @@
-<p align="center">
-  <strong>
+<h3 align="center">
     Solray
-  </strong>
-</p>
+</h3>
 
 <p align="center">
     Solidity Source Code Explorer
