@@ -5,7 +5,7 @@ check: # Run code quality tools
 	@echo "Run clippy"
 	@cargo clippy -- -D warnings
 	@echo "Run checkrs"
-	@checkrs run src/
+	@uvx --from git+https://github.com/pyk/checkrs checkrs run src/
 	@echo "Run markdown formatter"
 	@uvx --from panache-cli==2.61.0 panache format --check .
 
