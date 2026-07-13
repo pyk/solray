@@ -22,6 +22,10 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect function-source` now correctly prefixes cross-file function
+  and variable symbols with their contract name instead of showing the bare
+  identifier. For example, `_afterAddLiquidity` is now displayed as
+  `ExtensionCalling._afterAddLiquidity`.
 - `solray inspect modifiers` no longer stack-overflows when a contract inherits
   from an interface defined in a separate file. The modifier inspector now
   includes interfaces (alongside contracts and libraries) when parsing
