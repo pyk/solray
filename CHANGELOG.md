@@ -8,6 +8,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- `solray inspect function-source` symbol header format changed from
+  `Contract::function` to `Contract.function` for consistency with Solidity
+  call-site syntax
+
 ### Fixed
 
 - `solray inspect modifiers` no longer stack-overflows when a contract inherits
