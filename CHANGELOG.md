@@ -8,6 +8,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- `solray inspect function-source` now resolves `@inheritdoc` directives by
+  looking up the referenced contract's NatSpec documentation for the matching
+  function instead of displaying the raw `@inheritdoc` line
+
 ### Changed
 
 - `solray inspect function-source` symbol header format changed from
