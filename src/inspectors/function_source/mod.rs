@@ -49,14 +49,20 @@ struct RefCtx<'a> {
 pub struct FunctionSourceInspectorOutput {
     symbols: Vec<ResolvedSymbol>,
     project_path: PathBuf,
+    artifact_index: ArtifactIndex,
 }
 
 impl FunctionSourceInspectorOutput {
     /// Create a new [`FunctionSourceInspectorOutput`] from resolved symbols.
-    pub fn new(symbols: Vec<ResolvedSymbol>, project_path: impl AsRef<Path>) -> Self {
+    pub fn new(
+        symbols: Vec<ResolvedSymbol>,
+        project_path: impl AsRef<Path>,
+        artifact_index: ArtifactIndex,
+    ) -> Self {
         Self {
             symbols,
             project_path: project_path.as_ref().to_path_buf(),
+            artifact_index,
         }
     }
 }
@@ -91,10 +97,16 @@ impl std::fmt::Display for FunctionSourceInspectorOutput {
             let line_offsets = build_line_offsets(&content);
             let start_line = byte_offset_to_line(symbol.offset, &line_offsets);
 
-            let natspec = extract_natspec(&content, symbol.offset);
+            let mut natspec = extract_natspec(&content, symbol.offset);
             let source_text = &content[symbol.offset..symbol.offset + symbol.length];
 
             let base = base_indent(&content, symbol.offset);
+            natspec = resolve_inheritdoc_natspec(
+                &natspec,
+                &symbol.symbol,
+                &self.artifact_index,
+                &self.project_path,
+            );
             let natspec = dedent(&natspec, base);
             let source_text = dedent(source_text, base);
 
@@ -193,6 +205,7 @@ impl FunctionSourceInspector {
         Ok(FunctionSourceInspectorOutput::new(
             resolved,
             self.project.path(),
+            self.artifact_index.clone(),
         ))
     }
 }
@@ -912,6 +925,98 @@ fn extract_natspec(content: &str, offset: usize) -> String {
     result
 }
 
+/// Resolve `@inheritdoc ContractName` by looking up the referenced contract's natspec.
+///
+/// If the natspec contains an `@inheritdoc` directive, this function tries to
+/// find the matching function in the referenced contract (interface) and returns
+/// *its* natspec instead. Returns the original natspec if resolution fails.
+fn resolve_inheritdoc_natspec(
+    natspec: &str,
+    symbol: &str,
+    artifact_index: &ArtifactIndex,
+    project_path: impl AsRef<Path>,
+) -> String {
+    // Find the @inheritdoc line
+    let inheritdoc_line = match natspec
+        .lines()
+        .find(|l| l.trim().starts_with("/// @inheritdoc"))
+    {
+        Some(line) => line.trim(),
+        None => return natspec.to_string(),
+    };
+
+    // Parse the contract name from "/// @inheritdoc ContractName"
+    let rest = match inheritdoc_line.strip_prefix("/// @inheritdoc") {
+        Some(r) => r.trim(),
+        None => return natspec.to_string(),
+    };
+
+    // The @inheritdoc may reference a parent path like "IMetricOmmPool.IMetricOmmPoolActions"
+    // We only care about the contract name itself (last segment after any dot)
+    let interface_name = rest.rsplit('.').next_back().unwrap_or(rest);
+
+    // Extract function name from symbol (e.g., "Main.execute(uint256)" -> "execute")
+    let func_name = match symbol.split('.').nth(1) {
+        Some(part) => part.split('(').next().unwrap_or(""),
+        None => return natspec.to_string(),
+    };
+
+    if func_name.is_empty() {
+        return natspec.to_string();
+    }
+
+    // Look up the interface contract in the artifact index
+    let artifact_paths = match artifact_index.get(interface_name) {
+        Some(paths) => paths,
+        None => return natspec.to_string(),
+    };
+
+    // Walk each artifact to find the interface contract and matching function
+    for artifact_path in artifact_paths {
+        let Some(ast) = (|| -> Option<SourceUnit> {
+            let content = fs::read_to_string(artifact_path).ok()?;
+            let artifact: Artifact = serde_json::from_str(&content).ok()?;
+            artifact.ast
+        })() else {
+            continue;
+        };
+
+        for node in &ast.nodes {
+            let SourceUnitNode::ContractDefinition(cd) = node else {
+                continue;
+            };
+            if cd.name != interface_name {
+                continue;
+            }
+
+            for inner in &cd.nodes {
+                let ContractDefinitionNode::FunctionDefinition(fd) = inner else {
+                    continue;
+                };
+                if fd.name != func_name {
+                    continue;
+                }
+
+                // Found the matching function -- extract natspec from its source
+                let source_file = &ast.absolute_path;
+                let full_path = project_path.as_ref().join(source_file);
+                let Ok(content) = fs::read_to_string(&full_path) else {
+                    return natspec.to_string();
+                };
+                let resolved = extract_natspec(&content, fd.src.offset);
+                if resolved.is_empty() {
+                    return natspec.to_string();
+                }
+                let base = base_indent(&content, fd.src.offset);
+                return dedent(&resolved, base);
+            }
+        }
+    }
+
+    // Resolution failed -- return the original natspec unchanged
+    natspec.to_string()
+}
+
 /// Format parameter declarations into a comma-separated type list.
 fn format_params(params: &[solc::ast::VariableDeclaration]) -> String {
     params
@@ -1149,6 +1254,15 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!("../../../fixtures/function-source/expected/run_resolves_modifiers.txt")
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_inheritdoc() {
+        let output = inspect("InheritdocUser", "doSomething").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!("../../../fixtures/function-source/expected/run_resolves_inheritdoc.txt")
         );
     }
 }

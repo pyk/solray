@@ -1,0 +1,10 @@
+// InheritdocUser.doSomething(uint256) | fixtures/function-source/src/InheritdocUser.sol:9
+
+/// @notice Perform an action with a value.
+/// @param x The input value for the action.
+/// @return The result of the action.
+function doSomething(uint256 x) external pure returns (uint256) {
+    return x + 1;
+}
+
+
