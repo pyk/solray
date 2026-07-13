@@ -42,6 +42,10 @@ pub struct SymbolIndexEntry {
     pub length: usize,
     /// Human-readable name of the declaration (e.g. "Product").
     pub name: String,
+    /// Contract or interface that owns this declaration.
+    pub contract_name: String,
+    /// Solc AST node type (e.g. "FunctionDefinition", "VariableDeclaration").
+    pub node_type: String,
 }
 
 /// Lightweight index: Solc AST node ID -> artifact path + source file.
@@ -66,6 +70,8 @@ struct ScannedDecl {
     offset: usize,
     length: usize,
     name: String,
+    contract_name: String,
+    node_type: String,
 }
 
 /// Result of scanning a single artifact during index building.
@@ -144,6 +150,8 @@ impl SymbolIndex {
                         offset: decl.offset,
                         length: decl.length,
                         name: decl.name,
+                        contract_name: decl.contract_name,
+                        node_type: decl.node_type,
                     },
                 );
             }
@@ -213,9 +221,11 @@ struct IdNode {
     name: String,
 }
 
-/// Minimal contract node: captures child nodes only.
+/// Minimal contract node: captures contract name and child nodes.
 #[derive(Deserialize)]
 struct ContractNodes {
+    #[serde(default)]
+    name: String,
     #[serde(default)]
     nodes: Vec<IdNode>,
 }
@@ -274,6 +284,8 @@ fn scan_artifact_ids(path: impl AsRef<Path>) -> Result<Option<ArtifactScanResult
                     offset: src.offset,
                     length: src.length,
                     name: node.name.clone(), // checkrs: allow(clone_in_loops)
+                    contract_name: contract.name.clone(), // checkrs: allow(clone_in_loops)
+                    node_type: node.node_type.clone(), // checkrs: allow(clone_in_loops)
                 });
             }
         }

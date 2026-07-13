@@ -1,0 +1,23 @@
+// CrossFileFnUser.process(uint256) | fixtures/function-source/src/CrossFileFnUser.sol:8
+
+/// @notice Process a value using the base helper and the constant.
+function process(uint256 value) external pure returns (uint256) {
+    uint256 core = _doCoreWork(value);
+    return core + PREFIX;
+}
+
+
+// CrossFileFnBase.PREFIX | fixtures/function-source/src/CrossFileFnBase.sol:11
+
+/// @notice Constant prefix used in computation.
+uint256 internal constant PREFIX = 42
+
+
+// CrossFileFnBase._doCoreWork | fixtures/function-source/src/CrossFileFnBase.sol:6
+
+/// @notice Internal helper to do the core work.
+function _doCoreWork(uint256 x) internal pure returns (uint256) {
+    return x * 2;
+}
+
+

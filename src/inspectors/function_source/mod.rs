@@ -725,8 +725,14 @@ fn resolve_and_add_symbol(
     };
     let info = ctx.symbol_index.artifact_info(entry.artifact_id);
     if info.build_info_id == ctx.build_info_id && info.source_file != *ctx.source_file {
+        let symbol = match entry.node_type.as_str() {
+            "FunctionDefinition" | "VariableDeclaration" => {
+                format!("{}.{}", entry.contract_name, entry.name)
+            }
+            _ => entry.name.clone(),
+        };
         results.push(ResolvedSymbol {
-            symbol: entry.name.clone(),
+            symbol,
             file: info.source_file.clone(),
             offset: entry.offset,
             length: entry.length,
@@ -1263,6 +1269,17 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!("../../../fixtures/function-source/expected/run_resolves_inheritdoc.txt")
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_cross_file_function_references() {
+        let output = inspect("CrossFileFnUser", "process").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/function-source/expected/run_resolves_cross_file_function_references.txt"
+            )
         );
     }
 }
