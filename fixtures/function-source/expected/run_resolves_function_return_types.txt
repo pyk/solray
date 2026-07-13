@@ -1,4 +1,4 @@
-// ReturnTypeRef::makeWidget(uint256,string) | fixtures/function-source/src/ReturnTypeRef.sol:12
+// ReturnTypeRef.makeWidget(uint256,string) | fixtures/function-source/src/ReturnTypeRef.sol:12
 
 /// @notice Returns a Widget. The Widget type only appears in the
 ///         return type, not in the body.

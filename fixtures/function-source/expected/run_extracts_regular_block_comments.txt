@@ -1,4 +1,4 @@
-// BlockComment::getItem() | fixtures/function-source/src/BlockComment.sol:13
+// BlockComment.getItem() | fixtures/function-source/src/BlockComment.sol:13
 
 function getItem() public pure returns (Item memory) {
     return Item(42);

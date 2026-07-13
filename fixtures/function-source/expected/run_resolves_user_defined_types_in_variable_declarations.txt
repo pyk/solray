@@ -1,4 +1,4 @@
-// TypeRefs::passThrough(Point) | fixtures/function-source/src/TypeRefs.sol:19
+// TypeRefs.passThrough(Point) | fixtures/function-source/src/TypeRefs.sol:19
 
 function passThrough(Point memory p) public pure returns (Point memory) {
     Point memory q = p;

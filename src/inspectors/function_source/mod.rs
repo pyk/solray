@@ -239,7 +239,7 @@ impl FunctionSourceInspector {
         }
 
         if is_exact {
-            let target_sig = format!("{}::{}", contract_name, function_name);
+            let target_sig = format!("{}.{}", contract_name, function_name);
             let matched: Vec<&ResolvedSymbol> = functions
                 .values()
                 .filter(|s| s.symbol == target_sig)
@@ -395,7 +395,7 @@ fn extract_function_symbols(
                     && fd.implemented
                 {
                     let sig = format!(
-                        "{}::{}({})",
+                        "{}.{}({})",
                         contract_name,
                         fd.name,
                         format_params(&fd.parameters.parameters)
@@ -744,7 +744,7 @@ fn node_to_symbol(
     match node {
         ContractDefinitionNode::FunctionDefinition(fd) if fd.id == target_id => {
             let sig = format!(
-                "{}::{}({})",
+                "{}.{}({})",
                 contract_name,
                 fd.name,
                 format_params(&fd.parameters.parameters)
@@ -758,7 +758,7 @@ fn node_to_symbol(
         }
         ContractDefinitionNode::VariableDeclaration(vd) if vd.id == target_id => {
             Some(ResolvedSymbol {
-                symbol: format!("{}::{}", contract_name, vd.name),
+                symbol: format!("{}.{}", contract_name, vd.name),
                 file: source_file.to_path_buf(),
                 offset: vd.src.offset,
                 length: vd.src.length,
@@ -1140,7 +1140,7 @@ mod tests {
     #[test]
     fn inspect_shows_source_for_path_qualified_contract() {
         let output = inspect("Main.sol:Main", "execute").unwrap();
-        assert!(output.to_string().contains("// Main::execute(uint256) |"));
+        assert!(output.to_string().contains("// Main.execute(uint256) |"));
     }
 
     #[test]

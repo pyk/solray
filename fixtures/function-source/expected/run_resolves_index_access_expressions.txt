@@ -1,11 +1,11 @@
-// IndexAccessTest::getItem(uint256) | fixtures/function-source/src/IndexAccessTest.sol:11
+// IndexAccessTest.getItem(uint256) | fixtures/function-source/src/IndexAccessTest.sol:11
 
 function getItem(uint256 id) public view returns (uint256) {
     return items[id].value;
 }
 
 
-// IndexAccessTest::items | fixtures/function-source/src/IndexAccessTest.sol:9
+// IndexAccessTest.items | fixtures/function-source/src/IndexAccessTest.sol:9
 
 mapping(uint256 => Item) public items
 

@@ -1,4 +1,4 @@
-// CrossFileConsumer::translate(TypesLib.Point) | fixtures/function-source/src/CrossFileConsumer.sol:7
+// CrossFileConsumer.translate(TypesLib.Point) | fixtures/function-source/src/CrossFileConsumer.sol:7
 
 function translate(TypesLib.Point memory p) public pure returns (TypesLib.Point memory) {
     TypesLib.Point memory q = p;

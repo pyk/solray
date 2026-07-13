@@ -1,4 +1,4 @@
-// Main::_processData() | fixtures/function-source/src/Main.sol:22
+// Main._processData() | fixtures/function-source/src/Main.sol:22
 
 /// @notice Process the stored data.
 /// @return The computed result.
@@ -7,12 +7,12 @@ function _processData() internal view returns (uint256) {
 }
 
 
-// Main::_data | fixtures/function-source/src/Main.sol:11
+// Main._data | fixtures/function-source/src/Main.sol:11
 
 Data private _data
 
 
-// Main::_compute(uint256) | fixtures/function-source/src/Main.sol:29
+// Main._compute(uint256) | fixtures/function-source/src/Main.sol:29
 
 /// @notice Compute something from a value.
 /// @param val The input value.

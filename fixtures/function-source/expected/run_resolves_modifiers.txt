@@ -1,4 +1,4 @@
-// ModifierRef::increment(uint256) | fixtures/function-source/src/ModifierRef.sol:25
+// ModifierRef.increment(uint256) | fixtures/function-source/src/ModifierRef.sol:25
 
 /// @notice Increment by a value.
 /// @param value The amount to increment.
@@ -7,7 +7,7 @@ function increment(uint256 value) external onlyOwner nonZero(value) {
 }
 
 
-// ModifierRef::_count | fixtures/function-source/src/ModifierRef.sol:6
+// ModifierRef._count | fixtures/function-source/src/ModifierRef.sol:6
 
 uint256 private _count
 
@@ -28,7 +28,7 @@ modifier onlyOwner() {
 }
 
 
-// ModifierRef::_checkOwner() | fixtures/function-source/src/ModifierRef.sol:19
+// ModifierRef._checkOwner() | fixtures/function-source/src/ModifierRef.sol:19
 
 /// @notice Ensure the sender is the owner.
 function _checkOwner() internal view {
