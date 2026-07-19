@@ -19,6 +19,7 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - `solray inspect function-source` symbol header format changed from
   `Contract::function` to `Contract.function` for consistency with Solidity
   call-site syntax
+- Upgraded solc dependency to v0.0.12
 
 ### Fixed
 
