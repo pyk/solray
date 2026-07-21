@@ -139,7 +139,12 @@ impl CallGraphNode {
 
 impl fmt::Display for CallGraphNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{} ({})", self.signature, self.visibility)?;
+        writeln!(
+            f,
+            "{} ({})",
+            self.signature.replacen("::", ".", 1),
+            self.visibility
+        )?;
         fmt_children(&self.children, f, "")
     }
 }
@@ -162,7 +167,10 @@ fn fmt_children(
         writeln!(
             f,
             "{}{}{} ({})",
-            prefix, connector, child.signature, child.visibility
+            prefix,
+            connector,
+            child.signature.replacen("::", ".", 1),
+            child.visibility
         )?;
         let child_prefix = format!("{}{}", prefix, continuation);
         fmt_children(&child.children, f, &child_prefix)?;
@@ -1092,7 +1100,7 @@ mod tests {
             "276:110",
             vec![],
         );
-        assert_eq!(node.to_string(), "Main::execute(uint256) (public)\n");
+        assert_eq!(node.to_string(), "Main.execute(uint256) (public)\n");
     }
 
     #[test]
@@ -1130,10 +1138,10 @@ mod tests {
             ],
         );
         let expected = concat!(
-            "Main::execute(uint256) (public)\n",
-            "\u{251c}\u{2500}\u{2500} Helper::assist(uint256) (public)\n",
-            "\u{2514}\u{2500}\u{2500} Main::internalWork() (internal)\n",
-            "    \u{2514}\u{2500}\u{2500} Base::baseWork() (internal)\n",
+            "Main.execute(uint256) (public)\n",
+            "\u{251c}\u{2500}\u{2500} Helper.assist(uint256) (public)\n",
+            "\u{2514}\u{2500}\u{2500} Main.internalWork() (internal)\n",
+            "    \u{2514}\u{2500}\u{2500} Base.baseWork() (internal)\n",
         );
         assert_eq!(node.to_string(), expected);
     }

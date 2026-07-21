@@ -1,0 +1,6 @@
+Call graph:
+
+Main.execute(uint256) (public) (src/Main.sol:18)
+├── Helper.assist(uint256) (public) (src/Helper.sol:11)
+└── Main.internalWork() (internal) (src/Main.sol:24)
+    └── Base.baseWork() (internal) (src/Main.sol:9)

@@ -20,6 +20,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 - `solray inspect inheritance-graph` now displays each contract's source path
   inline and no longer emits a separate `Sources` section
+- `solray inspect call-graph` now uses dot syntax for contract functions,
+  displays project-relative source paths with start lines inline, and no longer
+  emits a separate resolved-sources section
 - `solray inspect function-source` symbol header format changed from
   `Contract::function` to `Contract.function` for consistency with Solidity
   call-site syntax

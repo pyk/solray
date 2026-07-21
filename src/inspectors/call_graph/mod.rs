@@ -4,12 +4,12 @@
 //! function, and produces a tree showing every function it calls recursively.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 
 use crate::call_graph::{CallGraph, CallGraphNode, FunctionId};
-use crate::inspectors::call_graph::source_renderer::offset_to_line_range;
+use crate::inspectors::call_graph::source_renderer::offset_to_line;
 use crate::project::Project;
 
 pub mod source_renderer;
@@ -30,25 +30,82 @@ impl CallGraphInspectorOutput {
 
 impl std::fmt::Display for CallGraphInspectorOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let sources = self.root.flatten_sources();
-        let cwd = std::env::current_dir().unwrap_or_else(|_| self.project_root.clone());
         let project_abs =
             std::path::absolute(&self.project_root).unwrap_or_else(|_| self.project_root.clone());
-
-        let mut line_maps: HashMap<PathBuf, Vec<usize>> = HashMap::new();
+        let mut renderer = CallGraphRenderer::new(&project_abs);
 
         writeln!(f, "Call graph:\n")?;
-        write!(f, "{}", self.root)?;
-        writeln!(f, "\nResolved from {} sources:\n", sources.len())?;
+        renderer.render_node(&self.root, f, "")
+    }
+}
 
-        for (i, (file, src)) in sources.iter().enumerate() {
-            let full_path = project_abs.join(file);
-            let rel_path = full_path.strip_prefix(&cwd).unwrap_or(&full_path);
-            let line_range = offset_to_line_range(&full_path, src, &mut line_maps);
-            writeln!(f, "{}. {}#{}", i + 1, rel_path.display(), line_range)?;
+struct CallGraphRenderer<'a> {
+    project_root: &'a Path,
+    line_maps: HashMap<PathBuf, Vec<usize>>,
+}
+
+impl<'a> CallGraphRenderer<'a> {
+    fn new(project_root: &'a Path) -> Self {
+        Self {
+            project_root,
+            line_maps: HashMap::new(),
+        }
+    }
+
+    fn render_node(
+        &mut self,
+        node: &CallGraphNode,
+        f: &mut std::fmt::Formatter<'_>,
+        prefix: &str,
+    ) -> std::fmt::Result {
+        writeln!(f, "{}{}", prefix, self.format_node_label(node))?;
+        self.render_children(node, f, prefix)
+    }
+
+    fn render_children(
+        &mut self,
+        node: &CallGraphNode,
+        f: &mut std::fmt::Formatter<'_>,
+        prefix: &str,
+    ) -> std::fmt::Result {
+        let len = node.children.len();
+        for (i, child) in node.children.iter().enumerate() {
+            let is_last = i == len - 1;
+            let connector = if is_last {
+                "\u{2514}\u{2500}\u{2500} "
+            } else {
+                "\u{251c}\u{2500}\u{2500} "
+            };
+            let continuation = if is_last { "    " } else { "\u{2502}   " };
+            let child_prefix = format!("{}{}", prefix, continuation);
+
+            writeln!(
+                f,
+                "{}{}{}",
+                prefix,
+                connector,
+                self.format_node_label(child)
+            )?;
+            self.render_children(child, f, &child_prefix)?;
         }
 
         Ok(())
+    }
+
+    fn format_node_label(&mut self, node: &CallGraphNode) -> String {
+        let signature = node.signature.replacen("::", ".", 1);
+        let mut label = format!("{} ({})", signature, node.visibility);
+
+        if !node.file.as_os_str().is_empty() {
+            let full_path = self.project_root.join(&node.file);
+            let relative_path = full_path
+                .strip_prefix(self.project_root)
+                .unwrap_or(&full_path);
+            let line = offset_to_line(&full_path, &node.src, &mut self.line_maps);
+            label.push_str(&format!(" ({}:{})", relative_path.display(), line));
+        }
+
+        label
     }
 }
 
@@ -89,7 +146,7 @@ mod tests {
     use crate::project::Project;
 
     fn fixture_project() -> Project {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/calls");
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/call-graph");
         Project::open(root)
     }
 
@@ -111,7 +168,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap().to_string();
         assert_eq!(
             output,
-            include_str!("../../../fixtures/calls/expected/call_graph_for_readonly.txt")
+            include_str!("../../../fixtures/call-graph/expected/call_graph_for_readonly.txt")
         );
     }
 
@@ -122,7 +179,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap().to_string();
         assert_eq!(
             output,
-            include_str!("../../../fixtures/calls/expected/call_graph_for_execute.txt")
+            include_str!("../../../fixtures/call-graph/expected/call_graph_for_execute.txt")
         );
     }
 
@@ -134,7 +191,7 @@ mod tests {
         assert_eq!(
             err,
             include_str!(
-                "../../../fixtures/calls/expected/call_graph_errors_for_unknown_contract.txt"
+                "../../../fixtures/call-graph/expected/call_graph_errors_for_unknown_contract.txt"
             )
             .trim_end()
         );
@@ -148,7 +205,7 @@ mod tests {
         assert_eq!(
             err,
             include_str!(
-                "../../../fixtures/calls/expected/call_graph_errors_for_unknown_function.txt"
+                "../../../fixtures/call-graph/expected/call_graph_errors_for_unknown_function.txt"
             )
             .trim_end()
         );
@@ -161,7 +218,7 @@ mod tests {
         let err = inspector.inspect(&id).unwrap_err().to_string();
         assert_eq!(
             err,
-            include_str!("../../../fixtures/calls/expected/ambiguity_shows_suggestions.txt")
+            include_str!("../../../fixtures/call-graph/expected/ambiguity_shows_suggestions.txt")
         );
     }
 
@@ -172,7 +229,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap().to_string();
         assert_eq!(
             output,
-            include_str!("../../../fixtures/calls/expected/call_graph_for_interface_call.txt")
+            include_str!("../../../fixtures/call-graph/expected/call_graph_for_interface_call.txt")
         );
     }
 
@@ -183,7 +240,9 @@ mod tests {
         let output = inspector.inspect(&id).unwrap().to_string();
         assert_eq!(
             output,
-            include_str!("../../../fixtures/calls/expected/call_graph_includes_low_level_call.txt")
+            include_str!(
+                "../../../fixtures/call-graph/expected/call_graph_includes_low_level_call.txt"
+            )
         );
     }
 }

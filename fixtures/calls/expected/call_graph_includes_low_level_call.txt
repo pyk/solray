@@ -1,8 +1,0 @@
-Call graph:
-
-LowLevelCaller::callWithPayload(address,bytes) (external)
-└── (address).call() (low-level)
-
-Resolved from 1 sources:
-
-1. fixtures/calls/src/LowLevelCaller.sol#L5-L8

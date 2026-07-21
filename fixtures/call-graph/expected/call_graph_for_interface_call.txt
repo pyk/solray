@@ -1,0 +1,4 @@
+Call graph:
+
+Main.callViaInterface() (public) (src/Main.sol:33)
+└── IHelper.doWork() (external) (src/Helper.sol:5)

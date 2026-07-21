@@ -1,4 +1,4 @@
-//! Renders the `Resolved from N sources:` section of call graph output.
+//! Renders source locations for call graph output.
 
 use std::collections::HashMap;
 use std::fs;
@@ -49,6 +49,20 @@ pub fn offset_to_line_range(
     } else {
         format!("L{}-L{}", start_line, end_line)
     }
+}
+
+/// Return the start line for a source range as a number without the `L` prefix.
+pub fn offset_to_line(
+    file_path: impl AsRef<Path>,
+    src: &str,
+    cache: &mut HashMap<PathBuf, Vec<usize>>,
+) -> String {
+    let range = offset_to_line_range(file_path, src, cache);
+    range
+        .strip_prefix('L')
+        .and_then(|line| line.split('-').next())
+        .unwrap_or(&range)
+        .to_string()
 }
 
 /// Build a vector where `line_offsets[n]` is the byte offset of the start of
