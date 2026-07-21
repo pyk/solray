@@ -13,8 +13,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - `solray inspect function-source` now resolves `@inheritdoc` directives by
   looking up the referenced contract's NatSpec documentation for the matching
   function instead of displaying the raw `@inheritdoc` line
-- Added `--debug` to `solray inspect inheritance-graph` for opt-in resolver
-  tracing
+- Added `--debug` to `solray inspect inheritance-graph` and
+  `solray inspect modifiers` for opt-in resolver tracing
 
 ### Changed
 
@@ -31,10 +31,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   and variable symbols with their contract name instead of showing the bare
   identifier. For example, `_afterAddLiquidity` is now displayed as
   `ExtensionCalling._afterAddLiquidity`.
-- `solray inspect modifiers` no longer stack-overflows when a contract inherits
-  from an interface defined in a separate file. The modifier inspector now
-  includes interfaces (alongside contracts and libraries) when parsing
-  artifacts, preventing infinite recursion in parent resolution.
+- `solray inspect modifiers` no longer stack-overflows when duplicate artifacts
+  include import-only files. Parent resolution now selects an artifact whose
+  AST declares the requested contract, preventing infinite recursion.
 - Replaced an `unwrap()` with a `context()` call in
   `ExternalFunctionInspector::resolve_artifact_path`, eliminating the last
   `unwrap_usage` suppression in the codebase.

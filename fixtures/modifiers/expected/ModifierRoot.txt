@@ -1,0 +1,6 @@
+Contract: ModifierRoot
+Source: src/ModifierRoot.sol
+
+Found 1 modifiers.
+
+1. onlyRoot (source: src/ModifierRoot.sol:7)
