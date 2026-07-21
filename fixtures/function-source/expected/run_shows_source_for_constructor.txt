@@ -1,0 +1,14 @@
+// SpecialFunctions.constructor() | fixtures/function-source/src/SpecialFunctions.sol:13
+
+constructor() {
+    sameContractFunction();
+}
+
+
+// SpecialFunctions.sameContractFunction() | fixtures/function-source/src/SpecialFunctions.sol:25
+
+function sameContractFunction() internal pure returns (uint256) {
+    return 1;
+}
+
+

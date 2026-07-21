@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use solc::ast::{
-    ContractDefinitionNode, Expression, FunctionCallExpression, SourceUnit, SourceUnitNode,
-    TypeName,
+    ContractDefinitionNode, Expression, FunctionCallExpression, FunctionKind, SourceUnit,
+    SourceUnitNode, TypeName,
 };
 
 use crate::artifact_index::ArtifactIndex;
@@ -390,6 +390,15 @@ fn find_artifact_for_source(
     None
 }
 
+fn function_name_for_display<'a>(kind: &FunctionKind, name: &'a str) -> &'a str {
+    match kind {
+        FunctionKind::Constructor => "constructor",
+        FunctionKind::Receive => "receive",
+        FunctionKind::Fallback => "fallback",
+        _ => name,
+    }
+}
+
 /// Extract function symbols from an AST for a given contract/function name.
 fn extract_function_symbols(
     ast: &SourceUnit,
@@ -404,13 +413,14 @@ fn extract_function_symbols(
         {
             for inner in &cd.nodes {
                 if let ContractDefinitionNode::FunctionDefinition(fd) = inner
-                    && fd.name == function_name
                     && fd.implemented
+                    && function_name_for_display(&fd.kind, &fd.name) == function_name
                 {
+                    let display_name = function_name_for_display(&fd.kind, &fd.name);
                     let sig = format!(
                         "{}.{}({})",
                         contract_name,
-                        fd.name,
+                        display_name,
                         format_params(&fd.parameters.parameters)
                     );
                     let sig_key = sig.clone(); // checkrs: allow(clone_in_loops)
@@ -436,7 +446,7 @@ fn collect_contract_functions(ast: &SourceUnit, contract_name: &str, out: &mut V
                 if let ContractDefinitionNode::FunctionDefinition(fd) = inner
                     && fd.implemented
                 {
-                    out.push(fd.name.clone()); // checkrs: allow(clone_in_loops)
+                    out.push(function_name_for_display(&fd.kind, &fd.name).to_string());
                 }
             }
         }
@@ -1110,6 +1120,39 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/function-source/expected/run_shows_source_for_execute.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_shows_source_for_constructor() {
+        let output = inspect("SpecialFunctions", "constructor").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/function-source/expected/run_shows_source_for_constructor.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_shows_source_for_receive() {
+        let output = inspect("SpecialFunctions", "receive").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/function-source/expected/run_shows_source_for_receive.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_shows_source_for_fallback() {
+        let output = inspect("SpecialFunctions", "fallback").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/function-source/expected/run_shows_source_for_fallback.txt"
             )
         );
     }

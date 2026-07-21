@@ -13,6 +13,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - `solray inspect function-source` now resolves `@inheritdoc` directives by
   looking up the referenced contract's NatSpec documentation for the matching
   function instead of displaying the raw `@inheritdoc` line
+- `solray inspect function-source` now supports `constructor`, `receive`, and
+  `fallback`, including recursive symbol resolution for same-contract,
+  inherited, and imported-parent functions
 - Added `--debug` to `solray inspect inheritance-graph` and
   `solray inspect modifiers` for opt-in resolver tracing
 

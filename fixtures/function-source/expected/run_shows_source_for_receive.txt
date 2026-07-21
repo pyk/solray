@@ -1,0 +1,14 @@
+// SpecialFunctions.receive() | fixtures/function-source/src/SpecialFunctions.sol:17
+
+receive() external payable {
+    parentFunction();
+}
+
+
+// SpecialFunctionsParent.parentFunction() | fixtures/function-source/src/SpecialFunctions.sol:7
+
+function parentFunction() internal pure returns (uint256) {
+    return 2;
+}
+
+

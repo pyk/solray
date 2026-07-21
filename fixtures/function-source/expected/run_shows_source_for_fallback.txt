@@ -1,0 +1,14 @@
+// SpecialFunctions.fallback() | fixtures/function-source/src/SpecialFunctions.sol:21
+
+fallback() external payable {
+    importedParentFunction();
+}
+
+
+// SpecialFunctionsImportedParent.importedParentFunction | fixtures/function-source/src/SpecialFunctionsImportedParent.sol:5
+
+function importedParentFunction() internal pure returns (uint256) {
+    return 3;
+}
+
+
