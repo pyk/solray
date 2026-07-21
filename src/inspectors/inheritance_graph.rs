@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use solc::ast::{ContractKind, SourceUnit, SourceUnitNode};
+use tracing::debug;
 
 use crate::artifact_index::ArtifactIndex;
 use crate::inspectors::artifact_id::ArtifactId;
@@ -118,6 +119,7 @@ impl InheritanceGraphInspector {
 
     /// Inspect the inheritance graph for the given [`ArtifactId`].
     pub fn inspect(&self, id: &ArtifactId) -> Result<InheritanceGraphInspectorOutput> {
+        debug!(name = %id.name, project = %self.project.path().display(), "starting inheritance graph inspection");
         self.project.validate()?;
         let ctx = ResolutionContext {
             project_root: self.project.path().to_path_buf(),
@@ -128,6 +130,7 @@ impl InheritanceGraphInspector {
             Some(file) => ctx.resolve_with_file(file, &id.name),
             None => ctx.resolve_without_file(&id.name),
         }?;
+        debug!(path = %artifact_path.display(), "resolved root artifact");
 
         let root = ctx.build_inheritance_tree(&artifact_path, &id.name)?;
         Ok(InheritanceGraphInspectorOutput { root })
@@ -150,6 +153,7 @@ impl ResolutionContext {
     fn resolve_without_file(&self, name: &str) -> Result<PathBuf> {
         let index = ArtifactIndex::build(&self.out_dir);
         let candidates = index.get(name).cloned().unwrap_or_default();
+        debug!(name, candidates = ?candidates, "looked up root artifact candidates");
 
         match candidates.len() {
             0 => {
@@ -198,7 +202,13 @@ impl ResolutionContext {
         name: &str,
     ) -> Result<InheritanceNode> {
         let artifact_path = artifact_path.as_ref();
+        debug!(name, path = %artifact_path.display(), "building inheritance tree");
         let sources = self.parse_contract_sources(artifact_path)?;
+        debug!(
+            name,
+            sources = ?sources.keys().collect::<Vec<&String>>(),
+            "loaded contract sources"
+        );
         sources.get(name).with_context(|| {
             format!(
                 "contract `{name}` not found in `{}`",
@@ -225,12 +235,14 @@ impl ResolutionContext {
         let source = sources
             .get(name)
             .with_context(|| format!("contract `{name}` not found in artifacts"))?;
+        debug!(name, bases = ?source.bases, "resolving inheritance node");
 
         let parents: Vec<InheritanceNode> = source
             .bases
             .iter()
             .map(|base| self.resolve_tree(base, sources, visited))
             .collect::<Result<Vec<InheritanceNode>>>()?;
+        visited.remove(name);
 
         Ok(InheritanceNode {
             name: source.name.clone(),
@@ -249,6 +261,7 @@ impl ResolutionContext {
             .file_stem()
             .and_then(|s| s.to_str())
             .with_context(|| format!("invalid artifact path `{}`", artifact_path.display()))?;
+        debug!(path = %artifact_path.display(), contract_name, "parsing artifact AST");
 
         let content = fs::read_to_string(artifact_path)?;
         let artifact: Artifact = serde_json::from_str(&content)?;
@@ -262,6 +275,7 @@ impl ResolutionContext {
 
         let mut sources: HashMap<String, ContractSource> = HashMap::new();
         let file = self.rel_path_str(&ast.absolute_path);
+        debug!(path = %artifact_path.display(), source_file = %file, node_count = ast.nodes.len(), "parsed artifact AST");
 
         for node in &ast.nodes {
             if let SourceUnitNode::ContractDefinition(cd) = node
@@ -314,10 +328,29 @@ impl ResolutionContext {
         to_resolve.dedup();
 
         for name in to_resolve {
-            if let Some(paths) = index.get(&name)
-                && let Some(path) = paths.first()
-            {
+            let Some(paths) = index.get(&name) else {
+                debug!(name, "no artifact candidates found for parent");
+                continue;
+            };
+
+            let mut selected: Option<HashMap<String, ContractSource>> = None;
+            for path in paths {
                 let more = self.parse_contract_sources(path)?;
+                let declares_parent = more.contains_key(&name);
+                debug!(
+                    name,
+                    path = %path.display(),
+                    declares_parent,
+                    "examined parent artifact candidate"
+                );
+                if declares_parent {
+                    selected = Some(more);
+                    break;
+                }
+            }
+
+            if let Some(more) = selected {
+                debug!(name, "selected parent artifact that declares the parent");
                 for (key, value) in more {
                     sources.entry(key).or_insert(value);
                 }
@@ -398,6 +431,28 @@ mod tests {
         assert_eq!(
             output.to_string(),
             "Inheritance graph:\n\nMultiChild\n\u{251c}\u{2500}\u{2500} MultiBase\n\u{2514}\u{2500}\u{2500} AnotherBase\n\nSources:\n\n1. AnotherBase (file: src/AnotherBase.sol)\n2. MultiBase (file: src/MultiBase.sol)\n3. MultiChild (file: src/MultiChild.sol)\n"
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_parent_when_first_artifact_has_no_declaration() {
+        let inspector = InheritanceGraphInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("WrapperChild");
+        let output = inspector.inspect(&id).unwrap();
+        assert_eq!(
+            output.to_string(),
+            "Inheritance graph:\n\nWrapperChild\n\u{2514}\u{2500}\u{2500} IParent\n\nSources:\n\n1. IParent (file: src/IParent.sol)\n2. WrapperChild (file: src/WrapperChild.sol)\n"
+        );
+    }
+
+    #[test]
+    fn inspect_allows_shared_ancestors_in_sibling_branches() {
+        let inspector = InheritanceGraphInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("DiamondChild");
+        let output = inspector.inspect(&id).unwrap();
+        assert_eq!(
+            output.to_string(),
+            "Inheritance graph:\n\nDiamondChild\n\u{251c}\u{2500}\u{2500} LeftBase\n\u{2502}   \u{2514}\u{2500}\u{2500} SharedBase\n\u{2514}\u{2500}\u{2500} RightBase\n    \u{2514}\u{2500}\u{2500} SharedBase\n\nSources:\n\n1. DiamondChild (file: src/DiamondChild.sol)\n2. LeftBase (file: src/LeftBase.sol)\n3. RightBase (file: src/RightBase.sol)\n4. SharedBase (file: src/SharedBase.sol)\n5. SharedBase (file: src/SharedBase.sol)\n"
         );
     }
 

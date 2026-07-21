@@ -104,6 +104,9 @@ enum InspectSubcommand {
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
+        /// Show debug logs while resolving the inheritance graph
+        #[arg(long)]
+        debug: bool,
     },
     /// List all interfaces
     Interfaces {
@@ -237,7 +240,14 @@ fn main() -> Result<()> {
                 let output = inspector.inspect(&id, include_read_only)?;
                 print!("{output}");
             }
-            InspectSubcommand::InheritanceGraph { id, project } => {
+            InspectSubcommand::InheritanceGraph { id, project, debug } => {
+                if debug {
+                    let _ = tracing_subscriber::fmt()
+                        .with_max_level(tracing::Level::DEBUG)
+                        .with_target(true)
+                        .with_writer(std::io::stderr)
+                        .try_init();
+                }
                 let project = Project::open(&project);
                 let inspector = InheritanceGraphInspector::new(project);
                 let id = ArtifactId::new(&id);

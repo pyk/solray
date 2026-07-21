@@ -13,6 +13,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - `solray inspect function-source` now resolves `@inheritdoc` directives by
   looking up the referenced contract's NatSpec documentation for the matching
   function instead of displaying the raw `@inheritdoc` line
+- Added `--debug` to `solray inspect inheritance-graph` for opt-in resolver
+  tracing
 
 ### Changed
 
@@ -34,6 +36,10 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - Replaced an `unwrap()` with a `context()` call in
   `ExternalFunctionInspector::resolve_artifact_path`, eliminating the last
   `unwrap_usage` suppression in the codebase.
+- `solray inspect inheritance-graph` now skips empty duplicate artifacts and
+  resolves shared ancestors without reporting false circular inheritance.
+- Added regression coverage for duplicate artifacts and diamond inheritance
+  graphs.
 
 ## [0.2.0] - 2026-07-12
 
