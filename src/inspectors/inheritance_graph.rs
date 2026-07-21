@@ -25,22 +25,6 @@ struct InheritanceNode {
     parents: Vec<InheritanceNode>,
 }
 
-impl InheritanceNode {
-    /// Flatten the tree into a depth-first list of `(file, name)` references.
-    fn flatten_sources(&self) -> Vec<(&str, &str)> {
-        let mut result = Vec::new();
-        self.collect_recursive(&mut result);
-        result
-    }
-
-    fn collect_recursive<'a>(&'a self, out: &mut Vec<(&'a str, &'a str)>) {
-        out.push((&self.file, &self.name));
-        for parent in &self.parents {
-            parent.collect_recursive(out);
-        }
-    }
-}
-
 impl fmt::Display for InheritanceNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fn fmt_children(
@@ -58,7 +42,7 @@ impl fmt::Display for InheritanceNode {
                 };
                 let continuation = if is_last { "    " } else { "\u{2502}   " };
 
-                writeln!(f, "{}{}{}", prefix, connector, child.name)?;
+                writeln!(f, "{}{}{} ({})", prefix, connector, child.name, child.file)?;
                 if !child.parents.is_empty() {
                     let child_prefix = format!("{}{}", prefix, continuation);
                     fmt_children(&child.parents, f, &child_prefix)?;
@@ -67,7 +51,7 @@ impl fmt::Display for InheritanceNode {
             Ok(())
         }
 
-        writeln!(f, "{}", self.name)?;
+        writeln!(f, "{} ({})", self.name, self.file)?;
         fmt_children(&self.parents, f, "")
     }
 }
@@ -81,17 +65,7 @@ pub struct InheritanceGraphInspectorOutput {
 impl fmt::Display for InheritanceGraphInspectorOutput {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Inheritance graph:\n")?;
-        write!(f, "{}", self.root)?;
-
-        let mut sources = self.root.flatten_sources();
-        sources.sort_by(|(file_a, name_a), (file_b, name_b)| {
-            name_a.cmp(name_b).then(file_a.cmp(file_b))
-        });
-        writeln!(f, "\nSources:\n")?;
-        for (i, (file, name)) in sources.iter().enumerate() {
-            writeln!(f, "{}. {} (file: {})", i + 1, name, file)?;
-        }
-        Ok(())
+        write!(f, "{}", self.root)
     }
 }
 
@@ -408,7 +382,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         assert_eq!(
             output.to_string(),
-            "Inheritance graph:\n\nBase\n\nSources:\n\n1. Base (file: src/Base.sol)\n"
+            "Inheritance graph:\n\nBase (src/Base.sol)\n"
         );
     }
 
@@ -419,7 +393,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         assert_eq!(
             output.to_string(),
-            "Inheritance graph:\n\nChild\n\u{2514}\u{2500}\u{2500} Middle\n    \u{2514}\u{2500}\u{2500} Base\n\nSources:\n\n1. Base (file: src/Base.sol)\n2. Child (file: src/Child.sol)\n3. Middle (file: src/Middle.sol)\n"
+            "Inheritance graph:\n\nChild (src/Child.sol)\n\u{2514}\u{2500}\u{2500} Middle (src/Middle.sol)\n    \u{2514}\u{2500}\u{2500} Base (src/Base.sol)\n"
         );
     }
 
@@ -430,7 +404,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         assert_eq!(
             output.to_string(),
-            "Inheritance graph:\n\nMultiChild\n\u{251c}\u{2500}\u{2500} MultiBase\n\u{2514}\u{2500}\u{2500} AnotherBase\n\nSources:\n\n1. AnotherBase (file: src/AnotherBase.sol)\n2. MultiBase (file: src/MultiBase.sol)\n3. MultiChild (file: src/MultiChild.sol)\n"
+            "Inheritance graph:\n\nMultiChild (src/MultiChild.sol)\n\u{251c}\u{2500}\u{2500} MultiBase (src/MultiBase.sol)\n\u{2514}\u{2500}\u{2500} AnotherBase (src/AnotherBase.sol)\n"
         );
     }
 
@@ -441,7 +415,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         assert_eq!(
             output.to_string(),
-            "Inheritance graph:\n\nWrapperChild\n\u{2514}\u{2500}\u{2500} IParent\n\nSources:\n\n1. IParent (file: src/IParent.sol)\n2. WrapperChild (file: src/WrapperChild.sol)\n"
+            "Inheritance graph:\n\nWrapperChild (src/WrapperChild.sol)\n\u{2514}\u{2500}\u{2500} IParent (src/IParent.sol)\n"
         );
     }
 
@@ -452,7 +426,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         assert_eq!(
             output.to_string(),
-            "Inheritance graph:\n\nDiamondChild\n\u{251c}\u{2500}\u{2500} LeftBase\n\u{2502}   \u{2514}\u{2500}\u{2500} SharedBase\n\u{2514}\u{2500}\u{2500} RightBase\n    \u{2514}\u{2500}\u{2500} SharedBase\n\nSources:\n\n1. DiamondChild (file: src/DiamondChild.sol)\n2. LeftBase (file: src/LeftBase.sol)\n3. RightBase (file: src/RightBase.sol)\n4. SharedBase (file: src/SharedBase.sol)\n5. SharedBase (file: src/SharedBase.sol)\n"
+            "Inheritance graph:\n\nDiamondChild (src/DiamondChild.sol)\n\u{251c}\u{2500}\u{2500} LeftBase (src/LeftBase.sol)\n\u{2502}   \u{2514}\u{2500}\u{2500} SharedBase (src/SharedBase.sol)\n\u{2514}\u{2500}\u{2500} RightBase (src/RightBase.sol)\n    \u{2514}\u{2500}\u{2500} SharedBase (src/SharedBase.sol)\n"
         );
     }
 
@@ -482,7 +456,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         assert!(output.to_string().contains("Inheritance graph:"));
         assert!(output.to_string().contains("Dupe"));
-        assert!(output.to_string().contains("Dupe (file: src/Dupe.sol)"));
+        assert!(output.to_string().contains("Dupe (src/Dupe.sol)"));
     }
 
     #[test]
@@ -492,7 +466,7 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         assert!(output.to_string().contains("Inheritance graph:"));
         assert!(output.to_string().contains("Dupe"));
-        assert!(output.to_string().contains("Dupe (file: src/lib/Dupe.sol)"));
+        assert!(output.to_string().contains("Dupe (src/lib/Dupe.sol)"));
     }
 
     #[test]
