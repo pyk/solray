@@ -10,6 +10,14 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.3.0] - 2026-07-21
+
+### Added
+
 - `solray inspect function-source` now resolves `@inheritdoc` directives by
   looking up the referenced contract's NatSpec documentation for the matching
   function instead of displaying the raw `@inheritdoc` line
@@ -98,6 +106,7 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - Support for incremental builds, cross-file references, and NatSpec blocks in
   function source resolution
 
-[unreleased]: https://github.com/pyk/solray/compare/v0.2.0...HEAD
+[unreleased]: https://github.com/pyk/solray/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/pyk/solray/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/pyk/solray/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/pyk/solray/releases/tag/v0.1.0
