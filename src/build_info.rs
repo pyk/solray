@@ -80,7 +80,7 @@ mod tests {
     use super::*;
 
     fn fixture_out() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inheritances/out")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inheritance-graph/out")
     }
 
     /// Build two BuildInfo structs simulating an incremental build.

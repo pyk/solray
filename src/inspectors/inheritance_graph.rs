@@ -394,11 +394,11 @@ mod tests {
     use crate::project::Project;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inheritances")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inheritance-graph")
     }
 
     fn ambiguous_fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inheritances-ambiguous")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inheritance-graph-ambiguous")
     }
 
     #[test]
