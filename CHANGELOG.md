@@ -18,6 +18,16 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect function-source` now resolves interface types used as state
+  variable types (e.g. `ILoans public LOANS` now also resolves `ILoans`), used
+  in explicit type conversions (e.g. `ILoansAuth(address(...))` now also
+  resolves `ILoansAuth`), and inherited parent interfaces (e.g.
+  `interface IChild is IParentA, IParentB` now also resolves `IParentA` and
+  `IParentB`). Interface definitions are shown with their header signature
+  only, without the full body. Previously all interface-type references were
+  silently dropped because `ContractDefinition` nodes were not indexed in the
+  symbol index and state variable type names were not traversed during
+  resolution.
 - `solray inspect function-source` now correctly resolves all intermediate
   calls in chained function-call expressions (e.g. `a().b().c()`). Previously
   only the outermost call was resolved; calls nested inside `MemberAccess`

@@ -1,0 +1,40 @@
+# InterfaceConsumer - useTarget Source Code
+
+Source path: `src/InterfaceConsumer.sol:11`
+
+```solidity
+/// @notice Use a target via member access on a state variable.
+function useTarget(uint256 x) external view returns (uint256) {
+    return TARGET.doSomething(x);
+}
+```
+
+---
+
+## Function: `doSomething`
+
+Source path: `src/IIndexTarget.sol:5`
+
+```solidity
+function doSomething(uint256 x) external view returns (uint256);
+```
+
+---
+
+## Interface: `IIndexTarget`
+
+Source path: `src/IIndexTarget.sol:4`
+
+```solidity
+interface IIndexTarget
+```
+
+---
+
+## Variable: `TARGET`
+
+Source path: `src/InterfaceConsumer.sol:8`
+
+```solidity
+IIndexTarget public TARGET
+```

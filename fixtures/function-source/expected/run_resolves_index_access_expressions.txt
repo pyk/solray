@@ -10,6 +10,18 @@ function getItem(uint256 id) public view returns (uint256) {
 
 ---
 
+## Struct: `Item`
+
+Source path: `src/IndexAccessTest.sol:5`
+
+```solidity
+struct Item {
+    uint256 value;
+}
+```
+
+---
+
 ## Variable: `items`
 
 Source path: `src/IndexAccessTest.sol:9`

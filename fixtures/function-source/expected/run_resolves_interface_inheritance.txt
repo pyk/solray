@@ -1,0 +1,60 @@
+# InheritanceUser - useChild Source Code
+
+Source path: `src/InheritanceUser.sol:10`
+
+```solidity
+/// @notice Use child interface via member access.
+function useChild(uint256 x) external view returns (uint256) {
+    return CHILD.doChild(x);
+}
+```
+
+---
+
+## Function: `doChild`
+
+Source path: `src/IChild.sol:8`
+
+```solidity
+function doChild(uint256 x) external view returns (uint256);
+```
+
+---
+
+## Interface: `IChild`
+
+Source path: `src/IChild.sol:7`
+
+```solidity
+interface IChild is IParentA, IParentB
+```
+
+---
+
+## Interface: `IParentA`
+
+Source path: `src/IParentA.sol:4`
+
+```solidity
+interface IParentA
+```
+
+---
+
+## Interface: `IParentB`
+
+Source path: `src/IParentB.sol:4`
+
+```solidity
+interface IParentB
+```
+
+---
+
+## Variable: `CHILD`
+
+Source path: `src/InheritanceUser.sol:7`
+
+```solidity
+IChild public CHILD
+```

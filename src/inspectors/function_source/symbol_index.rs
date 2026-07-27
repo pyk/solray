@@ -85,6 +85,7 @@ struct ArtifactScan {
 
 /// Node types that represent declarations (can be referenced from expressions).
 const DECLARATION_NODE_TYPES: &[&str] = &[
+    "ContractDefinition",
     "FunctionDefinition",
     "VariableDeclaration",
     "StructDefinition",

@@ -78,6 +78,7 @@ fn node_type_to_heading(node_type: &str) -> &str {
         "EnumDefinition" => "Enum",
         "ErrorDefinition" => "Error",
         "EventDefinition" => "Event",
+        "ContractDefinition" => "Interface",
         "ModifierDefinition" => "Modifier",
         "UserDefinedValueTypeDefinition" => "User Defined Value Type",
         _ => "Declaration",
@@ -217,8 +218,11 @@ impl std::fmt::Display for FunctionSourceInspectorOutput {
                     &self.project_path,
                 );
                 let natspec = dedent(&natspec, base);
-                let source_text =
-                    dedent(&content[symbol.offset..symbol.offset + symbol.length], base);
+                let source_text = if symbol.node_type == "ContractDefinition" {
+                    dedent(contract_header(&content, symbol.offset), base)
+                } else {
+                    dedent(&content[symbol.offset..symbol.offset + symbol.length], base)
+                };
 
                 writeln!(f)?;
                 writeln!(f, "## {}: `{}`", heading, display_name)?;
@@ -452,6 +456,40 @@ impl FunctionSourceInspector {
                         queue.push(rs);
                     }
                 }
+
+                // For ContractDefinition symbols, also resolve base contracts
+                // (inheritance) so parent interfaces are recursively resolved.
+                if symbol.node_type == "ContractDefinition" {
+                    for node in &ast.nodes {
+                        if let SourceUnitNode::ContractDefinition(cd) = node
+                            && cd.src.offset == symbol.offset
+                            && cd.src.length == symbol.length
+                        {
+                            for base in &cd.base_contracts {
+                                if let Some(id) = base.base_name.referenced_declaration
+                                    && let Some(entry) = self.symbol_index.get(id)
+                                {
+                                    let info = self.symbol_index.artifact_info(entry.artifact_id);
+                                    if info.build_info_id == build_info_id {
+                                        let rs = ResolvedSymbol {
+                                            symbol: entry.name.clone(),     // checkrs: allow(clone_in_loops)
+                                            file: info.source_file.clone(), // checkrs: allow(clone_in_loops)
+                                            offset: entry.offset,
+                                            length: entry.length,
+                                            node_type: entry.node_type.clone(), // checkrs: allow(clone_in_loops)
+                                        };
+                                        let key = (rs.file.clone(), rs.offset); // checkrs: allow(clone_in_loops)
+                                        let new_symbol = !seen.contains(&key);
+                                        if new_symbol {
+                                            queue.push(rs);
+                                        }
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
             }
 
             resolved.push(symbol);
@@ -655,6 +693,13 @@ fn collect_from_contract_node(
                     collect_from_type_name(&param.type_name, seen_ids, results, &md_ctx);
                 }
                 collect_from_statements(&md.body.statements, seen_ids, results, &md_ctx);
+            }
+        }
+        ContractDefinitionNode::VariableDeclaration(vd) => {
+            let vd_start = vd.src.offset;
+            let vd_end = vd_start + vd.src.length;
+            if vd_start < range_end && vd_end > range_start {
+                collect_from_type_name(&vd.type_name, seen_ids, results, ctx);
             }
         }
         _ => {}
@@ -864,6 +909,15 @@ fn resolve_id_in_ast(id: i64, ast: &SourceUnit, source_file: &Path) -> Option<Re
     for node in &ast.nodes {
         match node {
             SourceUnitNode::ContractDefinition(cd) => {
+                if cd.id == id {
+                    return Some(ResolvedSymbol {
+                        symbol: cd.name.clone(), // checkrs: allow(clone_in_loops)
+                        file: source_file.to_path_buf(),
+                        offset: cd.src.offset,
+                        length: cd.src.length,
+                        node_type: "ContractDefinition".into(),
+                    });
+                }
                 for inner in &cd.nodes {
                     if let Some(rs) = node_to_symbol(inner, id, &cd.name, source_file) {
                         return Some(rs);
@@ -1049,6 +1103,17 @@ fn dedent(text: &str, base: usize) -> String {
         result.push('\n');
     }
     result
+}
+
+/// Return the header of a contract or interface definition (up to, but not
+/// including, the opening brace). Trims trailing whitespace.
+fn contract_header(content: &str, offset: usize) -> &str {
+    let remaining = &content[offset..];
+    if let Some(brace_pos) = remaining.find('{') {
+        remaining[..brace_pos].trim_end()
+    } else {
+        remaining.trim_end()
+    }
 }
 
 /// Extract natspec comments preceding a given byte offset in source content.
@@ -1548,6 +1613,39 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/function-source/expected/run_resolves_chained_function_calls.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_interface_inheritance() {
+        let output = inspect("InheritanceUser", "useChild").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/function-source/expected/run_resolves_interface_inheritance.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_interface_types_through_variable_declaration() {
+        let output = inspect("InterfaceConsumer", "useTarget").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/function-source/expected/run_resolves_interface_types_through_variable_declaration.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_interface_types_through_type_conversion() {
+        let output = inspect("InterfaceConsumer", "useConversion").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/function-source/expected/run_resolves_interface_types_through_type_conversion.txt"
             )
         );
     }

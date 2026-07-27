@@ -1,0 +1,30 @@
+# InterfaceConsumer - useConversion Source Code
+
+Source path: `src/InterfaceConsumer.sol:16`
+
+```solidity
+/// @notice Use a type conversion to cast to an interface.
+function useConversion(address target, uint256 x) external view returns (uint256) {
+    return ITypeConversion(target).doOther(x);
+}
+```
+
+---
+
+## Function: `doOther`
+
+Source path: `src/ITypeConversion.sol:5`
+
+```solidity
+function doOther(uint256 x) external view returns (uint256);
+```
+
+---
+
+## Interface: `ITypeConversion`
+
+Source path: `src/ITypeConversion.sol:4`
+
+```solidity
+interface ITypeConversion
+```

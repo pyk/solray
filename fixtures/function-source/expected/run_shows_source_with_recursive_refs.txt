@@ -27,6 +27,19 @@ function _compute(uint256 val) internal pure returns (uint256) {
 
 ---
 
+## Struct: `Data`
+
+Source path: `src/Main.sol:6`
+
+```solidity
+struct Data {
+    uint256 value;
+    address sender;
+}
+```
+
+---
+
 ## Variable: `_data`
 
 Source path: `src/Main.sol:11`
