@@ -56,7 +56,9 @@ pub struct SymbolIndexEntry {
 /// UserDefinedValueTypeDefinition.
 #[derive(Debug, Clone)]
 pub struct SymbolIndex {
-    inner: HashMap<i64, SymbolIndexEntry>,
+    /// Scoped by `(build_info_id, node_id)` so IDs from different compilation
+    /// units (each build-info has its own ID namespace) never collide.
+    inner: HashMap<(String, i64), SymbolIndexEntry>,
     /// Maps source file paths to build-info IDs for build-info scoping.
     source_to_build_info: HashMap<PathBuf, String>,
     /// Shared artifact metadata, indexed via [`SymbolIndexEntry::artifact_id`].
@@ -119,7 +121,8 @@ impl SymbolIndex {
             .collect();
 
         let total_decls: usize = scanned.iter().map(|s| s.ids.len()).sum();
-        let mut inner: HashMap<i64, SymbolIndexEntry> = HashMap::with_capacity(total_decls);
+        let mut inner: HashMap<(String, i64), SymbolIndexEntry> =
+            HashMap::with_capacity(total_decls);
         let mut seen_sources: HashSet<PathBuf> = HashSet::with_capacity(scanned.len());
         let mut artifacts: Vec<ArtifactInfo> = Vec::with_capacity(scanned.len());
 
@@ -139,13 +142,13 @@ impl SymbolIndex {
             artifacts.push(ArtifactInfo {
                 artifact_path: scan.artifact_path,
                 source_file: scan.source,
-                build_info_id,
+                build_info_id: build_info_id.clone(), // checkrs: allow(clone_in_loops)
             });
 
             // Consume the declarations into the index (zero inner-loop clones).
             for decl in scan.ids {
                 inner.insert(
-                    decl.id,
+                    (build_info_id.clone(), decl.id), // checkrs: allow(clone_in_loops)
                     SymbolIndexEntry {
                         artifact_id,
                         offset: decl.offset,
@@ -192,22 +195,33 @@ impl SymbolIndex {
         self.inner.is_empty()
     }
 
-    /// Look up an entry by declaration ID.
-    pub fn get(&self, id: i64) -> Option<&SymbolIndexEntry> {
-        self.inner.get(&id)
+    /// Look up an entry by build-info ID and declaration ID.
+    /// Scoping by build-info prevents collisions when the same AST node ID
+    /// is (legitimately) reused across different compilation units.
+    pub fn get(&self, bid: &str, id: i64) -> Option<&SymbolIndexEntry> {
+        self.inner.get(&(bid.to_string(), id))
     }
 
-    /// Return `true` if the given AST node ID is indexed.
-    pub fn contains(&self, id: i64) -> bool {
-        self.inner.contains_key(&id)
+    /// Return `true` if the given AST node ID is indexed for the given
+    /// build-info.
+    pub fn contains(&self, bid: &str, id: i64) -> bool {
+        self.inner.contains_key(&(bid.to_string(), id))
     }
-}
 
-impl std::ops::Deref for SymbolIndex {
-    type Target = HashMap<i64, SymbolIndexEntry>;
+    /// Iterate over all entries in the index (across all build-infos).
+    pub fn values(&self) -> impl Iterator<Item = &SymbolIndexEntry> {
+        self.inner.values()
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &self.inner
+    /// Look up an entry by declaration ID across all build-infos, returning the
+    /// first match. Prefer [`get`](Self::get) when the build-info ID is known
+    /// to avoid ambiguity.
+    pub fn get_unscoped(&self, id: i64) -> Option<&SymbolIndexEntry> {
+        self.inner.iter().find_map(
+            |((_bid, nid), entry)| {
+                if *nid == id { Some(entry) } else { None }
+            },
+        )
     }
 }
 

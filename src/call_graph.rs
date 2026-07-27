@@ -826,7 +826,7 @@ impl CallGraph {
         cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
         functions: &mut HashMap<i64, FunctionInfo>,
     ) -> Result<()> {
-        let Some(entry) = self.symbol_index.get(id) else {
+        let Some(entry) = self.symbol_index.get_unscoped(id) else {
             return Ok(());
         };
         let artifact_path = &self

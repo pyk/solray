@@ -467,7 +467,7 @@ impl FunctionSourceInspector {
                         {
                             for base in &cd.base_contracts {
                                 if let Some(id) = base.base_name.referenced_declaration
-                                    && let Some(entry) = self.symbol_index.get(id)
+                                    && let Some(entry) = self.symbol_index.get(build_info_id, id)
                                 {
                                     let info = self.symbol_index.artifact_info(entry.artifact_id);
                                     if info.build_info_id == build_info_id {
@@ -884,7 +884,7 @@ fn resolve_and_add_symbol(
         results.push(rs);
         return;
     }
-    let Some(entry) = ctx.symbol_index.get(id) else {
+    let Some(entry) = ctx.symbol_index.get(ctx.build_info_id, id) else {
         return;
     };
     let info = ctx.symbol_index.artifact_info(entry.artifact_id);
