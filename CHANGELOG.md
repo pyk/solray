@@ -18,6 +18,18 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect function-source` now resolves symbols inside `revert`
+  statements (e.g. error definitions referenced from modifier bodies), and
+  includes support for `emit`, `try`/`catch`, and `unchecked` blocks. Missing
+  statement-type handlers caused errors, events, and other symbols inside those
+  constructs to be silently dropped.
+- `solray inspect function-source` now resolves top-level declarations (errors,
+  events, structs, enums, functions, variables, and UDVTs declared outside any
+  contract) both in the symbol index and during in-AST resolution. Previously
+  these declarations were invisible to the resolver, causing references to them
+  (including errors from modifiers like `ReentrancyGuardReentrantCall`) to be
+  silently skipped.
+
 ## [0.3.0] - 2026-07-21
 
 ### Added

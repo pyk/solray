@@ -1,0 +1,60 @@
+# CrossFileModifierUser - setValue Source Code
+
+Source path: `src/CrossFileModifierUser.sol:10`
+
+```solidity
+/// @notice Sets a new value, requiring the caller to be qualified.
+function setValue(uint256 newValue) external onlyQualified {
+    _value = newValue;
+}
+```
+
+---
+
+## Error: `UnauthorizedCall`
+
+Source path: `src/CrossFileModifierBase.sol:5`
+
+```solidity
+/// @notice Error emitted when an unqualified caller attempts an action.
+error UnauthorizedCall();
+```
+
+---
+
+## Function: `_checkQualified`
+
+Source path: `src/CrossFileModifierBase.sol:17`
+
+```solidity
+/// @notice Returns true if the caller is qualified.
+function _checkQualified() internal view returns (bool) {
+    return true;
+}
+```
+
+---
+
+## Modifier: `onlyQualified`
+
+Source path: `src/CrossFileModifierBase.sol:9`
+
+```solidity
+/// @notice Ensures the caller passes the qualification check.
+modifier onlyQualified() {
+    if (!_checkQualified()) {
+        revert UnauthorizedCall();
+    }
+    _;
+}
+```
+
+---
+
+## Variable: `_value`
+
+Source path: `src/CrossFileModifierUser.sol:7`
+
+```solidity
+uint256 private _value
+```

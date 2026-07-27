@@ -222,8 +222,16 @@ struct IdNode {
 }
 
 /// Minimal contract node: captures contract name and child nodes.
+/// Optionally captures top-level declaration fields (nodeType, id, src)
+/// so top-level errors, events, structs, etc. can also be indexed.
 #[derive(Deserialize)]
 struct ContractNodes {
+    #[serde(rename = "nodeType", default)]
+    node_type: Option<String>,
+    #[serde(default)]
+    id: Option<i64>,
+    #[serde(default)]
+    src: Option<String>,
     #[serde(default)]
     name: String,
     #[serde(default)]
@@ -273,6 +281,25 @@ fn scan_artifact_ids(path: impl AsRef<Path>) -> Result<Option<ArtifactScanResult
     let mut ids = Vec::new();
     let mut first_file_index = String::new();
     for contract in &su.nodes {
+        // Check if the top-level node itself is a declaration
+        // (e.g. ErrorDefinition, EventDefinition declared outside any contract).
+        if let Some(ref node_type) = contract.node_type
+            && DECLARATION_NODE_TYPES.contains(&node_type.as_str())
+            && let Some(id) = contract.id
+        {
+            let src = parse_src(contract.src.as_deref());
+            if first_file_index.is_empty() {
+                first_file_index = src.file_index.clone(); // checkrs: allow(clone_in_loops)
+            }
+            ids.push(ScannedDecl {
+                id,
+                offset: src.offset,
+                length: src.length,
+                name: contract.name.clone(), // checkrs: allow(clone_in_loops)
+                contract_name: contract.name.clone(), // checkrs: allow(clone_in_loops)
+                node_type: node_type.clone(), // checkrs: allow(clone_in_loops)
+            });
+        }
         for node in &contract.nodes {
             if DECLARATION_NODE_TYPES.contains(&node.node_type.as_str()) {
                 let src = parse_src(node.src.as_deref());

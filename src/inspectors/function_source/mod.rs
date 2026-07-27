@@ -723,6 +723,21 @@ fn collect_from_statement(
                 collect_from_type_name(&decl.type_name, seen_ids, results, ctx);
             }
         }
+        solc::ast::Statement::RevertStatement(rs) => {
+            collect_from_function_call(&rs.error_call, seen_ids, results, ctx);
+        }
+        solc::ast::Statement::EmitStatement(es) => {
+            collect_from_function_call(&es.event_call, seen_ids, results, ctx);
+        }
+        solc::ast::Statement::TryStatement(ts) => {
+            collect_from_expression(&ts.external_call, seen_ids, results, ctx);
+            for clause in &ts.clauses {
+                collect_from_statements(&clause.block.statements, seen_ids, results, ctx);
+            }
+        }
+        solc::ast::Statement::UncheckedBlock(ub) => {
+            collect_from_statements(&ub.statements, seen_ids, results, ctx);
+        }
         _ => {}
     }
 }
@@ -735,25 +750,7 @@ fn collect_from_expression(
 ) {
     match expr {
         Expression::FunctionCall(fc) => {
-            let called_id = match &*fc.expression {
-                FunctionCallExpression::MemberAccess(ma) => ma.referenced_declaration,
-                FunctionCallExpression::Identifier(id) => id.referenced_declaration,
-                FunctionCallExpression::FunctionCallOptions(fco) => {
-                    resolve_called_id_from_expr(&fco.expression)
-                }
-                _ => None,
-            };
-            if let Some(id) = called_id {
-                resolve_and_add_symbol(id, seen_ids, results, ctx);
-            }
-            for arg in &fc.arguments {
-                collect_from_expression(arg, seen_ids, results, ctx);
-            }
-            if let FunctionCallExpression::FunctionCallOptions(fco) = &*fc.expression {
-                for opt in &fco.options {
-                    collect_from_expression(opt, seen_ids, results, ctx);
-                }
-            }
+            collect_from_function_call(fc, seen_ids, results, ctx);
         }
         Expression::Assignment(assign) => {
             collect_from_expression(&assign.right_hand_side, seen_ids, results, ctx);
@@ -865,12 +862,79 @@ fn resolve_and_add_symbol(
 
 fn resolve_id_in_ast(id: i64, ast: &SourceUnit, source_file: &Path) -> Option<ResolvedSymbol> {
     for node in &ast.nodes {
-        if let SourceUnitNode::ContractDefinition(cd) = node {
-            for inner in &cd.nodes {
-                if let Some(rs) = node_to_symbol(inner, id, &cd.name, source_file) {
-                    return Some(rs);
+        match node {
+            SourceUnitNode::ContractDefinition(cd) => {
+                for inner in &cd.nodes {
+                    if let Some(rs) = node_to_symbol(inner, id, &cd.name, source_file) {
+                        return Some(rs);
+                    }
                 }
             }
+            SourceUnitNode::ErrorDefinition(ed) if ed.id == id => {
+                return Some(ResolvedSymbol {
+                    symbol: ed.name.clone(), // checkrs: allow(clone_in_loops)
+                    file: source_file.to_path_buf(),
+                    offset: ed.src.offset,
+                    length: ed.src.length,
+                    node_type: "ErrorDefinition".into(),
+                });
+            }
+            SourceUnitNode::EventDefinition(ev) if ev.id == id => {
+                return Some(ResolvedSymbol {
+                    symbol: ev.name.clone(), // checkrs: allow(clone_in_loops)
+                    file: source_file.to_path_buf(),
+                    offset: ev.src.offset,
+                    length: ev.src.length,
+                    node_type: "EventDefinition".into(),
+                });
+            }
+            SourceUnitNode::StructDefinition(sd) if sd.id == id => {
+                return Some(ResolvedSymbol {
+                    symbol: sd.name.clone(), // checkrs: allow(clone_in_loops)
+                    file: source_file.to_path_buf(),
+                    offset: sd.src.offset,
+                    length: sd.src.length,
+                    node_type: "StructDefinition".into(),
+                });
+            }
+            SourceUnitNode::EnumDefinition(ed) if ed.id == id => {
+                return Some(ResolvedSymbol {
+                    symbol: ed.name.clone(), // checkrs: allow(clone_in_loops)
+                    file: source_file.to_path_buf(),
+                    offset: ed.src.offset,
+                    length: ed.src.length,
+                    node_type: "EnumDefinition".into(),
+                });
+            }
+            SourceUnitNode::FunctionDefinition(fd) if fd.id == id => {
+                let sig = format!("{}({})", fd.name, format_params(&fd.parameters.parameters));
+                return Some(ResolvedSymbol {
+                    symbol: sig,
+                    file: source_file.to_path_buf(),
+                    offset: fd.src.offset,
+                    length: fd.src.length,
+                    node_type: "FunctionDefinition".into(),
+                });
+            }
+            SourceUnitNode::VariableDeclaration(vd) if vd.id == id => {
+                return Some(ResolvedSymbol {
+                    symbol: vd.name.clone(), // checkrs: allow(clone_in_loops)
+                    file: source_file.to_path_buf(),
+                    offset: vd.src.offset,
+                    length: vd.src.length,
+                    node_type: "VariableDeclaration".into(),
+                });
+            }
+            SourceUnitNode::UserDefinedValueTypeDefinition(udvtd) if udvtd.id == id => {
+                return Some(ResolvedSymbol {
+                    symbol: udvtd.name.clone(), // checkrs: allow(clone_in_loops)
+                    file: source_file.to_path_buf(),
+                    offset: udvtd.src.offset,
+                    length: udvtd.src.length,
+                    node_type: "UserDefinedValueTypeDefinition".into(),
+                });
+            }
+            _ => {}
         }
     }
     None
@@ -1186,6 +1250,35 @@ fn format_type_name(type_name: &TypeName) -> String {
     }
 }
 
+/// Collect symbols referenced inside a [`FunctionCall`], including the called
+/// declaration and all argument expressions.
+fn collect_from_function_call(
+    fc: &solc::ast::FunctionCall,
+    seen_ids: &mut HashSet<i64>,
+    results: &mut Vec<ResolvedSymbol>,
+    ctx: &RefCtx,
+) {
+    let called_id = match &*fc.expression {
+        FunctionCallExpression::MemberAccess(ma) => ma.referenced_declaration,
+        FunctionCallExpression::Identifier(id) => id.referenced_declaration,
+        FunctionCallExpression::FunctionCallOptions(fco) => {
+            resolve_called_id_from_expr(&fco.expression)
+        }
+        _ => None,
+    };
+    if let Some(id) = called_id {
+        resolve_and_add_symbol(id, seen_ids, results, ctx);
+    }
+    for arg in &fc.arguments {
+        collect_from_expression(arg, seen_ids, results, ctx);
+    }
+    if let FunctionCallExpression::FunctionCallOptions(fco) = &*fc.expression {
+        for opt in &fco.options {
+            collect_from_expression(opt, seen_ids, results, ctx);
+        }
+    }
+}
+
 /// Extract the referenced declaration ID from an expression inside a function call.
 fn resolve_called_id_from_expr(expr: &Expression) -> Option<i64> {
     match expr {
@@ -1405,6 +1498,17 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!("../../../fixtures/function-source/expected/run_resolves_modifiers.txt")
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_cross_file_modifier() {
+        let output = inspect("CrossFileModifierUser", "setValue").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/function-source/expected/run_resolves_cross_file_modifier.txt"
+            )
         );
     }
 
