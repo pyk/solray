@@ -12,6 +12,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Changed
 
+### Fixed
+
+## [0.4.0] - 2026-07-27
+
+### Changed
+
 - `solray inspect function-source` output format changed to markdown
 - `solray inspect function-source` resolved symbols are now sorted
   alphabetically by kind and then by display name
@@ -138,7 +144,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - Support for incremental builds, cross-file references, and NatSpec blocks in
   function source resolution
 
-[unreleased]: https://github.com/pyk/solray/compare/v0.3.0...HEAD
+[unreleased]: https://github.com/pyk/solray/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/pyk/solray/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/pyk/solray/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/pyk/solray/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/pyk/solray/releases/tag/v0.1.0
