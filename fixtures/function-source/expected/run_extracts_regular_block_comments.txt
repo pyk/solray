@@ -1,12 +1,20 @@
-// BlockComment.getItem() | fixtures/function-source/src/BlockComment.sol:13
+# BlockComment - getItem Source Code
 
+Source path: `src/BlockComment.sol:13`
+
+```solidity
 function getItem() public pure returns (Item memory) {
     return Item(42);
 }
+```
 
+---
 
-// Item | fixtures/function-source/src/BlockComment.sol:9
+## Struct: `Item`
 
+Source path: `src/BlockComment.sol:9`
+
+```solidity
 /*
  *  A value holder with a regular block comment.
  *  This is not a NatSpec doc comment (no double-star).
@@ -14,5 +22,4 @@ function getItem() public pure returns (Item memory) {
 struct Item {
     uint256 value;
 }
-
-
+```

@@ -1,5 +1,8 @@
-// ReturnTypeRef.makeWidget(uint256,string) | fixtures/function-source/src/ReturnTypeRef.sol:12
+# ReturnTypeRef - makeWidget Source Code
 
+Source path: `src/ReturnTypeRef.sol:12`
+
+```solidity
 /// @notice Returns a Widget. The Widget type only appears in the
 ///         return type, not in the body.
 function makeWidget(uint256 id, string memory name)
@@ -11,13 +14,17 @@ function makeWidget(uint256 id, string memory name)
         mstore(w, 42)
     }
 }
+```
 
+---
 
-// Widget | fixtures/function-source/src/ReturnTypeRef.sol:5
+## Struct: `Widget`
 
+Source path: `src/ReturnTypeRef.sol:5`
+
+```solidity
 struct Widget {
     uint256 id;
     string name;
 }
-
-
+```

@@ -25,7 +25,7 @@ pub mod symbol_index;
 /// A resolved declaration with its source code and metadata.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ResolvedSymbol {
-    /// Human-readable signature, e.g. `execute(uint256)` or `Data`
+    /// Human-readable signature, e.g. `Main.execute(uint256)` or `Data`
     symbol: String,
     /// The source file path
     file: PathBuf,
@@ -33,6 +33,8 @@ pub struct ResolvedSymbol {
     offset: usize,
     /// Byte length of the definition
     length: usize,
+    /// Solc AST node type (e.g. "FunctionDefinition", "EventDefinition")
+    node_type: String,
 }
 
 /// Context passed through reference-collection to resolve IDs against the AST.
@@ -67,60 +69,169 @@ impl FunctionSourceInspectorOutput {
     }
 }
 
+/// Map a node type string to its human-readable section heading prefix.
+fn node_type_to_heading(node_type: &str) -> &str {
+    match node_type {
+        "FunctionDefinition" => "Function",
+        "VariableDeclaration" => "Variable",
+        "StructDefinition" => "Struct",
+        "EnumDefinition" => "Enum",
+        "ErrorDefinition" => "Error",
+        "EventDefinition" => "Event",
+        "ModifierDefinition" => "Modifier",
+        "UserDefinedValueTypeDefinition" => "User Defined Value Type",
+        _ => "Declaration",
+    }
+}
+
+/// Extract a display name from a symbol string.
+///
+/// For functions: `Contract.funcName(params)` -> `funcName`
+/// For variables: `Contract.varName` -> `varName`
+/// For other declarations: return the symbol as-is.
+fn symbol_display_name(symbol: &str, node_type: &str) -> String {
+    if node_type == "FunctionDefinition" {
+        // Format: ContractName.funcName(params)
+        if let Some(dot_pos) = symbol.find('.') {
+            let after_dot = &symbol[dot_pos + 1..];
+            if let Some(paren_pos) = after_dot.find('(') {
+                return after_dot[..paren_pos].to_string();
+            }
+            return after_dot.to_string();
+        }
+    }
+    if node_type == "VariableDeclaration" {
+        // Format: ContractName.varName
+        if let Some(dot_pos) = symbol.find('.') {
+            return symbol[dot_pos + 1..].to_string();
+        }
+    }
+    symbol.to_string()
+}
+
+/// Compute the 1-indexed line number for a byte offset in source content.
+fn byte_offset_to_line(content: &str, offset: usize) -> usize {
+    let offset = offset.min(content.len());
+    content[..offset].matches('\n').count() + 1
+}
+
+/// Extract the contract name from the first symbol (root function).
+/// Symbol format: `ContractName.functionName(params)`.
+fn extract_contract_name(symbol: &str) -> &str {
+    symbol.split('.').next().unwrap_or("?")
+}
+
 impl std::fmt::Display for FunctionSourceInspectorOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let cwd = std::env::current_dir().unwrap_or_default();
         let project_abs =
             std::path::absolute(&self.project_path).unwrap_or(self.project_path.clone());
         let mut file_contents: HashMap<PathBuf, String> = HashMap::new();
 
-        for symbol in &self.symbols {
-            let full_path = project_abs.join(&symbol.file);
-            let rel_path = full_path.strip_prefix(&cwd).unwrap_or(&full_path);
+        if let Some(root) = self.symbols.first() {
+            let root_name = symbol_display_name(&root.symbol, &root.node_type);
+            let contract_name = extract_contract_name(&root.symbol);
 
-            let content = if let Some(c) = file_contents.get(&symbol.file) {
-                c.clone() // checkrs: allow(clone_in_loops)
-            } else {
-                let Ok(c) = fs::read_to_string(&full_path) else {
-                    writeln!(
-                        f,
-                        "// {} | {}:? (unable to read)\n",
-                        symbol.symbol,
-                        rel_path.display()
-                    )?;
-                    continue;
-                };
-                file_contents.insert(symbol.file.clone(), c.clone()); // checkrs: allow(clone_in_loops)
-                c
-            };
+            let full_path = project_abs.join(&root.file);
 
-            let line_offsets = build_line_offsets(&content);
-            let start_line = byte_offset_to_line(symbol.offset, &line_offsets);
-
-            let mut natspec = extract_natspec(&content, symbol.offset);
-            let source_text = &content[symbol.offset..symbol.offset + symbol.length];
-
-            let base = base_indent(&content, symbol.offset);
-            natspec = resolve_inheritdoc_natspec(
-                &natspec,
-                &symbol.symbol,
-                &self.artifact_index,
-                &self.project_path,
-            );
-            let natspec = dedent(&natspec, base);
-            let source_text = dedent(source_text, base);
-
-            write!(
-                f,
-                "// {} | {}:{}\n\n",
-                symbol.symbol,
-                rel_path.display(),
-                start_line,
-            )?;
-            if !natspec.is_empty() {
-                write!(f, "{}", natspec)?;
+            if let Ok(content) = fs::read_to_string(&full_path) {
+                file_contents.insert(root.file.clone(), content);
             }
-            write!(f, "{}\n\n", source_text)?;
+
+            writeln!(f, "# {} - {} Source Code", contract_name, root_name)?;
+            writeln!(f)?;
+
+            // checkrs: allow(long_if_let_blocks, nested_if_let)
+            if let Some(content) = file_contents.get(&root.file) {
+                let line = byte_offset_to_line(content, root.offset);
+                writeln!(f, "Source path: `{}:{line}`", root.file.display())?;
+                writeln!(f)?;
+
+                let base = base_indent(content, root.offset);
+                let mut natspec = extract_natspec(content, root.offset);
+                natspec = resolve_inheritdoc_natspec(
+                    &natspec,
+                    &root.symbol,
+                    &self.artifact_index,
+                    &self.project_path,
+                );
+                let natspec = dedent(&natspec, base);
+                let source_text = dedent(&content[root.offset..root.offset + root.length], base);
+
+                writeln!(f, "```solidity")?;
+                if !natspec.is_empty() {
+                    writeln!(f, "{}", natspec.trim_end())?;
+                }
+                writeln!(f, "{}", source_text.trim_end())?;
+                writeln!(f, "```")?;
+            } else {
+                writeln!(f, "Source path: `{}`", root.file.display())?;
+                writeln!(f)?;
+                writeln!(f, "```solidity")?;
+                writeln!(f, "// unable to read source")?;
+                writeln!(f, "```")?;
+            }
+
+            let mut symbols: Vec<&ResolvedSymbol> = self.symbols.iter().skip(1).collect();
+            symbols.sort_by(|a, b| {
+                let a_heading = node_type_to_heading(&a.node_type);
+                let b_heading = node_type_to_heading(&b.node_type);
+                let a_name = symbol_display_name(&a.symbol, &a.node_type).to_lowercase();
+                let b_name = symbol_display_name(&b.symbol, &b.node_type).to_lowercase();
+                a_heading.cmp(b_heading).then(a_name.cmp(&b_name))
+            });
+
+            for symbol in &symbols {
+                writeln!(f)?;
+                writeln!(f, "---")?;
+
+                let display_name = symbol_display_name(&symbol.symbol, &symbol.node_type);
+                let heading = node_type_to_heading(&symbol.node_type);
+
+                let full_path = project_abs.join(&symbol.file);
+
+                let content = if let Some(c) = file_contents.get(&symbol.file) {
+                    c.clone() // checkrs: allow(clone_in_loops)
+                } else {
+                    let Ok(c) = fs::read_to_string(&full_path) else {
+                        writeln!(f)?;
+                        writeln!(f, "## {}: `{}`", heading, display_name)?;
+                        writeln!(f)?;
+                        writeln!(f, "Source path: `{}`", symbol.file.display())?;
+                        writeln!(f)?;
+                        writeln!(f, "```solidity")?;
+                        writeln!(f, "// unable to read")?;
+                        writeln!(f, "```")?;
+                        continue;
+                    };
+                    file_contents.insert(symbol.file.clone(), c.clone()); // checkrs: allow(clone_in_loops)
+                    c
+                };
+
+                let line = byte_offset_to_line(&content, symbol.offset);
+                let base = base_indent(&content, symbol.offset);
+                let mut natspec = extract_natspec(&content, symbol.offset);
+                natspec = resolve_inheritdoc_natspec(
+                    &natspec,
+                    &symbol.symbol,
+                    &self.artifact_index,
+                    &self.project_path,
+                );
+                let natspec = dedent(&natspec, base);
+                let source_text =
+                    dedent(&content[symbol.offset..symbol.offset + symbol.length], base);
+
+                writeln!(f)?;
+                writeln!(f, "## {}: `{}`", heading, display_name)?;
+                writeln!(f)?;
+                writeln!(f, "Source path: `{}:{line}`", symbol.file.display())?;
+                writeln!(f)?;
+                writeln!(f, "```solidity")?;
+                if !natspec.is_empty() {
+                    writeln!(f, "{}", natspec.trim_end())?;
+                }
+                writeln!(f, "{}", source_text.trim_end())?;
+                writeln!(f, "```")?;
+            }
         }
 
         Ok(())
@@ -426,9 +537,10 @@ fn extract_function_symbols(
                     let sig_key = sig.clone(); // checkrs: allow(clone_in_loops)
                     out.entry(sig_key).or_insert(ResolvedSymbol {
                         symbol: sig,
-                        file: source_file.clone(), // checkrs: allow(clone_in_loops)
+                        file: source_file.clone(),
                         offset: fd.src.offset,
                         length: fd.src.length,
+                        node_type: "FunctionDefinition".into(),
                     });
                 }
             }
@@ -746,6 +858,7 @@ fn resolve_and_add_symbol(
             file: info.source_file.clone(),
             offset: entry.offset,
             length: entry.length,
+            node_type: entry.node_type.clone(),
         });
     }
 }
@@ -783,6 +896,7 @@ fn node_to_symbol(
                 file: source_file.to_path_buf(),
                 offset: fd.src.offset,
                 length: fd.src.length,
+                node_type: "FunctionDefinition".into(),
             })
         }
         ContractDefinitionNode::VariableDeclaration(vd) if vd.id == target_id => {
@@ -791,6 +905,7 @@ fn node_to_symbol(
                 file: source_file.to_path_buf(),
                 offset: vd.src.offset,
                 length: vd.src.length,
+                node_type: "VariableDeclaration".into(),
             })
         }
         ContractDefinitionNode::StructDefinition(sd) if sd.id == target_id => {
@@ -799,6 +914,7 @@ fn node_to_symbol(
                 file: source_file.to_path_buf(),
                 offset: sd.src.offset,
                 length: sd.src.length,
+                node_type: "StructDefinition".into(),
             })
         }
         ContractDefinitionNode::EnumDefinition(ed) if ed.id == target_id => Some(ResolvedSymbol {
@@ -806,18 +922,21 @@ fn node_to_symbol(
             file: source_file.to_path_buf(),
             offset: ed.src.offset,
             length: ed.src.length,
+            node_type: "EnumDefinition".into(),
         }),
         ContractDefinitionNode::ErrorDefinition(ed) if ed.id == target_id => Some(ResolvedSymbol {
             symbol: ed.name.clone(),
             file: source_file.to_path_buf(),
             offset: ed.src.offset,
             length: ed.src.length,
+            node_type: "ErrorDefinition".into(),
         }),
         ContractDefinitionNode::EventDefinition(ed) if ed.id == target_id => Some(ResolvedSymbol {
             symbol: ed.name.clone(),
             file: source_file.to_path_buf(),
             offset: ed.src.offset,
             length: ed.src.length,
+            node_type: "EventDefinition".into(),
         }),
         ContractDefinitionNode::ModifierDefinition(md) if md.id == target_id => {
             Some(ResolvedSymbol {
@@ -825,6 +944,7 @@ fn node_to_symbol(
                 file: source_file.to_path_buf(),
                 offset: md.src.offset,
                 length: md.src.length,
+                node_type: "ModifierDefinition".into(),
             })
         }
         ContractDefinitionNode::UserDefinedValueTypeDefinition(udvtd) if udvtd.id == target_id => {
@@ -833,6 +953,7 @@ fn node_to_symbol(
                 file: source_file.to_path_buf(),
                 offset: udvtd.src.offset,
                 length: udvtd.src.length,
+                node_type: "UserDefinedValueTypeDefinition".into(),
             })
         }
         _ => None,
@@ -864,25 +985,6 @@ fn dedent(text: &str, base: usize) -> String {
         result.push('\n');
     }
     result
-}
-
-/// Build a vector where `line_offsets[n]` is the byte offset of the start of line `n`.
-fn build_line_offsets(content: &str) -> Vec<usize> {
-    let mut offsets = vec![0, 0];
-    for (i, byte) in content.bytes().enumerate() {
-        if byte == b'\n' {
-            offsets.push(i + 1);
-        }
-    }
-    offsets
-}
-
-/// Given a byte offset and a line-offsets vector, return the 1-indexed line number.
-fn byte_offset_to_line(offset: usize, line_offsets: &[usize]) -> usize {
-    match line_offsets.binary_search(&offset) {
-        Ok(line) => line.max(1),
-        Err(line) => line.saturating_sub(1).max(1),
-    }
 }
 
 /// Extract natspec comments preceding a given byte offset in source content.
@@ -1294,7 +1396,7 @@ mod tests {
     #[test]
     fn inspect_shows_source_for_path_qualified_contract() {
         let output = inspect("Main.sol:Main", "execute").unwrap();
-        assert!(output.to_string().contains("// Main.execute(uint256) |"));
+        assert!(output.to_string().contains("# Main - execute Source Code"));
     }
 
     #[test]

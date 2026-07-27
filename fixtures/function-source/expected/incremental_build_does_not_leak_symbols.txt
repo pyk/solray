@@ -1,42 +1,64 @@
-// Main.execute(uint256) | fixtures/function-source/src/Main.sol:15
+# Main - execute Source Code
 
+Source path: `src/Main.sol:15`
+
+```solidity
 /// @notice Execute with a given value.
 /// @param x The value to store.
 function execute(uint256 x) public {
     _data = Data(x, msg.sender);
     _processData();
 }
+```
 
+---
 
-// Main._processData() | fixtures/function-source/src/Main.sol:22
+## Function: `_compute`
 
-/// @notice Process the stored data.
-/// @return The computed result.
-function _processData() internal view returns (uint256) {
-    return _compute(_data.value);
-}
+Source path: `src/Main.sol:29`
 
-
-// Main._data | fixtures/function-source/src/Main.sol:11
-
-Data private _data
-
-
-// Main._compute(uint256) | fixtures/function-source/src/Main.sol:29
-
+```solidity
 /// @notice Compute something from a value.
 /// @param val The input value.
 /// @return val + 1.
 function _compute(uint256 val) internal pure returns (uint256) {
     return val + 1;
 }
+```
 
+---
 
-// Data | fixtures/function-source/src/Main.sol:6
+## Function: `_processData`
 
+Source path: `src/Main.sol:22`
+
+```solidity
+/// @notice Process the stored data.
+/// @return The computed result.
+function _processData() internal view returns (uint256) {
+    return _compute(_data.value);
+}
+```
+
+---
+
+## Struct: `Data`
+
+Source path: `src/Main.sol:6`
+
+```solidity
 struct Data {
     uint256 value;
     address sender;
 }
+```
 
+---
 
+## Variable: `_data`
+
+Source path: `src/Main.sol:11`
+
+```solidity
+Data private _data
+```

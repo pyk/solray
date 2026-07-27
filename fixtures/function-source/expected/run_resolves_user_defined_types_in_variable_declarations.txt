@@ -1,16 +1,23 @@
-// TypeRefs.passThrough(Point) | fixtures/function-source/src/TypeRefs.sol:19
+# TypeRefs - passThrough Source Code
 
+Source path: `src/TypeRefs.sol:19`
+
+```solidity
 function passThrough(Point memory p) public pure returns (Point memory) {
     Point memory q = p;
     return q;
 }
+```
 
+---
 
-// Point | fixtures/function-source/src/TypeRefs.sol:5
+## Struct: `Point`
 
+Source path: `src/TypeRefs.sol:5`
+
+```solidity
 struct Point {
     uint256 x;
     uint256 y;
 }
-
-
+```

@@ -1,38 +1,60 @@
-// ModifierRef.increment(uint256) | fixtures/function-source/src/ModifierRef.sol:25
+# ModifierRef - increment Source Code
 
+Source path: `src/ModifierRef.sol:25`
+
+```solidity
 /// @notice Increment by a value.
 /// @param value The amount to increment.
 function increment(uint256 value) external onlyOwner nonZero(value) {
     _count += value;
 }
+```
 
+---
 
-// ModifierRef._count | fixtures/function-source/src/ModifierRef.sol:6
+## Function: `_checkOwner`
 
-uint256 private _count
+Source path: `src/ModifierRef.sol:19`
 
-
-// nonZero | fixtures/function-source/src/ModifierRef.sol:13
-
-modifier nonZero(uint256 value) {
-    require(value > 0, "zero");
-    _;
-}
-
-
-// onlyOwner | fixtures/function-source/src/ModifierRef.sol:8
-
-modifier onlyOwner() {
-    _checkOwner();
-    _;
-}
-
-
-// ModifierRef._checkOwner() | fixtures/function-source/src/ModifierRef.sol:19
-
+```solidity
 /// @notice Ensure the sender is the owner.
 function _checkOwner() internal view {
     require(msg.sender == address(this), "not owner");
 }
+```
 
+---
 
+## Modifier: `nonZero`
+
+Source path: `src/ModifierRef.sol:13`
+
+```solidity
+modifier nonZero(uint256 value) {
+    require(value > 0, "zero");
+    _;
+}
+```
+
+---
+
+## Modifier: `onlyOwner`
+
+Source path: `src/ModifierRef.sol:8`
+
+```solidity
+modifier onlyOwner() {
+    _checkOwner();
+    _;
+}
+```
+
+---
+
+## Variable: `_count`
+
+Source path: `src/ModifierRef.sol:6`
+
+```solidity
+uint256 private _count
+```

@@ -1,14 +1,21 @@
-// SpecialFunctions.constructor() | fixtures/function-source/src/SpecialFunctions.sol:13
+# SpecialFunctions - constructor Source Code
 
+Source path: `src/SpecialFunctions.sol:13`
+
+```solidity
 constructor() {
     sameContractFunction();
 }
+```
 
+---
 
-// SpecialFunctions.sameContractFunction() | fixtures/function-source/src/SpecialFunctions.sol:25
+## Function: `sameContractFunction`
 
+Source path: `src/SpecialFunctions.sol:25`
+
+```solidity
 function sameContractFunction() internal pure returns (uint256) {
     return 1;
 }
-
-
+```

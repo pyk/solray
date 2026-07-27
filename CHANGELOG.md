@@ -12,6 +12,10 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Changed
 
+- `solray inspect function-source` output format changed to markdown
+- `solray inspect function-source` resolved symbols are now sorted
+  alphabetically by kind and then by display name
+
 ### Fixed
 
 ## [0.3.0] - 2026-07-21

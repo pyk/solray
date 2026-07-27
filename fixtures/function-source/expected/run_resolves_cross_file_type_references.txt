@@ -1,16 +1,23 @@
-// CrossFileConsumer.translate(TypesLib.Point) | fixtures/function-source/src/CrossFileConsumer.sol:7
+# CrossFileConsumer - translate Source Code
 
+Source path: `src/CrossFileConsumer.sol:7`
+
+```solidity
 function translate(TypesLib.Point memory p) public pure returns (TypesLib.Point memory) {
     TypesLib.Point memory q = p;
     return q;
 }
+```
 
+---
 
-// Point | fixtures/function-source/src/TypesLib.sol:5
+## Struct: `Point`
 
+Source path: `src/TypesLib.sol:5`
+
+```solidity
 struct Point {
     uint256 x;
     uint256 y;
 }
-
-
+```

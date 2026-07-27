@@ -1,5 +1,8 @@
-// NatspecBlock.compute(uint256) | fixtures/function-source/src/NatspecBlock.sol:10
+# NatspecBlock - compute Source Code
 
+Source path: `src/NatspecBlock.sol:10`
+
+```solidity
 /**
  * @notice This function uses block-comment natspec.
  * @param x The input value.
@@ -8,5 +11,4 @@
 function compute(uint256 x) public pure returns (uint256) {
     return x + 1;
 }
-
-
+```

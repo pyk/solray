@@ -1,10 +1,12 @@
-// InheritdocUser.doSomething(uint256) | fixtures/function-source/src/InheritdocUser.sol:9
+# InheritdocUser - doSomething Source Code
 
+Source path: `src/InheritdocUser.sol:9`
+
+```solidity
 /// @notice Perform an action with a value.
 /// @param x The input value for the action.
 /// @return The result of the action.
 function doSomething(uint256 x) external pure returns (uint256) {
     return x + 1;
 }
-
-
+```

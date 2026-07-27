@@ -1,14 +1,21 @@
-// SpecialFunctions.fallback() | fixtures/function-source/src/SpecialFunctions.sol:21
+# SpecialFunctions - fallback Source Code
 
+Source path: `src/SpecialFunctions.sol:21`
+
+```solidity
 fallback() external payable {
     importedParentFunction();
 }
+```
 
+---
 
-// SpecialFunctionsImportedParent.importedParentFunction | fixtures/function-source/src/SpecialFunctionsImportedParent.sol:5
+## Function: `importedParentFunction`
 
+Source path: `src/SpecialFunctionsImportedParent.sol:5`
+
+```solidity
 function importedParentFunction() internal pure returns (uint256) {
     return 3;
 }
-
-
+```

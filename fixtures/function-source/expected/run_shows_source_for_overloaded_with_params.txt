@@ -1,5 +1,7 @@
-// Overloaded.beforeTokenTransfer(address,address,uint256) | fixtures/function-source/src/Overloaded.sol:5
+# Overloaded - beforeTokenTransfer Source Code
 
+Source path: `src/Overloaded.sol:5`
+
+```solidity
 function beforeTokenTransfer(address sender, address recipient, uint256 amount) public {}
-
-
+```
