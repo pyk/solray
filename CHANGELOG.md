@@ -14,6 +14,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- Error messages across all `inspect` commands now use `solray` instead of the
+  stale `hawk` project name. The `function-source` overloaded-function
+  suggestions also now wrap function signatures in quotes and strip the
+  contract-name prefix for clean, copy-pasteable output.
+
 ## [0.4.0] - 2026-07-27
 
 ### Changed

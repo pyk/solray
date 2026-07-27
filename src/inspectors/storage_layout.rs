@@ -186,7 +186,7 @@ impl StorageLayoutInspector {
                         .and_then(|p| p.file_name())
                         .and_then(|n| n.to_str())
                         .unwrap_or("");
-                    msg.push_str(&format!("\nhawk inspect storage-layout {parent}:{name}"));
+                    msg.push_str(&format!("\nsolray inspect storage-layout {parent}:{name}"));
                 }
                 msg.push('\n');
                 bail!(msg);
@@ -254,7 +254,7 @@ mod tests {
         let err = inspector.inspect(&id).unwrap_err().to_string();
         assert_eq!(
             err,
-            "found 2 \"ContractA\"\n\nSelect one of the following:\n\nhawk inspect storage-layout Bar.sol:ContractA\nhawk inspect storage-layout Foo.sol:ContractA\n"
+            "found 2 \"ContractA\"\n\nSelect one of the following:\n\nsolray inspect storage-layout Bar.sol:ContractA\nsolray inspect storage-layout Foo.sol:ContractA\n"
         );
     }
 

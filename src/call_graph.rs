@@ -1074,7 +1074,7 @@ fn format_ambiguity_error(
         let rel = candidate.strip_prefix(out_dir).unwrap_or(candidate);
         let parent = rel.parent().and_then(|p| p.to_str()).unwrap_or("");
         msg.push_str(&format!(
-            "\nhawk inspect call-graph {}:{} {}",
+            "\nsolray inspect call-graph {}:{} {}",
             parent, contract_name, function_name
         ));
     }

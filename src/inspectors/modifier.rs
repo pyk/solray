@@ -174,7 +174,10 @@ impl ModifierInspector {
                                 .and_then(|p| p.file_name())
                                 .and_then(|n| n.to_str())
                                 .unwrap_or("");
-                            msg.push_str(&format!("\nhawk inspect modifiers {parent}:{}", id.name));
+                            msg.push_str(&format!(
+                                "\nsolray inspect modifiers {parent}:{}",
+                                id.name
+                            ));
                         }
                         msg.push('\n');
                         bail!(msg);

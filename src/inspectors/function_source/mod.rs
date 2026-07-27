@@ -302,7 +302,7 @@ impl FunctionSourceInspector {
                                 .and_then(|n| n.to_str())
                                 .unwrap_or("");
                             msg.push_str(&format!(
-                                "\nhawk inspect function-source {parent}:{id_name} {function_name}",
+                                "\nsolray inspect function-source {parent}:{id_name} \"{function_name}\"",
                                 id_name = id.name
                             ));
                         }
@@ -380,9 +380,10 @@ impl FunctionSourceInspector {
                 let mut sorted: Vec<&String> = functions.values().map(|s| &s.symbol).collect();
                 sorted.sort();
                 for sym in sorted {
+                    let fn_name = sym.split_once('.').map(|(_, sig)| sig).unwrap_or(sym);
                     msg.push_str(&format!(
-                        "\nhawk inspect function-source {} {}",
-                        contract_name, sym
+                        "\nsolray inspect function-source {} \"{}\"",
+                        contract_name, fn_name
                     ));
                 }
                 msg.push('\n');
@@ -400,9 +401,10 @@ impl FunctionSourceInspector {
             let mut sorted: Vec<&String> = functions.values().map(|s| &s.symbol).collect();
             sorted.sort();
             for sym in sorted {
+                let fn_name = sym.split_once('.').map(|(_, sig)| sig).unwrap_or(sym);
                 msg.push_str(&format!(
-                    "\nhawk inspect function-source {} {}",
-                    contract_name, sym
+                    "\nsolray inspect function-source {} \"{}\"",
+                    contract_name, fn_name
                 ));
             }
             msg.push('\n');

@@ -132,7 +132,7 @@ impl std::fmt::Display for ExternalFunctionInspectorOutput {
             writeln!(f)?;
             writeln!(
                 f,
-                "    hawk inspect external-functions {} --include-read-only",
+                "    solray inspect external-functions {} --include-read-only",
                 self.contract_name
             )?;
             writeln!(f)?;
@@ -340,7 +340,7 @@ impl ExternalFunctionInspector {
                                 .and_then(|n| n.to_str())
                                 .unwrap_or("");
                             msg.push_str(&format!(
-                                "\nhawk inspect external-functions {parent}:{}",
+                                "\nsolray inspect external-functions {parent}:{}",
                                 id.name
                             ));
                         }
@@ -827,7 +827,7 @@ mod tests {
         let err = inspector.inspect(&id, true).unwrap_err().to_string();
         assert_eq!(
             err,
-            "found 2 \"ContractA\"\n\nSelect one of the following:\n\nhawk inspect external-functions Bar.sol:ContractA\nhawk inspect external-functions Foo.sol:ContractA\n"
+            "found 2 \"ContractA\"\n\nSelect one of the following:\n\nsolray inspect external-functions Bar.sol:ContractA\nsolray inspect external-functions Foo.sol:ContractA\n"
         );
     }
 

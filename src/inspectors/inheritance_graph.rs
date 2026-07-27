@@ -141,7 +141,7 @@ impl ResolutionContext {
                 let mut msg = format!("found {n} \"{name}\"\n\nSelect one of the following:\n");
                 for candidate in &sorted {
                     let relative = self.relative_artifact_path(candidate);
-                    msg.push_str(&format!("\nhawk inspect inheritance-graph {relative}"));
+                    msg.push_str(&format!("\nsolray inspect inheritance-graph {relative}"));
                 }
                 msg.push('\n');
                 bail!(msg);
@@ -445,7 +445,7 @@ mod tests {
         let err = inspector.inspect(&id).unwrap_err().to_string();
         assert_eq!(
             err,
-            "found 2 \"Dupe\"\n\nSelect one of the following:\n\nhawk inspect inheritance-graph Dupe.sol:Dupe\nhawk inspect inheritance-graph lib/Dupe.sol:Dupe\n"
+            "found 2 \"Dupe\"\n\nSelect one of the following:\n\nsolray inspect inheritance-graph Dupe.sol:Dupe\nsolray inspect inheritance-graph lib/Dupe.sol:Dupe\n"
         );
     }
 
