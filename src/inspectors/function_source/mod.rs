@@ -1258,24 +1258,33 @@ fn collect_from_function_call(
     results: &mut Vec<ResolvedSymbol>,
     ctx: &RefCtx,
 ) {
-    let called_id = match &*fc.expression {
-        FunctionCallExpression::MemberAccess(ma) => ma.referenced_declaration,
-        FunctionCallExpression::Identifier(id) => id.referenced_declaration,
-        FunctionCallExpression::FunctionCallOptions(fco) => {
-            resolve_called_id_from_expr(&fco.expression)
+    // Extract the called function ID from the expression and descend into inner
+    // expressions to handle chained calls (e.g. a().b().c()).
+    match &*fc.expression {
+        FunctionCallExpression::MemberAccess(ma) => {
+            if let Some(id) = ma.referenced_declaration {
+                resolve_and_add_symbol(id, seen_ids, results, ctx);
+            }
+            collect_from_expression(&ma.expression, seen_ids, results, ctx);
         }
-        _ => None,
-    };
-    if let Some(id) = called_id {
-        resolve_and_add_symbol(id, seen_ids, results, ctx);
+        FunctionCallExpression::Identifier(id) => {
+            if let Some(ref_id) = id.referenced_declaration {
+                resolve_and_add_symbol(ref_id, seen_ids, results, ctx);
+            }
+        }
+        FunctionCallExpression::FunctionCallOptions(fco) => {
+            if let Some(id) = resolve_called_id_from_expr(&fco.expression) {
+                resolve_and_add_symbol(id, seen_ids, results, ctx);
+            }
+            collect_from_expression(&fco.expression, seen_ids, results, ctx);
+            for opt in &fco.options {
+                collect_from_expression(opt, seen_ids, results, ctx);
+            }
+        }
+        _ => {}
     }
     for arg in &fc.arguments {
         collect_from_expression(arg, seen_ids, results, ctx);
-    }
-    if let FunctionCallExpression::FunctionCallOptions(fco) = &*fc.expression {
-        for opt in &fco.options {
-            collect_from_expression(opt, seen_ids, results, ctx);
-        }
     }
 }
 
@@ -1528,6 +1537,17 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/function-source/expected/run_resolves_cross_file_function_references.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_chained_function_calls() {
+        let output = inspect("ChainedCall", "run").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/function-source/expected/run_resolves_chained_function_calls.txt"
             )
         );
     }

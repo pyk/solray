@@ -14,7 +14,7 @@ contract CrossFileModifierBase {
     }
 
     /// @notice Returns true if the caller is qualified.
-    function _checkQualified() internal view returns (bool) {
+    function _checkQualified() internal pure returns (bool) {
         return true;
     }
 }

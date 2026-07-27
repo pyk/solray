@@ -18,6 +18,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect function-source` now correctly resolves all intermediate
+  calls in chained function-call expressions (e.g. `a().b().c()`). Previously
+  only the outermost call was resolved; calls nested inside `MemberAccess`
+  expressions (such as `.asBoolean()` inside
+  `_reentrancyGuardStorageSlot().asBoolean().tstore(false)`) were silently
+  skipped.
 - `solray inspect function-source` now resolves symbols inside `revert`
   statements (e.g. error definitions referenced from modifier bodies), and
   includes support for `emit`, `try`/`catch`, and `unchecked` blocks. Missing
