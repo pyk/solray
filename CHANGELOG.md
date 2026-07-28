@@ -10,9 +10,20 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Added
 
+- `solray inspect function-source` now supports `--debug` for opt-in resolver
+  tracing, matching the existing flags on `inspect inheritance-graph` and
+  `inspect modifiers`.
+
 ### Changed
 
 ### Fixed
+
+- `solray inspect function-source` now correctly resolves cross-file modifiers
+  after incremental builds. The build-info resolver previously matched
+  artifacts to compilation units by exact file index, which breaks when Foundry
+  reassigns source IDs across recompilations. It now prefers source-path
+  matching so all artifacts from the same source file consistently resolve to
+  the same build-info regardless of file-index drift.
 
 - Error messages across all `inspect` commands now use `solray` instead of the
   stale `hawk` project name. The `function-source` overloaded-function

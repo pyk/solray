@@ -13,6 +13,7 @@ use solc::ast::{
     ContractDefinitionNode, Expression, FunctionCallExpression, FunctionKind, SourceUnit,
     SourceUnitNode, TypeName,
 };
+use tracing::debug;
 
 use crate::artifact_index::ArtifactIndex;
 use crate::build_info::BuildInfo;
@@ -429,6 +430,11 @@ impl FunctionSourceInspector {
             if !seen.insert(file_key) {
                 continue;
             }
+
+            debug!(
+                "[resolve_recursive] processing symbol: {:?} type={} file={:?} offset={}",
+                symbol.symbol, symbol.node_type, symbol.file, symbol.offset
+            );
 
             let artifact_path =
                 find_artifact_for_source(&symbol.file, &self.artifact_index, &self.symbol_index);
@@ -883,13 +889,25 @@ fn resolve_and_add_symbol(
         return;
     }
     if let Some(rs) = resolve_id_in_ast(id, ctx.ast, ctx.source_file) {
+        debug!(
+            "[resolve_and_add_symbol] resolved id={} ({:?}) in current AST",
+            id, rs.node_type
+        );
         results.push(rs);
         return;
     }
     let Some(entry) = ctx.symbol_index.get(ctx.build_info_id, id) else {
+        debug!(
+            "[resolve_and_add_symbol] id={} NOT FOUND in symbol_index (bid={})",
+            id, ctx.build_info_id
+        );
         return;
     };
     let info = ctx.symbol_index.artifact_info(entry.artifact_id);
+    debug!(
+        "[resolve_and_add_symbol] id={} found in symbol_index: name={}, build_info={}, source={:?}, ctx_build_info={}, ctx_source={:?}",
+        id, entry.name, info.build_info_id, info.source_file, ctx.build_info_id, ctx.source_file
+    );
     if info.build_info_id == ctx.build_info_id && info.source_file != *ctx.source_file {
         let symbol = match entry.node_type.as_str() {
             "FunctionDefinition" | "VariableDeclaration" => {
@@ -897,6 +915,10 @@ fn resolve_and_add_symbol(
             }
             _ => entry.name.clone(),
         };
+        debug!(
+            "[resolve_and_add_symbol] adding {} (id={}) from {:?}",
+            symbol, id, info.source_file
+        );
         results.push(ResolvedSymbol {
             symbol,
             file: info.source_file.clone(),
@@ -904,6 +926,11 @@ fn resolve_and_add_symbol(
             length: entry.length,
             node_type: entry.node_type.clone(),
         });
+    } else {
+        debug!(
+            "[resolve_and_add_symbol] SKIPPING id={}: build_info mismatch or same source (info.bid={}, ctx.bid={}, info.src={:?}, ctx.src={:?})",
+            id, info.build_info_id, ctx.build_info_id, info.source_file, ctx.source_file
+        );
     }
 }
 

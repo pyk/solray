@@ -140,6 +140,9 @@ enum InspectSubcommand {
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
+        /// Show debug logs while resolving function source
+        #[arg(long)]
+        debug: bool,
     },
     /// Show the storage layout of a contract
     StorageLayout {
@@ -287,7 +290,15 @@ fn main() -> Result<()> {
                 contract,
                 function,
                 project,
+                debug,
             } => {
+                if debug {
+                    let _ = tracing_subscriber::fmt()
+                        .with_max_level(tracing::Level::DEBUG)
+                        .with_target(true)
+                        .with_writer(std::io::stderr)
+                        .try_init();
+                }
                 let project = Project::open(&project);
                 let inspector = FunctionSourceInspector::inspect_project(project);
                 let id = ArtifactId::new(&contract);
