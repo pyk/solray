@@ -27,7 +27,7 @@ build-fixtures: # Force-rebuild all test fixtures with incremental sources
 	@for d in $(FIXTURE_DIRS); do \
 		if [ "$$(basename $$d)" = "function-source" ]; then \
 			echo "  $$d (incremental)"; \
-			cd "$$d" && forge clean > /dev/null 2>&1; \
+			( cd "$$d" && forge clean > /dev/null 2>&1; \
 			forge build --quiet 2>/dev/null; \
 			echo "// incremental marker" >> src/Incremental.sol; \
 			echo "// incremental marker" >> src/CrossFileModifierUser.sol; \
@@ -38,7 +38,7 @@ build-fixtures: # Force-rebuild all test fixtures with incremental sources
 			head -n -1 src/CrossFileModifierUser.sol > src/CrossFileModifierUser.sol.tmp \
 				&& mv src/CrossFileModifierUser.sol.tmp src/CrossFileModifierUser.sol; \
 			head -n -1 src/CrossFileModifierBase.sol > src/CrossFileModifierBase.sol.tmp \
-				&& mv src/CrossFileModifierBase.sol.tmp src/CrossFileModifierBase.sol; \
+				&& mv src/CrossFileModifierBase.sol.tmp src/CrossFileModifierBase.sol; ) \
 		else \
 			echo "  $$d"; \
 			forge build --root "$$d" --force --quiet || true; \
