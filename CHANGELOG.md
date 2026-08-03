@@ -16,6 +16,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Changed
 
+- Upgraded solc dependency to v0.0.14
+
 ### Fixed
 
 - `solray inspect function-source` now correctly resolves cross-file modifiers
