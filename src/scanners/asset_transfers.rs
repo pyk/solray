@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde::Deserialize;
 use solc::ast::{
     Block, ContractDefinitionNode, Expression, FunctionCall, FunctionCallExpression, FunctionKind,
@@ -201,7 +201,8 @@ fn scan_artifact(
 ) -> Result<Option<Vec<AssetTransfer>>> {
     let artifact_path = artifact_path.as_ref();
     let content = fs::read_to_string(artifact_path)?;
-    let artifact: Artifact = serde_json::from_str(&content)?;
+    let artifact: Artifact = serde_json::from_str(&content)
+        .with_context(|| format!("failed to parse artifact `{}`", artifact_path.display()))?;
 
     let ast = match artifact.ast {
         None => return Ok(None),

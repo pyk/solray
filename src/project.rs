@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Result, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use rayon::prelude::*;
 use serde::Deserialize;
 use solc::ast::{ContractDefinition, ContractKind, SourceUnit, SourceUnitNode};
@@ -236,7 +236,8 @@ fn process_artifact(path: impl AsRef<Path>) -> Result<Option<Declaration>> {
     };
 
     let content = fs::read_to_string(path)?;
-    let artifact: Artifact = serde_json::from_str(&content)?;
+    let artifact: Artifact = serde_json::from_str(&content)
+        .with_context(|| format!("failed to parse artifact `{}`", path.display()))?;
 
     let ast = match artifact.ast {
         None => bail!(

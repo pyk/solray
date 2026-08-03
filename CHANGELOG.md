@@ -30,6 +30,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   suggestions also now wrap function signatures in quotes and strip the
   contract-name prefix for clean, copy-pasteable output.
 
+- `solray scan asset-transfers`, `solray scan erc20-transfer-sink`, and
+  artifact parsing in `Project` now report the artifact path when `solc` AST
+  deserialization fails. Previously parse errors such as
+  `missing field   'eventSelector'` surfaced without any context.
+
 ## [0.4.0] - 2026-07-27
 
 ### Changed
