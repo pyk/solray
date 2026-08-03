@@ -10,6 +10,14 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.5.0] - 2026-08-03
+
+### Added
+
 - `solray inspect function-source` now supports `--debug` for opt-in resolver
   tracing, matching the existing flags on `inspect inheritance-graph` and
   `inspect modifiers`.
@@ -167,7 +175,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - Support for incremental builds, cross-file references, and NatSpec blocks in
   function source resolution
 
-[unreleased]: https://github.com/pyk/solray/compare/v0.4.0...HEAD
+[unreleased]: https://github.com/pyk/solray/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/pyk/solray/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/pyk/solray/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/pyk/solray/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/pyk/solray/compare/v0.1.0...v0.2.0
