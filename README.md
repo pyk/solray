@@ -31,6 +31,9 @@ layouts, and more, without leaving the terminal.
 - **Call path**: show call paths from entry functions to a target function.
 - **Function source**: resolve and display the complete source code of a
   function.
+- **Interface generation**: generate a Solidity interface for any contract,
+  with referenced structs, enums, and user-defined value types resolved
+  inline.
 - **Pattern scanning**: scan the codebase for code patterns.
 
 ## Installation
@@ -73,7 +76,7 @@ extra_output = ["storageLayout"]
 
 ## Usage
 
-Solray has two main commands: `inspect` and `scan`.
+Solray has three main commands: `inspect`, `scan`, and `gen`.
 
 ### `solray inspect`
 
@@ -154,6 +157,19 @@ solray scan asset-transfers
 
 The scan only inspects source files under the project's `src/` directory (as
 configured in `foundry.toml`), excluding test and library code.
+
+### `solray gen`
+
+Generate Solidity source from a contract's artifact.
+
+```bash
+# Generate a Solidity interface for any contract
+solray gen interface <contract>
+```
+
+The generated interface is derived from the contract's ABI, so it includes
+inherited functions and public variable getters. Referenced structs, enums,
+and user-defined value types are declared inside the interface.
 
 ## Library
 

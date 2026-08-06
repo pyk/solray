@@ -15,6 +15,7 @@ use solray::ExternalFunctionInspector;
 use solray::FunctionId;
 use solray::FunctionSourceInspector;
 use solray::InheritanceGraphInspector;
+use solray::InterfaceGenerator;
 use solray::InterfaceInspector;
 use solray::LibraryInspector;
 use solray::ModifierInspector;
@@ -33,6 +34,8 @@ struct Cli {
 enum Command {
     /// Explore contract structure and details
     Inspect(InspectArgs),
+    /// Generate Solidity source from a contract's artifact
+    Gen(GenArgs),
     /// Search for specific code patterns across the codebase
     Scan(ScanArgs),
 }
@@ -41,6 +44,12 @@ enum Command {
 struct ScanArgs {
     #[command(subcommand)]
     subcommand: ScanSubcommand,
+}
+
+#[derive(clap::Args)]
+struct GenArgs {
+    #[command(subcommand)]
+    subcommand: GenSubcommand,
 }
 
 #[derive(clap::Args)]
@@ -171,10 +180,31 @@ enum ScanSubcommand {
     },
 }
 
+#[derive(Subcommand)]
+enum GenSubcommand {
+    /// Generate a Solidity interface for a contract
+    Interface {
+        /// The artifact ID (e.g. Name or File.sol:Name)
+        contract: String,
+        /// Path to the Foundry project
+        #[arg(long, default_value = ".")]
+        project: PathBuf,
+    },
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Command::Gen(args) => match args.subcommand {
+            GenSubcommand::Interface { contract, project } => {
+                let project = Project::open(&project);
+                let generator = InterfaceGenerator::new(project);
+                let id = ArtifactId::new(&contract);
+                let output = generator.generate(&id)?;
+                print!("{output}");
+            }
+        },
         Command::Scan(args) => match args.subcommand {
             ScanSubcommand::Erc20TransferSink { project } => {
                 let project = Project::open(&project);

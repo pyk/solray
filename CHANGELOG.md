@@ -10,6 +10,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Added
 
+- `solray gen interface <contract>` generates a valid Solidity interface for
+  any contract from its ABI, including inherited functions and public variable
+  getters. Structs, enums, and user-defined value types referenced by the
+  functions are resolved inline.
+
 ### Changed
 
 ### Fixed

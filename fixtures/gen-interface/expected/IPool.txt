@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface IPool {
+    type Status is uint8;
+    type Price is uint128;
+
+    struct Deposit {
+        address from;
+        uint256 amount;
+    }
+
+    function applyStatuses(Status[] memory statuses) external pure returns (Status[] memory);
+    function balanceOf(address account) external view returns (uint256);
+    function balances(address) external view returns (uint256);
+    function baseValue() external view returns (uint256);
+    function batch(Deposit[] memory deposits) external returns (uint256);
+    function currentStatus() external view returns (Status);
+    function deposit(Deposit memory deposit) external;
+    function deposit(uint256 amount) external payable;
+    function feeRecipient() external view returns (address payable);
+    function inheritedView(uint256 x) external pure returns (uint256);
+    function listingPrice() external view returns (Price);
+    function onERC721Received(address operator, address from, uint256 tokenId, bytes memory data) external returns (bytes4);
+    function oracle() external view returns (address);
+    function quote(Price price) external pure returns (Price);
+    function setOracle(address newOracle) external;
+    function status() external view returns (Status);
+    function totalSupply() external view returns (uint256);
+    function transfer(address to, uint256 amount) external returns (bool);
+}

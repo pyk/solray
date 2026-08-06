@@ -11,6 +11,8 @@ pub use scanners::erc20_transfer_sink::Erc20TransferSinkScannerOutput;
 pub use call_graph::CallGraph;
 pub use call_graph::CallGraphNode;
 pub use call_graph::FunctionId;
+pub use generators::interface::InterfaceGenerator;
+pub use generators::interface::InterfaceGeneratorOutput;
 pub use inspectors::r#abstract::AbstractInspector;
 pub use inspectors::r#abstract::AbstractInspectorOutput;
 pub use inspectors::artifact_id::ArtifactId;
@@ -45,6 +47,7 @@ pub mod artifact_index;
 pub mod build_info;
 pub mod call_graph;
 
+pub mod generators;
 pub mod inspectors;
 pub mod project;
 pub mod scanners;
