@@ -64,7 +64,6 @@ pub struct ExternalFunctionInspectorOutput {
     pub contract_name: String,
     /// The source file of the queried contract.
     pub source_file: Option<String>,
-    pub include_read_only: bool,
     pub state_changing: Vec<ExternalFunctionInfo>,
     pub callback: Vec<ExternalFunctionInfo>,
     pub special: Vec<ExternalFunctionInfo>,
@@ -75,7 +74,6 @@ impl ExternalFunctionInspectorOutput {
     pub fn new(
         contract_name: &str,
         source_file: Option<String>,
-        include_read_only: bool,
         state_changing: Vec<ExternalFunctionInfo>,
         callback: Vec<ExternalFunctionInfo>,
         special: Vec<ExternalFunctionInfo>,
@@ -84,7 +82,6 @@ impl ExternalFunctionInspectorOutput {
         Self {
             contract_name: contract_name.to_string(),
             source_file,
-            include_read_only,
             state_changing,
             callback,
             special,
@@ -107,36 +104,16 @@ impl std::fmt::Display for ExternalFunctionInspectorOutput {
         writeln!(f)?;
         writeln!(f, "Summary:")?;
         writeln!(f, "- {total} externally callable functions")?;
-        writeln!(
-            f,
-            "- {} state-changing functions",
-            self.state_changing.len()
-        )?;
+        writeln!(f, "- {} mutable functions", self.state_changing.len())?;
+        writeln!(f, "- {} view functions", self.read_only.len())?;
         writeln!(f, "- {} callback functions", self.callback.len())?;
         writeln!(f, "- {} special functions", self.special.len())?;
-        writeln!(f, "- {} read-only functions", self.read_only.len())?;
         writeln!(f)?;
 
-        write_section(f, "STATE-CHANGING FUNCTIONS", &self.state_changing)?;
+        write_section(f, "MUTABLE FUNCTIONS", &self.state_changing)?;
+        write_section(f, "VIEW FUNCTIONS", &self.read_only)?;
         write_section(f, "CALLBACK FUNCTIONS", &self.callback)?;
         write_section(f, "SPECIAL FUNCTIONS", &self.special)?;
-
-        if self.include_read_only {
-            write_section(f, "READ-ONLY FUNCTIONS", &self.read_only)?;
-        } else if !self.read_only.is_empty() {
-            writeln!(f, "READ-ONLY FUNCTIONS")?;
-            writeln!(f)?;
-            writeln!(f, "{} functions hidden.", self.read_only.len())?;
-            writeln!(f)?;
-            writeln!(f, "Run with --include-read-only to show them:")?;
-            writeln!(f)?;
-            writeln!(
-                f,
-                "    solray inspect external-functions {} --include-read-only",
-                self.contract_name
-            )?;
-            writeln!(f)?;
-        }
 
         Ok(())
     }
@@ -196,14 +173,7 @@ impl ExternalFunctionInspector {
     }
 
     /// Inspect the external functions for the given [`ArtifactId`].
-    ///
-    /// When `include_read_only` is `false`, read-only functions are hidden
-    /// behind a summary message.
-    pub fn inspect(
-        &self,
-        id: &ArtifactId,
-        include_read_only: bool,
-    ) -> Result<ExternalFunctionInspectorOutput> {
+    pub fn inspect(&self, id: &ArtifactId) -> Result<ExternalFunctionInspectorOutput> {
         let artifact_path = self.resolve_artifact_path(id)?;
         let contract_name = id.name.clone();
 
@@ -298,7 +268,6 @@ impl ExternalFunctionInspector {
         Ok(ExternalFunctionInspectorOutput::new(
             &contract_name,
             contract_source_file,
-            include_read_only,
             state_changing,
             callback,
             special,
@@ -725,130 +694,105 @@ mod tests {
     fn inspect_shows_external_functions_for_a_unique_contract() {
         let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
         let id = ArtifactId::new("ContractB");
-        let output = inspector.inspect(&id, true).unwrap();
-        let text = output.to_string();
-        assert!(text.contains("Contract: ContractB"));
-        assert!(text.contains("3 externally callable functions"));
-        assert!(text.contains("charge()"));
-        assert!(text.contains("count()"));
-        assert!(text.contains("update(address)"));
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../fixtures/external-functions/expected/inspect_shows_external_functions_for_a_unique_contract.txt"
+            )
+        );
     }
 
     #[test]
     fn inspect_shows_external_functions_for_path_qualified_contract() {
         let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
         let id = ArtifactId::new("Foo.sol:ContractA");
-        let output = inspector.inspect(&id, true).unwrap();
-        let text = output.to_string();
-        assert!(text.contains("Contract: ContractA"));
-        assert!(text.contains("3 externally callable functions"));
-        assert!(text.contains("entrypointOne(string)"));
-        assert!(text.contains("payMe()"));
-        assert!(text.contains("readOnly()"));
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../fixtures/external-functions/expected/inspect_shows_external_functions_for_path_qualified_contract.txt"
+            )
+        );
     }
 
     #[test]
     fn inspect_errors_for_unknown_contract() {
         let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
         let id = ArtifactId::new("Missing");
-        let err = inspector.inspect(&id, true).unwrap_err().to_string();
-        assert_eq!(err, "\"Missing\" not found.");
+        let err = inspector.inspect(&id).unwrap_err().to_string();
+        assert_eq!(
+            err,
+            include_str!(
+                "../../fixtures/external-functions/expected/inspect_errors_for_unknown_contract.txt"
+            )
+            .trim_end()
+        );
     }
 
     #[test]
     fn inspect_lists_direct_receive_and_fallback() {
         let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
         let id = ArtifactId::new("DirectFallback");
-        let output = inspector.inspect(&id, true).unwrap();
-        let text = output.to_string();
-        assert!(text.contains("fallback()"));
-        assert!(text.contains("receive()"));
-        assert!(text.contains("doSomething()"));
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../fixtures/external-functions/expected/inspect_lists_direct_receive_and_fallback.txt"
+            )
+        );
     }
 
     #[test]
     fn inspect_lists_inherited_receive_and_fallback() {
         let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
         let id = ArtifactId::new("ChildIsFallback");
-        let output = inspector.inspect(&id, true).unwrap();
-        let text = output.to_string();
-        assert!(text.contains("fallback()"));
-        assert!(text.contains("receive()"));
-        assert!(text.contains("childFunc()"));
-        assert!(text.contains("parentFunc()"));
-    }
-
-    #[test]
-    fn inspect_shows_non_zero_line_for_fallback_and_receive() {
-        let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
-        let id = ArtifactId::new("DirectFallback");
-        let output = inspector.inspect(&id, true).unwrap();
-        let text = output.to_string();
-        // fallback should show line 9, not 0
-        assert!(text.contains("source: src/DirectFallback.sol:9"));
-        // receive should show line 7, not 0
-        assert!(text.contains("source: src/DirectFallback.sol:7"));
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../fixtures/external-functions/expected/inspect_lists_inherited_receive_and_fallback.txt"
+            )
+        );
     }
 
     #[test]
     fn inspect_classifies_callbacks_with_source() {
         let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
         let id = ArtifactId::new("CallbackReceiver");
-        let output = inspector.inspect(&id, true).unwrap();
-        assert_eq!(output.callback.len(), 2);
-        assert_eq!(output.state_changing.len(), 1);
-        // Callbacks should have source locations.
-        let text = output.to_string();
-        assert!(text.contains("CALLBACK FUNCTIONS"));
-        assert!(text.contains("onERC721Received"));
-        assert!(text.contains("onERC1155Received"));
-        assert!(text.contains("source: src/Callbacks.sol"));
-        assert!(text.contains("2 callback functions"));
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../fixtures/external-functions/expected/inspect_classifies_callbacks_with_source.txt"
+            )
+        );
     }
 
     #[test]
     fn inspect_shows_source_for_inherited_functions() {
         let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
         let id = ArtifactId::new("ViewsChild");
-        let output = inspector.inspect(&id, true).unwrap();
-        assert_eq!(output.read_only.len(), 3);
-        // Inherited view functions should have source from the parent file.
-        let text = output.to_string();
-        assert!(text.contains("source: src/ViewsBase.sol"));
-        assert!(text.contains("active()"));
-        assert!(text.contains("owner()"));
-        assert!(text.contains("value()"));
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../fixtures/external-functions/expected/inspect_shows_source_for_inherited_functions.txt"
+            )
+        );
     }
 
     #[test]
     fn inspect_errors_for_ambiguous_contract() {
         let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
         let id = ArtifactId::new("ContractA");
-        let err = inspector.inspect(&id, true).unwrap_err().to_string();
+        let err = inspector.inspect(&id).unwrap_err().to_string();
         assert_eq!(
             err,
-            "found 2 \"ContractA\"\n\nSelect one of the following:\n\nsolray inspect external-functions Bar.sol:ContractA\nsolray inspect external-functions Foo.sol:ContractA\n"
+            include_str!(
+                "../../fixtures/external-functions/expected/inspect_errors_for_ambiguous_contract.txt"
+            )
         );
-    }
-
-    #[test]
-    fn inspect_hides_read_only_by_default() {
-        let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
-        let id = ArtifactId::new("ContractB");
-        let output = inspector.inspect(&id, false).unwrap();
-        let text = output.to_string();
-        assert!(text.contains("1 functions hidden."));
-        assert!(text.contains("--include-read-only"));
-    }
-
-    #[test]
-    fn classification_with_include_read_only() {
-        let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
-        let id = ArtifactId::new("Foo.sol:ContractA");
-        let output = inspector.inspect(&id, true).unwrap();
-        assert_eq!(output.state_changing.len(), 2);
-        assert_eq!(output.special.len(), 0);
-        assert_eq!(output.read_only.len(), 1);
     }
 
     #[test]

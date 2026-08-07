@@ -1,0 +1,38 @@
+Contract: ChildIsFallback
+File: src/InheritedFallback.sol
+
+Summary:
+- 4 externally callable functions
+- 2 mutable functions
+- 0 view functions
+- 0 callback functions
+- 2 special functions
+
+MUTABLE FUNCTIONS
+
+1. childFunc()
+   source: src/InheritedFallback.sol:13
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+2. parentFunc()
+   source: src/InheritedFallback.sol:5
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+SPECIAL FUNCTIONS
+
+1. fallback()
+   source: src/InheritedFallback.sol:0
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+2. receive()
+   source: src/InheritedFallback.sol:0
+   visibility: external
+   mutability: payable
+   modifiers: none
+

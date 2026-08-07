@@ -17,6 +17,13 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Changed
 
+- `solray inspect external-functions` summary and section labels now use
+  "mutable functions" and "view functions" instead of "state-changing
+  functions" and "read-only functions". Summary order is also updated to list
+  mutable and view counts before callback and special.
+- `solray inspect external-functions` now always shows view and pure functions.
+  The `--include-read-only` flag has been removed.
+
 ### Fixed
 
 ## [0.5.0] - 2026-08-03

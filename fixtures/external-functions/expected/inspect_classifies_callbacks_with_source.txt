@@ -1,0 +1,40 @@
+Contract: CallbackReceiver
+File: src/Callbacks.sol
+
+Summary:
+- 4 externally callable functions
+- 1 mutable functions
+- 1 view functions
+- 2 callback functions
+- 0 special functions
+
+MUTABLE FUNCTIONS
+
+1. doSomething()
+   source: src/Callbacks.sol:5
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+VIEW FUNCTIONS
+
+1. readOnly()
+   source: src/Callbacks.sol:26
+   visibility: external
+   mutability: view
+   modifiers: none
+
+CALLBACK FUNCTIONS
+
+1. onERC1155Received(address,address,uint256,uint256,bytes)
+   source: src/Callbacks.sol:16
+   visibility: external
+   mutability: pure
+   modifiers: none
+
+2. onERC721Received(address,address,uint256,bytes)
+   source: src/Callbacks.sol:7
+   visibility: external
+   mutability: pure
+   modifiers: none
+

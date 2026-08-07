@@ -1,0 +1,32 @@
+Contract: ContractA
+File: src/Foo.sol
+
+Summary:
+- 3 externally callable functions
+- 2 mutable functions
+- 1 view functions
+- 0 callback functions
+- 0 special functions
+
+MUTABLE FUNCTIONS
+
+1. entrypointOne(string)
+   source: src/Foo.sol:5
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+2. payMe()
+   source: src/Foo.sol:7
+   visibility: external
+   mutability: payable
+   modifiers: none
+
+VIEW FUNCTIONS
+
+1. readOnly()
+   source: src/Foo.sol:9
+   visibility: external
+   mutability: pure
+   modifiers: none
+

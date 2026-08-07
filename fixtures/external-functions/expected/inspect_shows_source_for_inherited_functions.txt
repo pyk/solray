@@ -1,0 +1,38 @@
+Contract: ViewsChild
+File: src/ViewsChild.sol
+
+Summary:
+- 4 externally callable functions
+- 1 mutable functions
+- 3 view functions
+- 0 callback functions
+- 0 special functions
+
+MUTABLE FUNCTIONS
+
+1. setValue(uint256)
+   source: src/ViewsChild.sol:7
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+VIEW FUNCTIONS
+
+1. active()
+   source: src/ViewsBase.sol:7
+   visibility: public
+   mutability: view
+   modifiers: none
+
+2. owner()
+   source: src/ViewsBase.sol:6
+   visibility: public
+   mutability: view
+   modifiers: none
+
+3. value()
+   source: src/ViewsBase.sol:5
+   visibility: public
+   mutability: view
+   modifiers: none
+

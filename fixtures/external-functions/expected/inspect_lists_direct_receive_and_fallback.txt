@@ -1,0 +1,32 @@
+Contract: DirectFallback
+File: src/DirectFallback.sol
+
+Summary:
+- 3 externally callable functions
+- 1 mutable functions
+- 0 view functions
+- 0 callback functions
+- 2 special functions
+
+MUTABLE FUNCTIONS
+
+1. doSomething()
+   source: src/DirectFallback.sol:5
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+SPECIAL FUNCTIONS
+
+1. fallback()
+   source: src/DirectFallback.sol:9
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+2. receive()
+   source: src/DirectFallback.sol:7
+   visibility: external
+   mutability: payable
+   modifiers: none
+

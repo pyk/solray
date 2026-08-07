@@ -1,0 +1,32 @@
+Contract: ContractB
+File: src/Baz.sol
+
+Summary:
+- 3 externally callable functions
+- 2 mutable functions
+- 1 view functions
+- 0 callback functions
+- 0 special functions
+
+MUTABLE FUNCTIONS
+
+1. charge()
+   source: src/Baz.sol:7
+   visibility: external
+   mutability: payable
+   modifiers: none
+
+2. update(address)
+   source: src/Baz.sol:5
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+VIEW FUNCTIONS
+
+1. count()
+   source: src/Baz.sol:9
+   visibility: external
+   mutability: view
+   modifiers: none
+

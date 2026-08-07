@@ -102,9 +102,8 @@ solray inspect libraries
 # Show the inheritance graph of a contract
 solray inspect inheritance-graph Token
 
-# List all external functions (use --include-read-only to include view/pure)
-solray inspect external-functions Token
-solray inspect external-functions Token --include-read-only
+	# List all external functions
+	solray inspect external-functions Token
 
 # List all modifiers (including inherited)
 solray inspect modifiers Token
