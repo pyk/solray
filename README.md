@@ -211,8 +211,11 @@ has its own inspector or scanner type:
 ## Development
 
 ```bash
-# Run checks (format, clippy, checkrs, markdown)
-make check
+# Format code
+make fmt
+
+# Run linters (format check, clippy, checkrs)
+make lint
 
 # Run tests
 make test
