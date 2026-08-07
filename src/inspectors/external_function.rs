@@ -528,8 +528,10 @@ struct FullArtifact {
 
 impl FullArtifact {
     fn parse(path: impl AsRef<Path>) -> Result<Self> {
-        let content = fs::read_to_string(path.as_ref())?;
-        Ok(serde_json::from_str(&content)?)
+        let path = path.as_ref();
+        let content = fs::read_to_string(path)?;
+        serde_json::from_str(&content)
+            .with_context(|| format!("failed to parse artifact `{}`", path.display()))
     }
 
     fn source_file(&self, project_root: &Path) -> Option<PathBuf> {

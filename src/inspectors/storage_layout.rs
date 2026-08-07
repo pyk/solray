@@ -205,7 +205,8 @@ struct Artifact {
 fn parse_artifact(path: impl AsRef<Path>) -> Result<Artifact> {
     let path = path.as_ref();
     let content = fs::read_to_string(path)?;
-    Ok(serde_json::from_str(&content)?)
+    serde_json::from_str(&content)
+        .with_context(|| format!("failed to parse artifact `{}`", path.display()))
 }
 
 #[cfg(test)]

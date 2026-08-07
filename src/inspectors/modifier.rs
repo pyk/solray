@@ -258,7 +258,8 @@ impl ResolutionContext {
         let path = artifact_path.as_ref();
         debug!(path = %path.display(), "reading artifact");
         let content = fs::read_to_string(path)?;
-        let artifact: Artifact = serde_json::from_str(&content)?;
+        let artifact: Artifact = serde_json::from_str(&content)
+            .with_context(|| format!("failed to parse artifact `{}`", path.display()))?;
 
         let ast = artifact.ast.with_context(|| {
             format!(

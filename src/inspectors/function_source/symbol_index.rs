@@ -13,7 +13,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use rayon::prelude::*;
 use serde::Deserialize;
 
@@ -281,7 +281,8 @@ struct ArtifactScanResult {
 fn scan_artifact_ids(path: impl AsRef<Path>) -> Result<Option<ArtifactScanResult>> {
     let path = path.as_ref();
     let content = fs::read_to_string(path)?;
-    let artifact: ArtifactSkeleton = serde_json::from_str(&content)?;
+    let artifact: ArtifactSkeleton = serde_json::from_str(&content)
+        .with_context(|| format!("failed to parse artifact `{}`", path.display()))?;
 
     let su = match artifact.ast {
         None => return Ok(None),

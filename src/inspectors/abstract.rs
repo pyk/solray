@@ -235,7 +235,8 @@ fn parse_abstract(path: impl AsRef<Path>, project_root: &Path) -> Result<Option<
     // heavy fields such as bytecode, deployedBytecode, and deep children
     // (function bodies, events, errors) inside contract definitions.
     let content = fs::read_to_string(path)?;
-    let artifact: LightweightArtifact = serde_json::from_str(&content)?;
+    let artifact: LightweightArtifact = serde_json::from_str(&content)
+        .with_context(|| format!("failed to parse artifact `{}`", path.display()))?;
 
     let ast = artifact.ast.with_context(|| {
         format!(

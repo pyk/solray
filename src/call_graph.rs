@@ -7,7 +7,7 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Result, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use solc::ast::{
     ContractDefinition, ContractDefinitionNode, Expression, FunctionCallExpression,
@@ -926,7 +926,8 @@ fn is_in_src_dir(
 fn parse_artifact_functions(path: impl AsRef<Path>) -> Result<Vec<FunctionInfo>> {
     let path = path.as_ref();
     let content = fs::read_to_string(path)?;
-    let artifact: Artifact = serde_json::from_str(&content)?;
+    let artifact: Artifact = serde_json::from_str(&content)
+        .with_context(|| format!("failed to parse artifact `{}`", path.display()))?;
 
     let ast = match artifact.ast {
         None => return Ok(Vec::new()),

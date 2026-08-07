@@ -17,6 +17,7 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Changed
 
+- Upgraded solc dependency to v0.1.0
 - `solray inspect external-functions` summary and section labels now use
   "mutable functions" and "view functions" instead of "state-changing
   functions" and "read-only functions". Summary order is also updated to list
@@ -25,6 +26,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   The `--include-read-only` flag has been removed.
 
 ### Fixed
+
+- Artifact JSON deserialization failures now report the failing artifact path
+  across inspect, gen, call-graph, and function-source paths (for example
+  missing solc AST fields), matching the context already added for scan
+  commands and `Project` parsing.
 
 ## [0.5.0] - 2026-08-03
 

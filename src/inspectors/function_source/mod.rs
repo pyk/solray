@@ -511,8 +511,10 @@ impl FunctionSourceInspector {
 
 /// Parse an artifact JSON file and return its AST.
 fn parse_artifact(path: impl AsRef<Path>) -> Result<Option<SourceUnit>> {
-    let content = fs::read_to_string(path.as_ref())?;
-    let artifact: Artifact = serde_json::from_str(&content)?;
+    let path = path.as_ref();
+    let content = fs::read_to_string(path)?;
+    let artifact: Artifact = serde_json::from_str(&content)
+        .with_context(|| format!("failed to parse artifact `{}`", path.display()))?;
     Ok(artifact.ast)
 }
 
