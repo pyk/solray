@@ -9,6 +9,7 @@
 <p align="center">
   <a href="https://crates.io/crates/solray"><img src="https://img.shields.io/crates/v/solray.svg?colorA=00f&colorB=fff&style=flat&logo=rust" alt="Crates.io"></a>
   <a href="https://crates.io/crates/solray"><img src="https://img.shields.io/crates/d/solray?colorA=00f&colorB=fff&style=flat&logo=rust" alt="Downloads"></a>
+  <a href="https://docs.rs/solray/latest/solray/"><img src="https://img.shields.io/badge/latest-a?colorA=00f&colorB=fff&style=flat&logo=rust&label=docs.rs"></a>
   <a href="/LICENSE"><img src="https://img.shields.io/github/license/pyk/solray?colorA=00f&colorB=fff&style=flat" alt="MIT License"></a>
 </p>
 
