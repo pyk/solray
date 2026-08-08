@@ -103,8 +103,8 @@ solray inspect libraries
 # Show the inheritance graph of a contract
 solray inspect inheritance-graph Token
 
-	# List all external functions
-	solray inspect external-functions Token
+# List all external functions
+solray inspect external-functions Token
 
 # List all modifiers (including inherited)
 solray inspect modifiers Token
