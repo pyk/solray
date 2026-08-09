@@ -114,7 +114,13 @@ impl InheritanceGraphInspector {
 impl ResolutionContext {
     /// Resolve the artifact path when a file is specified.
     fn resolve_with_file(&self, file: &str, name: &str) -> Result<PathBuf> {
-        let artifact_path = self.out_dir.join(file).join(format!("{name}.json"));
+        let direct = self.out_dir.join(file).join(format!("{name}.json"));
+        let artifact_path = if direct.exists() {
+            direct
+        } else {
+            let index = ArtifactIndex::build(&self.out_dir);
+            index.find_by_source_path(file, name).unwrap_or(direct)
+        };
         ensure!(
             artifact_path.exists(),
             "artifact `{}` not found",
@@ -149,24 +155,18 @@ impl ResolutionContext {
         }
     }
 
-    /// Return the artifact path as a `file:name` string for error messages.
+    /// Return the artifact as a `file:name` string for error messages.
     ///
-    /// For an artifact at `out/Foo.sol/Contract.json`, this returns
-    /// `"Foo.sol:Contract"`. For `out/lib/Foo.sol/Contract.json`, this
-    /// returns `"lib/Foo.sol:Contract"`.
+    /// Prefers the AST source path (for example `"src/Foo.sol:Contract"` or
+    /// `"lib/Foo.sol:Contract"`) and falls back to the artifact directory
+    /// relative to `out/` (for example `"Foo.sol:Contract"`).
     fn relative_artifact_path(&self, artifact_path: impl AsRef<Path>) -> String {
         let artifact_path = artifact_path.as_ref();
         let name = artifact_path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("");
-        let file = artifact_path
-            .strip_prefix(&self.out_dir)
-            .unwrap_or(artifact_path)
-            .parent()
-            .and_then(|p| p.to_str())
-            .unwrap_or("");
-        format!("{file}:{name}")
+        ArtifactIndex::qualified_name(artifact_path, name)
     }
 
     /// Build the full inheritance tree rooted at the given artifact.
@@ -446,7 +446,7 @@ mod tests {
         let err = inspector.inspect(&id).unwrap_err().to_string();
         assert_eq!(
             err,
-            "found 2 \"Dupe\"\n\nSelect one of the following:\n\nsolray inspect inheritance-graph Dupe.sol:Dupe\nsolray inspect inheritance-graph lib/Dupe.sol:Dupe\n"
+            "found 2 \"Dupe\"\n\nSelect one of the following:\n\nsolray inspect inheritance-graph src/Dupe.sol:Dupe\nsolray inspect inheritance-graph src/lib/Dupe.sol:Dupe\n"
         );
     }
 

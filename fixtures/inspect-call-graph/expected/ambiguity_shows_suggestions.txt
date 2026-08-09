@@ -2,5 +2,5 @@ found 2 "Dupe"
 
 Select one of the following:
 
-solray inspect call-graph Dupe.sol:Dupe someFunction
-solray inspect call-graph lib/Dupe.sol:Dupe someFunction
+solray inspect call-graph src/Dupe.sol:Dupe someFunction
+solray inspect call-graph src/lib/Dupe.sol:Dupe someFunction

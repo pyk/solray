@@ -375,7 +375,6 @@ impl CallGraph {
             if let Some(candidates) = ambiguity_candidates {
                 bail!(format_ambiguity_error(
                     candidates,
-                    self.project.out_dir(),
                     id.artifact_id().name.as_str(),
                     raw_target,
                 ));
@@ -643,12 +642,14 @@ impl CallGraph {
     fn resolve_artifact_path(&self, id: &ArtifactId) -> ResolvedPath {
         match &id.file {
             Some(file) => {
-                let path = self
+                let direct = self
                     .project
                     .out_dir()
                     .join(file)
                     .join(format!("{}.json", id.name));
-                if path.exists() {
+                if direct.exists() {
+                    ResolvedPath::Single(direct)
+                } else if let Some(path) = self.artifact_index.find_by_source_path(file, &id.name) {
                     ResolvedPath::Single(path)
                 } else {
                     ResolvedPath::NotFound
@@ -1389,11 +1390,9 @@ fn is_low_level_call(member_name: &str) -> bool {
 /// Format an ambiguity error message for call-graph resolution.
 fn format_ambiguity_error(
     candidates: &[PathBuf],
-    out_dir: impl AsRef<Path>,
     contract_name: &str,
     function_name: &str,
 ) -> String {
-    let out_dir = out_dir.as_ref();
     let mut sorted = candidates.to_vec();
     sorted.sort();
 
@@ -1403,11 +1402,10 @@ fn format_ambiguity_error(
         contract_name
     );
     for candidate in &sorted {
-        let rel = candidate.strip_prefix(out_dir).unwrap_or(candidate);
-        let parent = rel.parent().and_then(|p| p.to_str()).unwrap_or("");
+        let qualified = ArtifactIndex::qualified_name(candidate, contract_name);
         msg.push_str(&format!(
-            "\nsolray inspect call-graph {}:{} {}",
-            parent, contract_name, function_name
+            "\nsolray inspect call-graph {qualified} {}",
+            function_name
         ));
     }
     msg.push('\n');

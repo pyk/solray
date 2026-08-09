@@ -93,13 +93,20 @@ impl InterfaceGenerator {
     fn resolve_artifact_path(&self, id: &ArtifactId) -> Result<PathBuf> {
         match &id.file {
             Some(file) => {
-                let path = self
+                let direct = self
                     .project
                     .out_dir()
                     .join(file)
                     .join(format!("{}.json", id.name));
-                ensure!(path.exists(), "\"{}\" not found.", id.name);
-                Ok(path)
+                if direct.exists() {
+                    return Ok(direct);
+                }
+                let index = ArtifactIndex::build(self.project.out_dir());
+                if let Some(path) = index.find_by_source_path(file, &id.name) {
+                    return Ok(path);
+                }
+                ensure!(direct.exists(), "\"{}\" not found.", id.name);
+                Ok(direct)
             }
             None => {
                 let index = ArtifactIndex::build(self.project.out_dir());
@@ -113,10 +120,7 @@ impl InterfaceGenerator {
                             .context("expected one candidate but got none")?;
                         Ok(path)
                     }
-                    _ => bail!(
-                        "{}",
-                        format_ambiguity_error(&candidates, self.project.out_dir(), &id.name)
-                    ),
+                    _ => bail!("{}", format_ambiguity_error(&candidates, &id.name)),
                 }
             }
         }
@@ -408,12 +412,7 @@ fn mutability_suffix(mutability: &StateMutability) -> &'static str {
 }
 
 /// Format an ambiguity error message listing the artifact candidates.
-fn format_ambiguity_error(
-    candidates: &[PathBuf],
-    out_dir: impl AsRef<Path>,
-    contract_name: &str,
-) -> String {
-    let out_dir = out_dir.as_ref();
+fn format_ambiguity_error(candidates: &[PathBuf], contract_name: &str) -> String {
     let mut sorted = candidates.to_vec();
     sorted.sort();
 
@@ -423,9 +422,8 @@ fn format_ambiguity_error(
         contract_name
     );
     for candidate in &sorted {
-        let rel = candidate.strip_prefix(out_dir).unwrap_or(candidate);
-        let parent = rel.parent().and_then(|p| p.to_str()).unwrap_or("");
-        msg.push_str(&format!("\nsolray gen interface {parent}:{contract_name}"));
+        let qualified = ArtifactIndex::qualified_name(candidate, contract_name);
+        msg.push_str(&format!("\nsolray gen interface {qualified}"));
     }
     msg.push('\n');
     msg
@@ -502,8 +500,8 @@ mod tests {
         assert_eq!(
             err,
             "found 2 \"Dupe\"\n\nSelect one of the following:\n\n\
-             solray gen interface Dupe.sol:Dupe\n\
-             solray gen interface lib/Dupe.sol:Dupe\n"
+             solray gen interface src/Dupe.sol:Dupe\n\
+             solray gen interface src/lib/Dupe.sol:Dupe\n"
         );
     }
 }

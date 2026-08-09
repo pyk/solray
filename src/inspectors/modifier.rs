@@ -140,13 +140,20 @@ impl ModifierInspector {
     fn resolve_artifact_path(&self, id: &ArtifactId) -> Result<PathBuf> {
         match &id.file {
             Some(file) => {
-                let path = self
+                let direct = self
                     .project
                     .out_dir()
                     .join(file)
                     .join(format!("{}.json", id.name));
-                ensure!(path.exists(), "artifact `{}` not found", path.display());
-                Ok(path)
+                if direct.exists() {
+                    return Ok(direct);
+                }
+                let index = ArtifactIndex::build(self.project.out_dir());
+                if let Some(path) = index.find_by_source_path(file, &id.name) {
+                    return Ok(path);
+                }
+                ensure!(direct.exists(), "artifact `{}` not found", direct.display());
+                Ok(direct)
             }
             None => {
                 let index = ArtifactIndex::build(self.project.out_dir());
@@ -169,15 +176,8 @@ impl ModifierInspector {
                             id.name
                         );
                         for candidate in &sorted {
-                            let parent = candidate
-                                .parent()
-                                .and_then(|p| p.file_name())
-                                .and_then(|n| n.to_str())
-                                .unwrap_or("");
-                            msg.push_str(&format!(
-                                "\nsolray inspect modifiers {parent}:{}",
-                                id.name
-                            ));
+                            let qualified = ArtifactIndex::qualified_name(candidate, &id.name);
+                            msg.push_str(&format!("\nsolray inspect modifiers {qualified}"));
                         }
                         msg.push('\n');
                         bail!(msg);

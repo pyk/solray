@@ -142,11 +142,17 @@ impl StorageLayoutInspector {
 
     /// Load the storage layout from a specific artifact path.
     fn load_with_file(&self, file: &str, name: &str) -> Result<StorageLayout> {
-        let artifact_path = self
+        let direct = self
             .project
             .out_dir()
             .join(file)
             .join(format!("{name}.json"));
+        let artifact_path = if direct.exists() {
+            direct
+        } else {
+            let index = ArtifactIndex::build(self.project.out_dir());
+            index.find_by_source_path(file, name).unwrap_or(direct)
+        };
 
         let artifact = parse_artifact(&artifact_path)?;
         artifact.storage_layout.with_context(|| {
@@ -181,12 +187,8 @@ impl StorageLayoutInspector {
 
                 let mut msg = format!("found {n} \"{name}\"\n\nSelect one of the following:\n");
                 for candidate in &sorted {
-                    let parent = candidate
-                        .parent()
-                        .and_then(|p| p.file_name())
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("");
-                    msg.push_str(&format!("\nsolray inspect storage-layout {parent}:{name}"));
+                    let qualified = ArtifactIndex::qualified_name(candidate, name);
+                    msg.push_str(&format!("\nsolray inspect storage-layout {qualified}"));
                 }
                 msg.push('\n');
                 bail!(msg);
@@ -255,7 +257,7 @@ mod tests {
         let err = inspector.inspect(&id).unwrap_err().to_string();
         assert_eq!(
             err,
-            "found 2 \"ContractA\"\n\nSelect one of the following:\n\nsolray inspect storage-layout Bar.sol:ContractA\nsolray inspect storage-layout Foo.sol:ContractA\n"
+            "found 2 \"ContractA\"\n\nSelect one of the following:\n\nsolray inspect storage-layout src/Bar.sol:ContractA\nsolray inspect storage-layout src/Foo.sol:ContractA\n"
         );
     }
 

@@ -296,11 +296,18 @@ impl FunctionSourceInspector {
     ) -> Result<FunctionSourceInspectorOutput> {
         let artifact_paths = match &id.file {
             Some(file) => {
-                let artifact_path = self
+                let direct = self
                     .project
                     .out_dir()
                     .join(file)
                     .join(format!("{}.json", id.name));
+                let artifact_path = if direct.exists() {
+                    direct
+                } else {
+                    self.artifact_index
+                        .find_by_source_path(file, &id.name)
+                        .unwrap_or(direct)
+                };
                 ensure!(artifact_path.exists(), "\"{}\" not found.", id.name);
                 vec![artifact_path]
             }
@@ -322,14 +329,9 @@ impl FunctionSourceInspector {
                             n, id.name
                         );
                         for candidate in &sorted {
-                            let parent = candidate
-                                .parent()
-                                .and_then(|p| p.file_name())
-                                .and_then(|n| n.to_str())
-                                .unwrap_or("");
+                            let qualified = ArtifactIndex::qualified_name(candidate, &id.name);
                             msg.push_str(&format!(
-                                "\nsolray inspect function-source {parent}:{id_name} \"{function_name}\"",
-                                id_name = id.name
+                                "\nsolray inspect function-source {qualified} \"{function_name}\""
                             ));
                         }
                         msg.push('\n');

@@ -2,5 +2,5 @@ found 2 "ContractA"
 
 Select one of the following:
 
-solray inspect external-functions Bar.sol:ContractA
-solray inspect external-functions Foo.sol:ContractA
+solray inspect external-functions src/Bar.sol:ContractA
+solray inspect external-functions src/Foo.sol:ContractA

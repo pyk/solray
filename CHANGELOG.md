@@ -82,6 +82,14 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   (ABI `internalType`/AST `typeString`) instead of parameter count, so
   same-arity overloads with different types resolve correctly. Added an
   overloaded-function regression fixture.
+- `solray inspect external-functions`, `solray inspect modifiers`,
+  `solray inspect storage-layout`, `solray inspect function-source`,
+  `solray inspect call-graph`, `solray inspect inheritance-graph`, and
+  `solray gen interface` now show the artifact's AST source path in ambiguity
+  suggestions (for example `src/IERC20.sol:IERC20` instead of
+  `IERC20.sol:IERC20`), and file-qualified IDs accept those source paths.
+  Previously import-only artifacts with no contract declaration produced
+  identical suggestions that could not be used to disambiguate.
 
 ## [0.6.0] - 2026-08-08
 

@@ -287,14 +287,25 @@ impl ExternalFunctionInspector {
     /// Resolve the artifact path for an `ArtifactId`.
     fn resolve_artifact_path(&self, id: &ArtifactId) -> Result<PathBuf> {
         match &id.file {
-            Some(file) => Ok(self
-                .project
-                .out_dir()
-                .join(file)
-                .join(format!("{}.json", id.name))),
+            Some(file) => {
+                let direct = self
+                    .project
+                    .out_dir()
+                    .join(file)
+                    .join(format!("{}.json", id.name));
+                if direct.exists() {
+                    return Ok(direct);
+                }
+                let index = ArtifactIndex::build(self.project.out_dir());
+                match index.find_by_source_path(file, &id.name) {
+                    Some(path) => Ok(path),
+                    None => Ok(direct),
+                }
+            }
             None => {
                 let index = ArtifactIndex::build(self.project.out_dir());
                 let candidates = index.get(&id.name).cloned().unwrap_or_default();
+                debug!(name = %id.name, candidates = ?candidates, "looked up root artifact candidates");
                 match candidates.len() {
                     0 => bail!("\"{}\" not found.", id.name),
                     1 => {
@@ -312,14 +323,9 @@ impl ExternalFunctionInspector {
                             id.name
                         );
                         for candidate in &sorted {
-                            let parent = candidate
-                                .parent()
-                                .and_then(|p| p.file_name())
-                                .and_then(|n| n.to_str())
-                                .unwrap_or("");
+                            let qualified = ArtifactIndex::qualified_name(candidate, &id.name);
                             msg.push_str(&format!(
-                                "\nsolray inspect external-functions {parent}:{}",
-                                id.name
+                                "\nsolray inspect external-functions {qualified}"
                             ));
                         }
                         msg.push('\n');
@@ -870,6 +876,19 @@ mod tests {
             err,
             include_str!(
                 "../../fixtures/inspect-external-functions/expected/inspect_errors_for_ambiguous_contract.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_suggests_source_paths_for_ambiguous_contract() {
+        let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("IERC20");
+        let err = inspector.inspect(&id).unwrap_err().to_string();
+        assert_eq!(
+            err,
+            include_str!(
+                "../../fixtures/inspect-external-functions/expected/inspect_suggests_source_paths_for_ambiguous_contract.txt"
             )
         );
     }
