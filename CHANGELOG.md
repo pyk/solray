@@ -64,6 +64,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   so call-graph lookup by `"constructor"` previously failed and call-path
   rendered constructor roots as `Contract::`. Added constructor regression
   fixtures to both test suites.
+- `solray inspect call-graph`, `solray inspect call-path`, and
+  `solray inspect function-source` now resolve public state-variable getters
+  such as `project()` from the artifact ABI. Previously only
+  `FunctionDefinition` AST nodes were collected, so getters failed with
+  `"not found"`. Added getter regression fixtures to all three test suites.
 
 ## [0.6.0] - 2026-08-08
 

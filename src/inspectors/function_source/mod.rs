@@ -11,7 +11,7 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use solc::ast::{
     ContractDefinition, ContractDefinitionNode, ContractKind, Expression, FunctionCallExpression,
-    FunctionKind, SourceUnit, SourceUnitNode, TypeName,
+    FunctionKind, SourceUnit, SourceUnitNode, TypeName, Visibility,
 };
 use tracing::debug;
 
@@ -744,6 +744,20 @@ fn extract_function_symbols(
                         node_type: "FunctionDefinition".into(),
                     });
                 }
+                if let ContractDefinitionNode::VariableDeclaration(vd) = inner
+                    && vd.visibility == Visibility::Public
+                    && vd.name == function_name
+                {
+                    let sig = format!("{}.{}", contract_name, vd.name);
+                    let sig_key = sig.clone(); // checkrs: allow(clone_in_loops)
+                    out.entry(sig_key).or_insert(ResolvedSymbol {
+                        symbol: sig,
+                        file: source_file.clone(),
+                        offset: vd.src.offset,
+                        length: vd.src.length,
+                        node_type: "VariableDeclaration".into(),
+                    });
+                }
             }
         }
     }
@@ -772,6 +786,11 @@ fn collect_contract_functions(
                         continue;
                     }
                     out.push(function_name_for_display(&fd.kind, &fd.name).to_string());
+                }
+                if let ContractDefinitionNode::VariableDeclaration(vd) = inner
+                    && vd.visibility == Visibility::Public
+                {
+                    out.push(vd.name.clone()); // checkrs: allow(clone_in_loops)
                 }
             }
         }
@@ -1901,6 +1920,17 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_resolves_interface_types_through_type_conversion.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_shows_source_for_public_getter() {
+        let output = inspect("Getter", "project").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_shows_source_for_public_getter.txt"
             )
         );
     }

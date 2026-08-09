@@ -1,0 +1,3 @@
+Call graph:
+
+Getter.project() (public) (src/Getter.sol:5)

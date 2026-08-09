@@ -419,4 +419,17 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn call_path_for_public_getter() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("Getter", "project");
+        let output = inspector.inspect(&id, "project").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_for_public_getter.txt"
+            )
+        );
+    }
 }

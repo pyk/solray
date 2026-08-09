@@ -1,0 +1,14 @@
+## Call Paths
+
+Target: `project`
+Source: `src/Getter.sol:5`
+
+1 paths found.
+
+### Path 1
+
+```
+Getter.project
+src/Getter.sol:5
+```
+

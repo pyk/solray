@@ -10,9 +10,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use solc::ast::{
-    ContractDefinition, ContractDefinitionNode, Expression, FunctionCallExpression,
-    FunctionDefinition, FunctionKind, SourceUnit, SourceUnitNode, TypeName, VariableDeclaration,
-    Visibility,
+    Block, ContractDefinition, ContractDefinitionNode, Expression, FunctionCallExpression,
+    FunctionKind, SourceUnit, SourceUnitNode, TypeName, VariableDeclaration, Visibility,
 };
 use tracing::debug;
 
@@ -255,7 +254,10 @@ struct FunctionInfo {
     file: PathBuf,
     parameters: Vec<VariableDeclaration>,
     visibility: Visibility,
-    definition: FunctionDefinition,
+    kind: FunctionKind,
+    src_offset: usize,
+    src_length: usize,
+    body: Option<Block>,
 }
 
 /// A parsed function target, either a bare name or a `name(params)` signature.
@@ -518,7 +520,7 @@ impl CallGraph {
                     .find(|fi| function_matches_target(fi, &target))
             {
                 target_file = fi.file.clone(); // checkrs: allow(clone_in_loops)
-                target_src = format!("{}:{}", fi.definition.src.offset, fi.definition.src.length);
+                target_src = format!("{}:{}", fi.src_offset, fi.src_length);
                 target_found = true;
             }
         }
@@ -675,10 +677,7 @@ impl CallGraph {
             let info = &functions[&func_id];
             let sig = build_signature(info);
             let vis = visibility_str(&info.visibility);
-            let src = format!(
-                "{}:{}",
-                info.definition.src.offset, info.definition.src.length
-            );
+            let src = format!("{}:{}", info.src_offset, info.src_length);
             return Ok(CallGraphNode::new(
                 &sig,
                 &info.contract_name,
@@ -691,7 +690,7 @@ impl CallGraph {
 
         let body_stmts = functions
             .get(&func_id)
-            .and_then(|fi| fi.definition.body.as_ref().map(|b| b.statements.clone())); // checkrs: allow(clone_in_iterator)
+            .and_then(|fi| fi.body.as_ref().map(|b| b.statements.clone())); // checkrs: allow(clone_in_iterator)
 
         let children = if let Some(stmts) = body_stmts {
             self.collect_calls(stmts, cache, functions, visited)?
@@ -702,10 +701,7 @@ impl CallGraph {
         let info = &functions[&func_id];
         let sig = build_signature(info);
         let vis = visibility_str(&info.visibility);
-        let src = format!(
-            "{}:{}",
-            info.definition.src.offset, info.definition.src.length
-        );
+        let src = format!("{}:{}", info.src_offset, info.src_length);
 
         Ok(CallGraphNode::new(
             &sig,
@@ -1046,7 +1042,7 @@ fn select_target_function<'a>(
         (
             fi.contract_name != preferred_contract,
             fi.contract_name.as_str(),
-            fi.definition.src.offset,
+            fi.src_offset,
             fi.id,
         )
     })
@@ -1142,19 +1138,36 @@ fn extract_contract_functions(cd: ContractDefinition, source_file: &Path) -> Vec
     let file = source_file.to_path_buf();
     cd.nodes
         .into_iter()
-        .filter_map(|inner| {
-            let ContractDefinitionNode::FunctionDefinition(fd) = inner else {
-                return None;
-            };
-            Some(FunctionInfo {
+        .filter_map(|inner| match inner {
+            ContractDefinitionNode::FunctionDefinition(fd) => Some(FunctionInfo {
                 id: fd.id,
                 name: function_name_for_display(&fd.kind, &fd.name).to_string(),
                 contract_name: contract_name.clone(),
                 file: file.clone(),
                 parameters: fd.parameters.parameters.clone(),
                 visibility: fd.visibility.clone(),
-                definition: fd,
-            })
+                kind: fd.kind.clone(),
+                src_offset: fd.src.offset,
+                src_length: fd.src.length,
+                body: fd.body,
+            }),
+            ContractDefinitionNode::VariableDeclaration(vd)
+                if vd.visibility == Visibility::Public =>
+            {
+                Some(FunctionInfo {
+                    id: vd.id,
+                    name: vd.name.clone(),
+                    contract_name: contract_name.clone(),
+                    file: file.clone(),
+                    parameters: Vec::new(),
+                    visibility: Visibility::Public,
+                    kind: FunctionKind::Function,
+                    src_offset: vd.src.offset,
+                    src_length: vd.src.length,
+                    body: None,
+                })
+            }
+            _ => None,
         })
         .collect()
 }
@@ -1169,7 +1182,7 @@ fn function_name_for_display<'a>(kind: &FunctionKind, name: &'a str) -> &'a str 
 }
 
 fn build_signature(info: &FunctionInfo) -> String {
-    let name = function_name_for_display(&info.definition.kind, &info.name);
+    let name = function_name_for_display(&info.kind, &info.name);
     format!(
         "{}::{}({})",
         info.contract_name,
