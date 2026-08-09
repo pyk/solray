@@ -216,6 +216,20 @@ mod tests {
     }
 
     #[test]
+    fn call_graph_errors_for_unrelated_interface_function() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("Unrelated", "transfer");
+        let err = inspector.inspect(&id).unwrap_err().to_string();
+        assert_eq!(
+            err,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_errors_for_unrelated_interface_function.txt"
+            )
+            .trim_end()
+        );
+    }
+
+    #[test]
     fn ambiguity_shows_suggestions() {
         let inspector = CallGraphInspector::new(fixture_ambiguous_project());
         let id = make_id("Dupe", "someFunction");

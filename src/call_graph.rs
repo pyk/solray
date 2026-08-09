@@ -355,7 +355,12 @@ impl CallGraph {
 
         let cache: RefCell<HashMap<PathBuf, Vec<FunctionInfo>>> = RefCell::new(HashMap::new());
         let mut functions: HashMap<i64, FunctionInfo> = HashMap::new();
-        load_artifact_functions(&artifact_path, &mut functions, &cache)?;
+        load_contract_functions(
+            &artifact_path,
+            &id.artifact_id().name,
+            &mut functions,
+            &cache,
+        )?;
         self.load_inherited_functions(
             &artifact_path,
             id.artifact_id().name.as_str(),
@@ -603,7 +608,12 @@ impl CallGraph {
                     {
                         let info = self.symbol_index.artifact_info(entry.artifact_id);
                         if info.build_info_id == build_info_id {
-                            load_artifact_functions(&info.artifact_path, functions, cache)?;
+                            load_contract_functions(
+                                &info.artifact_path,
+                                &entry.name,
+                                functions,
+                                cache,
+                            )?;
                             self.load_inherited_functions_recursive(
                                 &info.artifact_path,
                                 &entry.name,
@@ -1186,6 +1196,42 @@ fn load_artifact_functions(
         cache.borrow_mut().insert(path.to_path_buf(), funcs.clone());
         for fi in funcs {
             functions.insert(fi.id, fi);
+        }
+    }
+    Ok(())
+}
+
+/// Load only the named contract's own functions from an artifact.
+///
+/// Flattened artifacts contain multiple contracts in one file; loading all of
+/// them makes unrelated interface declarations appear as target candidates.
+fn load_contract_functions(
+    path: impl AsRef<Path>,
+    contract_name: &str,
+    functions: &mut HashMap<i64, FunctionInfo>,
+    cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
+) -> Result<()> {
+    let path = path.as_ref();
+    {
+        let cache_ref = cache.borrow();
+        if let Some(cached) = cache_ref.get(path) {
+            for fi in cached {
+                if fi.contract_name == contract_name {
+                    functions.insert(fi.id, fi.clone());
+                }
+            }
+            return Ok(());
+        }
+    }
+
+    let funcs = parse_artifact_functions(path)?;
+
+    if !funcs.is_empty() {
+        cache.borrow_mut().insert(path.to_path_buf(), funcs.clone());
+        for fi in funcs {
+            if fi.contract_name == contract_name {
+                functions.insert(fi.id, fi);
+            }
         }
     }
     Ok(())
