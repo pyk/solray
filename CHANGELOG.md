@@ -10,124 +10,62 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Added
 
-- `solray inspect call-graph`, `solray inspect call-path`, and
-  `solray inspect external-functions` now support `--debug` for resolution
-  tracing.
-- `solray scan erc20-transfer-sink` now supports `--debug` for scan tracing.
-- `solray scan asset-transfers` now supports `--debug` for scan tracing.
+- `solray inspect call-graph`, `call-path`, and `external-functions` support
+  `--debug` resolution tracing.
+- `solray scan erc20-transfer-sink` supports `--debug` scan tracing.
+- `solray scan asset-transfers` supports `--debug` scan tracing.
 
 ### Changed
 
-- `make build-fixtures` now runs `forge clean` for every fixture project before
-  rebuilding, so local and CI artifact states are always deterministic.
-- `solray inspect call-path` now renders function paths with dot notation
-  (`Lpd.transfer`) to match `solray inspect call-graph`.
+- `make build-fixtures` runs `forge clean` before rebuilding fixtures for
+  deterministic artifacts.
+- `solray inspect call-path` renders paths with dot notation (`Lpd.transfer`).
 
 ### Fixed
 
-- `solray inspect external-functions` now deterministically resolves inherited
-  functions and public getters to the implementing contract's declaration
-  instead of an interface declaration with the same name. Previously the
-  fallback selected from `HashMap` iteration order, so flattened projects that
-  declared interfaces and implementations in one file reported nondeterministic
-  source lines. Added a flattened override regression fixture.
-- `solray inspect call-graph` now resolves inherited overridden functions to
-  the implementing base contract instead of an interface declaration when the
-  queried contract does not redeclare the function. Previously the target
-  selector picked the lexicographically smallest contract name among inherited
-  declarations, so flattened projects such as `PancakePair` resolved ERC-20
-  functions to `IERC20`/`IPancakeERC20` even though `PancakeERC20` implements
-  them. Added a flattened inherited-override regression fixture.
-- `solray inspect` commands now ignore import-only artifacts (files that only
-  re-export a contract from another file). Previously those artifacts were
-  indexed by file name even though their AST declared nothing, so plain-name
-  lookups such as `IERC20` failed with an ambiguity error when a project also
-  contained the real declaration.
-- `solray inspect function-source` now resolves interface function declarations
-  as inspection roots (for example `IERC20 transfer`), instead of reporting
-  them as not found.
-- `solray gen interface` now emits real `enum` declarations with their original
-  members for enums referenced by the ABI, instead of converting them to
-  user-defined value types such as `type OrderStatus is uint8;`. The generated
-  interface now preserves enum member names and matches the source contract's
-  types.
-- `solray inspect function-source` no longer leaks unrelated declarations into
-  resolved output after incremental builds. The build-info resolver previously
-  matched artifacts by source path alone, so a recompiled file could be scoped
-  to an older compilation unit when build-info files were discovered in a
-  different order. It now prefers the exact file-index match, which is
-  deterministic and keeps each artifact in its own node-ID namespace.
-- `solray inspect function-source` now resolves source ranges correctly in
-  projects with CRLF line endings. Previously it sliced raw CRLF source bytes
-  with LF-normalized solc AST offsets, so function and symbol blocks were
-  truncated or misaligned. Added a CRLF regression fixture to the
-  `function-source` test suite.
-- `solray inspect function-source`, `solray inspect call-graph`, and
-  `solray inspect call-path` now resolve functions inherited from base
-  contracts defined in other source files. Previously only the queried
-  contract's own artifact AST was searched, so inherited functions such as
-  OpenZeppelin's `owner` failed with `"not found"`.
-- `solray inspect function-source` now labels abstract contracts as "Abstract
-  Contract" instead of "Interface"; interfaces and libraries keep their own
-  headings.
-- `solray inspect function-source` no longer lists inherited constructors,
-  `receive`, or `fallback` functions when resolving a derived contract.
-- `solray inspect external-functions`, `solray inspect call-graph`, and
-  `solray inspect call-path` now report correct source line numbers for
-  projects with CRLF line endings. Previously the line helpers read raw CRLF
-  bytes while solc AST offsets are LF-normalized, so functions were reported
-  several lines early. Added CRLF regression fixtures to all three test suites.
-- `solray inspect call-graph` now deterministically resolves overridden
-  functions to the queried contract's own declaration instead of an inherited
-  interface with the same name. Previously the matching declaration was picked
-  from HashMap iteration order, so ERC-20 functions such as `transfer`, `name`,
-  and `decimals` could resolve to `IERC20`/`IERC20Metadata`. Added an
-  override-preference regression fixture.
-- `solray inspect call-path` now resolves overridden functions to the queried
-  contract's own declaration instead of counting inherited interface
-  declarations as overloads. Full signatures such as
-  `_approve(address,address,uint256)` are now accepted to disambiguate genuine
-  overloads, and `solray inspect call-graph` accepts the same syntax. Added
-  call-path and call-graph regression fixtures.
-- `solray inspect call-graph` and `solray inspect call-path` now name
-  constructors correctly. Solidity constructor AST nodes have an empty `name`,
-  so call-graph lookup by `"constructor"` previously failed and call-path
-  rendered constructor roots as `Contract::`. Added constructor regression
-  fixtures to both test suites.
-- `solray inspect call-graph`, `solray inspect call-path`, and
-  `solray inspect function-source` now resolve public state-variable getters
-  such as `project()` from the artifact ABI. Previously only
-  `FunctionDefinition` AST nodes were collected, so getters failed with
-  `"not found"`. Added getter regression fixtures to all three test suites.
-- `solray inspect call-graph` and `solray inspect call-path` now expand calls
-  made through modifiers and base constructors. Previously the call traversal
-  only walked function bodies, so `onlyOwner` calls such as `_checkOwner` and
-  base constructor calls such as `Ownable(_r)` were missing. Added modifier and
-  base-constructor regression fixtures to the call-graph test suite.
-- `solray inspect external-functions` now reports the correct source line for
-  every overload instead of mapping all overloads to the first declaration.
-  Function overloads are matched by their full normalized parameter signature
-  (ABI `internalType`/AST `typeString`) instead of parameter count, so
-  same-arity overloads with different types resolve correctly. Added an
-  overloaded-function regression fixture.
-- `solray inspect external-functions`, `solray inspect modifiers`,
-  `solray inspect storage-layout`, `solray inspect function-source`,
-  `solray inspect call-graph`, `solray inspect inheritance-graph`, and
-  `solray gen interface` now show the artifact's AST source path in ambiguity
-  suggestions (for example `src/IERC20.sol:IERC20` instead of
-  `IERC20.sol:IERC20`), and file-qualified IDs accept those source paths.
-  Previously import-only artifacts with no contract declaration produced
-  identical suggestions that could not be used to disambiguate.
-- `solray scan erc20-transfer-sink` now reports correct transfer expressions
-  and source lines in projects with CRLF line endings. Previously it sliced raw
-  CRLF source bytes with LF-normalized solc AST offsets, so every snippet and
-  line number was shifted. Added a CRLF regression source to the
-  `scan-erc20-transfer-sinks` fixture suite.
-- `solray scan asset-transfers` now reports correct transfer expressions and
-  source lines in projects with CRLF line endings. Previously it sliced raw
-  CRLF source bytes with LF-normalized solc AST offsets, so every expression
-  and line number was shifted. Added a CRLF regression source to the
-  `scan-asset-transfers` fixture suite.
+- `solray inspect external-functions` resolves inherited functions and getters
+  to the implementing contract instead of an interface, with deterministic
+  selection for flattened projects.
+- `solray inspect call-graph` resolves inherited overridden functions to the
+  implementing base contract instead of an interface when the queried contract
+  does not redeclare them.
+- `solray inspect` ignores import-only artifacts that declare nothing, so
+  plain-name lookups like `IERC20` no longer fail with false ambiguity.
+- `solray inspect function-source` accepts interface function declarations as
+  roots (for example `IERC20 transfer`).
+- `solray gen interface` emits real `enum` declarations with their original
+  members instead of user-defined value types.
+- `solray inspect function-source` no longer leaks unrelated declarations after
+  incremental builds.
+- `solray inspect function-source` resolves CRLF sources correctly instead of
+  emitting shifted or truncated blocks.
+- `solray inspect function-source`, `call-graph`, and `call-path` resolve
+  functions inherited from base contracts in other files.
+- `solray inspect function-source` labels abstract contracts as "Abstract
+  Contract" instead of "Interface".
+- `solray inspect function-source` omits inherited constructors, `receive`, and
+  `fallback`.
+- `solray inspect external-functions`, `call-graph`, and `call-path` report
+  correct line numbers for CRLF projects.
+- `solray inspect call-graph` resolves overridden functions to the queried
+  contract's own declaration instead of inherited interface declarations.
+- `solray inspect call-path` resolves overridden functions instead of treating
+  inherited interface declarations as overloads; full signatures are accepted
+  by `call-path` and `call-graph`.
+- `solray inspect call-graph` and `call-path` resolve `constructor` lookups and
+  render constructor roots correctly.
+- `solray inspect call-graph`, `call-path`, and `function-source` resolve
+  public state-variable getters from the ABI.
+- `solray inspect call-graph` and `call-path` expand calls made through
+  modifiers and base constructors.
+- `solray inspect external-functions` maps every overload to its own source
+  line using normalized parameter signatures.
+- Ambiguity suggestions across `inspect` and `gen` commands show the artifact's
+  AST source path, and file-qualified IDs accept those paths.
+- `solray scan erc20-transfer-sink` reports correct transfer snippets and lines
+  for CRLF projects.
+- `solray scan asset-transfers` reports correct transfer expressions and lines
+  for CRLF projects.
 
 ## [0.6.0] - 2026-08-08
 
