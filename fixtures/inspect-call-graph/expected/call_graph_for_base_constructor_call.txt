@@ -1,0 +1,5 @@
+Call graph:
+
+GuardUser.constructor(address) (public) (src/ModifierBase.sol:30)
+└── GuardBase.constructor(address) (public) (src/ModifierBase.sol:24)
+    └── GuardBase._transferOwnership(address) (internal) (src/ModifierBase.sol:20)

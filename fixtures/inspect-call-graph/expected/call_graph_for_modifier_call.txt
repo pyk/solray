@@ -1,0 +1,6 @@
+Call graph:
+
+GuardUser.changeOwner(address) (external) (src/ModifierBase.sol:32)
+├── GuardBase._checkOwner() (internal) (src/ModifierBase.sol:16)
+│   └── GuardBase.owner() (public) (src/ModifierBase.sol:12)
+└── GuardBase._transferOwnership(address) (internal) (src/ModifierBase.sol:20)

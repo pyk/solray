@@ -69,6 +69,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   such as `project()` from the artifact ABI. Previously only
   `FunctionDefinition` AST nodes were collected, so getters failed with
   `"not found"`. Added getter regression fixtures to all three test suites.
+- `solray inspect call-graph` and `solray inspect call-path` now expand calls
+  made through modifiers and base constructors. Previously the call traversal
+  only walked function bodies, so `onlyOwner` calls such as `_checkOwner` and
+  base constructor calls such as `Ownable(_r)` were missing. Added modifier and
+  base-constructor regression fixtures to the call-graph test suite.
 
 ## [0.6.0] - 2026-08-08
 

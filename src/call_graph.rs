@@ -11,7 +11,8 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use solc::ast::{
     Block, ContractDefinition, ContractDefinitionNode, Expression, FunctionCallExpression,
-    FunctionKind, SourceUnit, SourceUnitNode, TypeName, VariableDeclaration, Visibility,
+    FunctionKind, ModifierInvocation, ModifierInvocationKind, SourceUnit, SourceUnitNode, TypeName,
+    VariableDeclaration, Visibility,
 };
 use tracing::debug;
 
@@ -258,6 +259,7 @@ struct FunctionInfo {
     src_offset: usize,
     src_length: usize,
     body: Option<Block>,
+    modifiers: Vec<ModifierInvocation>,
 }
 
 /// A parsed function target, either a bare name or a `name(params)` signature.
@@ -312,6 +314,7 @@ pub struct CallGraph {
     project: Project,
     artifact_index: ArtifactIndex,
     symbol_index: SymbolIndex,
+    modifier_bodies: RefCell<HashMap<i64, Option<Block>>>,
 }
 
 impl CallGraph {
@@ -324,6 +327,7 @@ impl CallGraph {
             project,
             artifact_index,
             symbol_index,
+            modifier_bodies: RefCell::new(HashMap::new()),
         }
     }
 
@@ -688,15 +692,7 @@ impl CallGraph {
             ));
         }
 
-        let body_stmts = functions
-            .get(&func_id)
-            .and_then(|fi| fi.body.as_ref().map(|b| b.statements.clone())); // checkrs: allow(clone_in_iterator)
-
-        let children = if let Some(stmts) = body_stmts {
-            self.collect_calls(stmts, cache, functions, visited)?
-        } else {
-            Vec::new()
-        };
+        let children = self.collect_function_calls(func_id, cache, functions, visited)?;
 
         let info = &functions[&func_id];
         let sig = build_signature(info);
@@ -711,6 +707,115 @@ impl CallGraph {
             &src,
             children,
         ))
+    }
+
+    fn collect_function_calls(
+        &self,
+        func_id: i64,
+        cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
+        functions: &mut HashMap<i64, FunctionInfo>,
+        visited: &mut HashSet<i64>,
+    ) -> Result<Vec<CallGraphNode>> {
+        let mut nodes = Vec::new();
+        let (modifiers, body_stmts) = match functions.get(&func_id) {
+            Some(info) => (
+                info.modifiers.clone(),
+                info.body.as_ref().map(|b| b.statements.clone()), // checkrs: allow(clone_in_iterator)
+            ),
+            None => (Vec::new(), None),
+        };
+        for modifier in &modifiers {
+            self.collect_calls_from_modifier_invocation(
+                modifier, cache, functions, visited, &mut nodes,
+            )?;
+        }
+        if let Some(stmts) = body_stmts {
+            nodes.extend(self.collect_calls(stmts, cache, functions, visited)?);
+        }
+        Ok(nodes)
+    }
+
+    fn collect_calls_from_modifier_invocation(
+        &self,
+        modifier: &ModifierInvocation,
+        cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
+        functions: &mut HashMap<i64, FunctionInfo>,
+        visited: &mut HashSet<i64>,
+        nodes: &mut Vec<CallGraphNode>,
+    ) -> Result<()> {
+        if modifier.kind == Some(ModifierInvocationKind::BaseConstructorSpecifier) {
+            if let Some(constructor_id) = self.load_base_constructor_id(modifier, functions)? {
+                let node = self.build_call_node(constructor_id, cache, functions, visited)?;
+                nodes.push(node);
+            }
+            return Ok(());
+        }
+
+        if let Some(body) = self.load_modifier_body(modifier)? {
+            nodes.extend(self.collect_calls(body.statements.clone(), cache, functions, visited)?);
+        }
+        Ok(())
+    }
+
+    fn load_base_constructor_id(
+        &self,
+        modifier: &ModifierInvocation,
+        functions: &mut HashMap<i64, FunctionInfo>,
+    ) -> Result<Option<i64>> {
+        if let Some(id) = functions.values().find(|fi| {
+            fi.kind == FunctionKind::Constructor && fi.contract_name == modifier.modifier_name.name
+        }) {
+            return Ok(Some(id.id));
+        }
+
+        let Some(base_id) = modifier.modifier_name.referenced_declaration else {
+            return Ok(None);
+        };
+        let Some(entry) = self.symbol_index.get_unscoped(base_id) else {
+            return Ok(None);
+        };
+        let artifact_path = &self
+            .symbol_index
+            .artifact_info(entry.artifact_id)
+            .artifact_path;
+        let cache = RefCell::new(HashMap::new());
+        load_artifact_functions(artifact_path, functions, &cache)?;
+        Ok(functions
+            .values()
+            .find(|fi| {
+                fi.kind == FunctionKind::Constructor
+                    && fi.contract_name == modifier.modifier_name.name
+            })
+            .map(|fi| fi.id))
+    }
+
+    fn load_modifier_body(&self, modifier: &ModifierInvocation) -> Result<Option<Block>> {
+        let Some(modifier_id) = modifier.modifier_name.referenced_declaration else {
+            return Ok(None);
+        };
+        if let Some(cached) = self.modifier_bodies.borrow().get(&modifier_id) {
+            return Ok(cached.clone());
+        }
+
+        let body = self.resolve_modifier_body(modifier_id)?;
+        self.modifier_bodies
+            .borrow_mut()
+            .insert(modifier_id, body.clone());
+        Ok(body)
+    }
+
+    fn resolve_modifier_body(&self, modifier_id: i64) -> Result<Option<Block>> {
+        let Some(entry) = self.symbol_index.get_unscoped(modifier_id) else {
+            return Ok(None);
+        };
+        let artifact_path = &self
+            .symbol_index
+            .artifact_info(entry.artifact_id)
+            .artifact_path;
+        let Some(ast) = parse_artifact_ast(artifact_path)? else {
+            return Ok(None);
+        };
+        Ok(find_modifier_body(&ast, modifier_id))
     }
 
     fn collect_calls(
@@ -1150,6 +1255,7 @@ fn extract_contract_functions(cd: ContractDefinition, source_file: &Path) -> Vec
                 src_offset: fd.src.offset,
                 src_length: fd.src.length,
                 body: fd.body,
+                modifiers: fd.modifiers,
             }),
             ContractDefinitionNode::VariableDeclaration(vd)
                 if vd.visibility == Visibility::Public =>
@@ -1165,11 +1271,27 @@ fn extract_contract_functions(cd: ContractDefinition, source_file: &Path) -> Vec
                     src_offset: vd.src.offset,
                     src_length: vd.src.length,
                     body: None,
+                    modifiers: Vec::new(),
                 })
             }
             _ => None,
         })
         .collect()
+}
+
+fn find_modifier_body(ast: &SourceUnit, modifier_id: i64) -> Option<Block> {
+    for node in &ast.nodes {
+        if let SourceUnitNode::ContractDefinition(cd) = node {
+            for inner in &cd.nodes {
+                if let ContractDefinitionNode::ModifierDefinition(md) = inner
+                    && md.id == modifier_id
+                {
+                    return Some(md.body.clone()); // checkrs: allow(clone_in_loops)
+                }
+            }
+        }
+    }
+    None
 }
 
 fn function_name_for_display<'a>(kind: &FunctionKind, name: &'a str) -> &'a str {

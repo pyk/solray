@@ -320,6 +320,32 @@ mod tests {
     }
 
     #[test]
+    fn call_graph_for_modifier_call() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("GuardUser", "changeOwner");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_for_modifier_call.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_graph_for_base_constructor_call() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("GuardUser", "constructor");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_for_base_constructor_call.txt"
+            )
+        );
+    }
+
+    #[test]
     fn call_graph_for_public_getter() {
         let inspector = CallGraphInspector::new(fixture_project());
         let id = make_id("Getter", "project");
