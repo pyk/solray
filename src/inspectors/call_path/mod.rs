@@ -343,4 +343,17 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn call_path_for_crlf_file() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("Crlf", "helper");
+        let output = inspector.inspect(&id, "helper").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_for_crlf_file.txt"
+            )
+        );
+    }
 }

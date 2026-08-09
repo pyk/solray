@@ -1,0 +1,16 @@
+## Call Paths
+
+Target: `helper`
+Source: `src/Crlf.sol:11`
+
+1 paths found.
+
+### Path 1
+
+```
+Crlf::run
+src/Crlf.sol:7
+└── Crlf::helper
+    src/Crlf.sol:11
+```
+

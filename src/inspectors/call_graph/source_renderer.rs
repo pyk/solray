@@ -31,7 +31,7 @@ pub fn offset_to_line_range(
             Ok(c) => c,
             Err(_) => return Vec::new(),
         };
-        build_line_offsets(&content)
+        build_line_offsets(&content.replace('\r', ""))
     });
 
     if line_offsets.is_empty() {

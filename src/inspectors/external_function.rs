@@ -499,6 +499,7 @@ impl FunctionIndex {
         }
         let content = fs::read_to_string(file).ok()?;
         let lines: Vec<usize> = content
+            .replace('\r', "")
             .as_bytes()
             .iter()
             .enumerate()
@@ -780,6 +781,19 @@ mod tests {
             output,
             include_str!(
                 "../../fixtures/external-functions/expected/inspect_shows_source_for_inherited_functions.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_shows_source_for_crlf_file() {
+        let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("Crlf");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../fixtures/external-functions/expected/inspect_shows_source_for_crlf_file.txt"
             )
         );
     }

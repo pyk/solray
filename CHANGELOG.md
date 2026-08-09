@@ -29,6 +29,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   headings.
 - `solray inspect function-source` no longer lists inherited constructors,
   `receive`, or `fallback` functions when resolving a derived contract.
+- `solray inspect external-functions`, `solray inspect call-graph`, and
+  `solray inspect call-path` now report correct source line numbers for
+  projects with CRLF line endings. Previously the line helpers read raw CRLF
+  bytes while solc AST offsets are LF-normalized, so functions were reported
+  several lines early. Added CRLF regression fixtures to all three test suites.
 
 ## [0.6.0] - 2026-08-08
 

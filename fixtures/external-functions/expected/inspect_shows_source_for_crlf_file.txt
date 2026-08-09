@@ -1,0 +1,18 @@
+Contract: Crlf
+File: src/Crlf.sol
+
+Summary:
+- 1 externally callable functions
+- 0 mutable functions
+- 1 view functions
+- 0 callback functions
+- 0 special functions
+
+VIEW FUNCTIONS
+
+1. run()
+   source: src/Crlf.sol:7
+   visibility: external
+   mutability: view
+   modifiers: none
+

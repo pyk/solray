@@ -266,4 +266,17 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn call_graph_for_crlf_file() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("Crlf", "run");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_for_crlf_file.txt"
+            )
+        );
+    }
 }
