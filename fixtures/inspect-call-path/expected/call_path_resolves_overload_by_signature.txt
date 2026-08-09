@@ -1,0 +1,16 @@
+## Call Paths
+
+Target: `_work`
+Source: `src/Overloaded.sol:9`
+
+1 paths found.
+
+### Path 1
+
+```
+Overloaded::run
+src/Overloaded.sol:5
+└── Overloaded::_work
+    src/Overloaded.sol:9
+```
+

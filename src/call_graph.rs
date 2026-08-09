@@ -116,12 +116,32 @@ impl CallGraphNode {
     /// - A bare function name (e.g., `"removeLiquidity"`) to match any contract.
     /// - A scoped name (e.g., `"LiquidityLib::removeLiquidity"`) to match a
     ///   specific contract and function.
+    /// - A full signature (e.g., `"removeLiquidity(address,address)"`) to match
+    ///   a specific overload.
     pub fn matches_target(&self, target: &str) -> bool {
         if let Some((contract_part, func_part)) = target.split_once("::") {
-            self.contract_name == contract_part && self.func_name() == func_part
+            self.contract_name == contract_part && self.matches_func_target(func_part)
         } else {
-            self.func_name() == target
+            self.matches_func_target(target)
         }
+    }
+
+    fn matches_func_target(&self, func_target: &str) -> bool {
+        let target = parse_function_target(func_target);
+        if self.func_name() != target.name {
+            return false;
+        }
+        match target.params {
+            Some(params) => self.signature_params() == params,
+            None => true,
+        }
+    }
+
+    fn signature_params(&self) -> &str {
+        self.signature
+            .split_once('(')
+            .and_then(|(_, rest)| rest.strip_suffix(')'))
+            .unwrap_or("")
     }
 
     /// Find the first descendant node matching the target function.
@@ -238,6 +258,42 @@ struct FunctionInfo {
     definition: FunctionDefinition,
 }
 
+/// A parsed function target, either a bare name or a `name(params)` signature.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FunctionTarget {
+    name: String,
+    params: Option<String>,
+}
+
+fn parse_function_target(target: &str) -> FunctionTarget {
+    let Some(open) = target.find('(') else {
+        return FunctionTarget {
+            name: target.trim().to_string(),
+            params: None,
+        };
+    };
+    let name = target[..open].trim().to_string();
+    let params = target
+        .get(open + 1..)
+        .and_then(|rest| rest.strip_suffix(')'))
+        .map(|params| {
+            params
+                .split(',')
+                .map(str::trim)
+                .collect::<Vec<&str>>()
+                .join(",")
+        });
+    FunctionTarget { name, params }
+}
+
+fn function_matches_target(fi: &FunctionInfo, target: &FunctionTarget) -> bool {
+    fi.name == target.name
+        && match &target.params {
+            Some(params) => format_params(&fi.parameters) == *params,
+            None => true,
+        }
+}
+
 /// Minimal artifact wrapper for extracting the AST.
 #[derive(Deserialize)]
 struct Artifact {
@@ -300,11 +356,12 @@ impl CallGraph {
             &cache,
         )?;
 
-        let target_name = id.function_name();
+        let raw_target = id.function_name();
+        let target = parse_function_target(raw_target);
 
         let target_functions: Vec<&FunctionInfo> = functions
             .values()
-            .filter(|fi| fi.name == target_name)
+            .filter(|fi| function_matches_target(fi, &target))
             .collect();
 
         if target_functions.is_empty() {
@@ -314,18 +371,18 @@ impl CallGraph {
                     candidates,
                     self.project.out_dir(),
                     id.artifact_id().name.as_str(),
-                    target_name,
+                    raw_target,
                 ));
             }
             let contract_name = find_contract_name(&functions, id.artifact_id().name.as_str());
-            bail!("\"{target_name}\" not found in \"{contract_name}\".");
+            bail!("\"{raw_target}\" not found in \"{contract_name}\".");
         }
 
         let target_info = select_target_function(&target_functions, &id.artifact_id().name)
             .context("target function list is non-empty")?;
         debug!(
             contract = %target_info.contract_name,
-            function = %target_name,
+            function = %target.name,
             "selected target function declaration"
         );
         let target_id = target_info.id;
@@ -352,9 +409,10 @@ impl CallGraph {
             &cache,
         )?;
 
+        let target = parse_function_target(target_function);
         let target_funcs: Vec<&FunctionInfo> = functions
             .values()
-            .filter(|fi| fi.name == target_function)
+            .filter(|fi| function_matches_target(fi, &target))
             .collect();
 
         ensure!(
@@ -364,18 +422,36 @@ impl CallGraph {
             id.artifact_id().name
         );
 
-        ensure!(
-            target_funcs.len() <= 1,
-            "\"{}\" has multiple overloads in \"{}\"; use the full signature.",
-            target_function,
-            id.artifact_id().name
-        );
+        let own_funcs: Vec<&FunctionInfo> = target_funcs
+            .iter()
+            .copied()
+            .filter(|fi| fi.contract_name == id.artifact_id().name)
+            .collect();
+        let target_func = match own_funcs.len() {
+            1 => own_funcs[0],
+            0 if target_funcs.len() == 1 => target_funcs[0],
+            _ => {
+                bail!(
+                    "\"{}\" has multiple overloads in \"{}\"; use the full signature.",
+                    target_function,
+                    id.artifact_id().name
+                );
+            }
+        };
 
         // 3. Build the scoped target ("Contract::function") so that matching
         //    only finds nodes from the specific contract that defines the
         //    function (which may be a parent of the user-specified artifact).
-        let defining_contract = &target_funcs[0].contract_name;
-        let scoped_target = format!("{}::{}", defining_contract, target_function);
+        let defining_contract = &target_func.contract_name;
+        let scoped_target = match &target.params {
+            Some(params) => format!("{}::{}({})", defining_contract, target.name, params),
+            None => format!("{}::{}", defining_contract, target.name),
+        };
+        debug!(
+            contract = %defining_contract,
+            function = %target.name,
+            "selected call-path target"
+        );
 
         // 4. Determine the project's src directory to filter which artifacts
         //    to search. We only look for call paths from source files within
@@ -437,7 +513,9 @@ impl CallGraph {
 
             // Find target source location from this source file's functions.
             if !target_found
-                && let Some(fi) = functions.values().find(|fi| fi.name == target_function)
+                && let Some(fi) = functions
+                    .values()
+                    .find(|fi| function_matches_target(fi, &target))
             {
                 target_file = fi.file.clone(); // checkrs: allow(clone_in_loops)
                 target_src = format!("{}:{}", fi.definition.src.offset, fi.definition.src.length);

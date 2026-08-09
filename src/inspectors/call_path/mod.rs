@@ -356,4 +356,54 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn call_path_prefers_override_over_interface() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("Override", "transfer");
+        let output = inspector.inspect(&id, "transfer").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_prefers_override_over_interface.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_path_resolves_override_by_signature() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("Override", "transfer(address,uint256)");
+        let output = inspector.inspect(&id, "transfer(address,uint256)").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_prefers_override_over_interface.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_path_resolves_overload_by_signature() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("Overloaded", "_work(uint256)");
+        let output = inspector.inspect(&id, "_work(uint256)").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_resolves_overload_by_signature.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_path_errors_for_overload_without_signature() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("Overloaded", "_work");
+        let err = inspector.inspect(&id, "_work").unwrap_err().to_string();
+        assert_eq!(
+            err,
+            "\"_work\" has multiple overloads in \"Overloaded\"; use the full signature."
+        );
+    }
 }

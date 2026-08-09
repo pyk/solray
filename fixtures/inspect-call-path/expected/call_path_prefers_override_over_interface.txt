@@ -1,0 +1,14 @@
+## Call Paths
+
+Target: `transfer`
+Source: `src/Override.sol:9`
+
+1 paths found.
+
+### Path 1
+
+```
+Override::transfer
+src/Override.sol:9
+```
+

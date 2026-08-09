@@ -50,6 +50,13 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   and `decimals` could resolve to `IERC20`/`IERC20Metadata`. Added an
   override-preference regression fixture and `--debug` support for
   `inspect call-graph`.
+- `solray inspect call-path` now resolves overridden functions to the queried
+  contract's own declaration instead of counting inherited interface
+  declarations as overloads. Full signatures such as
+  `_approve(address,address,uint256)` are now accepted to disambiguate genuine
+  overloads, and `solray inspect call-graph` accepts the same syntax. Added
+  call-path and call-graph regression fixtures and `--debug` support for
+  `inspect call-path`.
 
 ## [0.6.0] - 2026-08-08
 
