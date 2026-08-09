@@ -428,14 +428,22 @@ impl CallGraph {
             id.artifact_id().name
         );
 
-        let own_funcs: Vec<&FunctionInfo> = target_funcs
+        // Interface declarations with the same name are not overloads of the
+        // inherited implementation, so select from concrete declarations first.
+        let concrete_funcs: Vec<&FunctionInfo> = target_funcs
+            .iter()
+            .copied()
+            .filter(|fi| !fi.is_interface)
+            .collect();
+        let own_funcs: Vec<&FunctionInfo> = concrete_funcs
             .iter()
             .copied()
             .filter(|fi| fi.contract_name == id.artifact_id().name)
             .collect();
         let target_func = match own_funcs.len() {
             1 => own_funcs[0],
-            0 if target_funcs.len() == 1 => target_funcs[0],
+            0 if concrete_funcs.len() == 1 => concrete_funcs[0],
+            0 if concrete_funcs.is_empty() && target_funcs.len() == 1 => target_funcs[0],
             _ => {
                 bail!(
                     "\"{}\" has multiple overloads in \"{}\"; use the full signature.",

@@ -29,6 +29,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - `solray inspect call-graph` resolves inherited overridden functions to the
   implementing base contract instead of an interface when the queried contract
   does not redeclare them.
+- `solray inspect call-path` resolves inherited overridden functions to the
+  implementing base contract instead of counting interface declarations as
+  overloads; bare names and full signatures both work.
 - `solray inspect` ignores import-only artifacts that declare nothing, so
   plain-name lookups like `IERC20` no longer fail with false ambiguity.
 - `solray inspect function-source` accepts interface function declarations as

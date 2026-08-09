@@ -384,6 +384,32 @@ mod tests {
     }
 
     #[test]
+    fn call_path_prefers_inherited_implementation_over_interface() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("Child", "process");
+        let output = inspector.inspect(&id, "process").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_prefers_inherited_implementation_over_interface.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_path_resolves_inherited_implementation_by_signature() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("Child", "process(uint256)");
+        let output = inspector.inspect(&id, "process(uint256)").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_prefers_inherited_implementation_over_interface.txt"
+            )
+        );
+    }
+
+    #[test]
     fn call_path_resolves_overload_by_signature() {
         let inspector = CallPathInspector::new(fixture_call_path_project());
         let id = make_id("Overloaded", "_work(uint256)");
