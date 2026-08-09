@@ -28,7 +28,11 @@ test: # Run tests
 FIXTURE_DIRS := $(wildcard fixtures/*)
 
 .PHONY: build-fixtures
-build-fixtures: # Force-rebuild all test fixtures with incremental sources
+build-fixtures: # Clean and force-rebuild all test fixtures with incremental sources
+	@echo "Cleaning fixtures"
+	@for d in $(FIXTURE_DIRS); do \
+		( cd "$$d" && forge clean > /dev/null 2>&1 ); \
+	done
 	@echo "Building fixtures"
 	@for d in $(FIXTURE_DIRS); do \
 		if [ "$$(basename $$d)" = "inspect-function-source" ]; then \
