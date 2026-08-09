@@ -10,9 +10,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use solc::ast::{
-    Block, ContractDefinition, ContractDefinitionNode, Expression, FunctionCallExpression,
-    FunctionKind, ModifierInvocation, ModifierInvocationKind, SourceUnit, SourceUnitNode, TypeName,
-    VariableDeclaration, Visibility,
+    Block, ContractDefinition, ContractDefinitionNode, ContractKind, Expression,
+    FunctionCallExpression, FunctionKind, ModifierInvocation, ModifierInvocationKind, SourceUnit,
+    SourceUnitNode, TypeName, VariableDeclaration, Visibility,
 };
 use tracing::debug;
 
@@ -253,6 +253,7 @@ struct FunctionInfo {
     name: String,
     contract_name: String,
     file: PathBuf,
+    is_interface: bool,
     parameters: Vec<VariableDeclaration>,
     visibility: Visibility,
     kind: FunctionKind,
@@ -1147,6 +1148,7 @@ fn select_target_function<'a>(
     candidates.iter().copied().min_by_key(|fi| {
         (
             fi.contract_name != preferred_contract,
+            fi.is_interface,
             fi.contract_name.as_str(),
             fi.src_offset,
             fi.id,
@@ -1242,6 +1244,7 @@ fn parse_artifact_ast(path: impl AsRef<Path>) -> Result<Option<SourceUnit>> {
 fn extract_contract_functions(cd: ContractDefinition, source_file: &Path) -> Vec<FunctionInfo> {
     let contract_name = cd.name;
     let file = source_file.to_path_buf();
+    let is_interface = cd.contract_kind == ContractKind::Interface;
     cd.nodes
         .into_iter()
         .filter_map(|inner| match inner {
@@ -1250,6 +1253,7 @@ fn extract_contract_functions(cd: ContractDefinition, source_file: &Path) -> Vec
                 name: function_name_for_display(&fd.kind, &fd.name).to_string(),
                 contract_name: contract_name.clone(),
                 file: file.clone(),
+                is_interface,
                 parameters: fd.parameters.parameters.clone(),
                 visibility: fd.visibility.clone(),
                 kind: fd.kind.clone(),
@@ -1266,6 +1270,7 @@ fn extract_contract_functions(cd: ContractDefinition, source_file: &Path) -> Vec
                     name: vd.name.clone(),
                     contract_name: contract_name.clone(),
                     file: file.clone(),
+                    is_interface,
                     parameters: Vec::new(),
                     visibility: Visibility::Public,
                     kind: FunctionKind::Function,

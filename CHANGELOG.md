@@ -31,6 +31,13 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   fallback selected from `HashMap` iteration order, so flattened projects that
   declared interfaces and implementations in one file reported nondeterministic
   source lines. Added a flattened override regression fixture.
+- `solray inspect call-graph` now resolves inherited overridden functions to
+  the implementing base contract instead of an interface declaration when the
+  queried contract does not redeclare the function. Previously the target
+  selector picked the lexicographically smallest contract name among inherited
+  declarations, so flattened projects such as `PancakePair` resolved ERC-20
+  functions to `IERC20`/`IPancakeERC20` even though `PancakeERC20` implements
+  them. Added a flattened inherited-override regression fixture.
 - `solray inspect` commands now ignore import-only artifacts (files that only
   re-export a contract from another file). Previously those artifacts were
   indexed by file name even though their AST declared nothing, so plain-name

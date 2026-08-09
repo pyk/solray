@@ -294,6 +294,19 @@ mod tests {
     }
 
     #[test]
+    fn call_graph_prefers_inherited_implementation_over_interface() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("Child", "process");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_prefers_inherited_implementation_over_interface.txt"
+            )
+        );
+    }
+
+    #[test]
     fn call_graph_resolves_full_signature() {
         let inspector = CallGraphInspector::new(fixture_project());
         let id = make_id("Override", "transfer(address,uint256)");
