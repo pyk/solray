@@ -25,13 +25,13 @@ MUTABLE FUNCTIONS
 SPECIAL FUNCTIONS
 
 1. fallback()
-   source: src/InheritedFallback.sol:0
+   source: src/InheritedFallback.sol:9
    visibility: external
    mutability: nonpayable
    modifiers: none
 
 2. receive()
-   source: src/InheritedFallback.sol:0
+   source: src/InheritedFallback.sol:7
    visibility: external
    mutability: payable
    modifiers: none

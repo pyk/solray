@@ -401,6 +401,8 @@ struct FunctionIndex {
     by_name: HashMap<(String, String), Vec<FuncInfo>>,
     /// Key: (contract_name, kind_name) -> FuncInfo for special functions (fallback, receive).
     by_kind: HashMap<(String, String), FuncInfo>,
+    /// Direct base contract names for each indexed contract.
+    base_contracts: HashMap<String, Vec<String>>,
     /// Contract names whose Solidity kind is `interface`.
     interface_contracts: HashSet<String>,
     /// File cache for computing line numbers.
@@ -412,6 +414,7 @@ impl FunctionIndex {
         Self {
             by_name: HashMap::new(),
             by_kind: HashMap::new(),
+            base_contracts: HashMap::new(),
             interface_contracts: HashSet::new(),
             line_cache: HashMap::new(),
         }
@@ -545,7 +548,44 @@ impl FunctionIndex {
 
     fn resolve_by_kind(&self, contract_name: &str, kind: &FunctionKind) -> Option<&FuncInfo> {
         let kind_name = format!("{kind:?}");
-        self.by_kind.get(&(contract_name.to_string(), kind_name))
+        if let Some(info) = self
+            .by_kind
+            .get(&(contract_name.to_string(), kind_name.clone()))
+        {
+            return Some(info);
+        }
+        // Inherited fallback/receive nodes are registered under the declaring
+        // contract, so walk the queried contract's base chain and prefer the
+        // closest ancestor that declares this kind.
+        let mut ancestors: Vec<&str> = vec![contract_name];
+        let mut seen: HashSet<&str> = HashSet::from([contract_name]);
+        let mut head = 0;
+        while let Some(name) = ancestors.get(head).copied() {
+            head += 1;
+            // checkrs: allow(nested_if_let)
+            if let Some(bases) = self.base_contracts.get(name) {
+                for base in bases {
+                    if seen.insert(base.as_str()) {
+                        ancestors.push(base.as_str());
+                    }
+                }
+            }
+        }
+
+        self.by_kind
+            .iter()
+            .filter(|((name, k), _)| k == &kind_name && seen.contains(name.as_str()))
+            .map(|((name, _), info)| {
+                let distance = ancestors
+                    .iter()
+                    .position(|ancestor| *ancestor == name.as_str())
+                    .unwrap_or(usize::MAX);
+                (info, distance)
+            })
+            .min_by_key(|(info, distance)| {
+                (*distance, info.line.unwrap_or(0), info.location.offset)
+            })
+            .map(|(info, _)| info)
     }
 
     fn byte_offset_to_line(&mut self, file: &Path, offset: usize) -> Option<usize> {
@@ -655,6 +695,17 @@ fn index_contract(
 ) {
     if cd.contract_kind == ContractKind::Interface {
         index.interface_contracts.insert(cd.name.clone());
+    }
+    if !cd.base_contracts.is_empty() {
+        let mut bases = Vec::with_capacity(cd.base_contracts.len());
+        for base in &cd.base_contracts {
+            bases.push(base.base_name.name.clone()); // checkrs: allow(clone_in_loops)
+        }
+        index
+            .base_contracts
+            .entry(cd.name.clone())
+            .or_default()
+            .extend(bases);
     }
     for node in &cd.nodes {
         match node {
