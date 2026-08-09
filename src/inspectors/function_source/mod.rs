@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use solc::ast::{
-    ContractDefinitionNode, Expression, FunctionCallExpression, FunctionKind, SourceUnit,
-    SourceUnitNode, TypeName,
+    ContractDefinition, ContractDefinitionNode, ContractKind, Expression, FunctionCallExpression,
+    FunctionKind, SourceUnit, SourceUnitNode, TypeName,
 };
 use tracing::debug;
 
@@ -79,11 +79,36 @@ fn node_type_to_heading(node_type: &str) -> &str {
         "EnumDefinition" => "Enum",
         "ErrorDefinition" => "Error",
         "EventDefinition" => "Event",
-        "ContractDefinition" => "Interface",
+        "ContractDefinition" => "Contract",
+        "AbstractContractDefinition" => "Abstract Contract",
+        "InterfaceDefinition" => "Interface",
+        "LibraryDefinition" => "Library",
         "ModifierDefinition" => "Modifier",
         "UserDefinedValueTypeDefinition" => "User Defined Value Type",
         _ => "Declaration",
     }
+}
+
+/// Return the refined AST node type for a contract definition, based on its
+/// Solidity kind and abstract flag.
+fn contract_node_type(cd: &ContractDefinition) -> &'static str {
+    match cd.contract_kind {
+        ContractKind::Interface => "InterfaceDefinition",
+        ContractKind::Library => "LibraryDefinition",
+        ContractKind::Contract if cd.r#abstract => "AbstractContractDefinition",
+        ContractKind::Contract => "ContractDefinition",
+    }
+}
+
+/// Whether a node type represents any kind of contract definition.
+fn is_contract_node_type(node_type: &str) -> bool {
+    matches!(
+        node_type,
+        "ContractDefinition"
+            | "AbstractContractDefinition"
+            | "InterfaceDefinition"
+            | "LibraryDefinition"
+    )
 }
 
 /// Extract a display name from a symbol string.
@@ -219,7 +244,7 @@ impl std::fmt::Display for FunctionSourceInspectorOutput {
                     &self.project_path,
                 );
                 let natspec = dedent(&natspec, base);
-                let source_text = if symbol.node_type == "ContractDefinition" {
+                let source_text = if is_contract_node_type(&symbol.node_type) {
                     dedent(contract_header(&content, symbol.offset), base)
                 } else {
                     dedent(&content[symbol.offset..symbol.offset + symbol.length], base)
@@ -345,13 +370,19 @@ impl FunctionSourceInspector {
             let Some(ast) = parse_artifact(artifact_path)? else {
                 continue;
             };
-            extract_function_symbols(&ast, contract_name, base_name, &mut functions);
+            extract_function_symbols(&ast, contract_name, base_name, &mut functions, true);
             let inherited = self.inherited_contracts(artifact_path, contract_name)?;
             for (base_contract, base_path) in inherited {
                 let Some(base_ast) = parse_artifact(base_path)? else {
                     continue;
                 };
-                extract_function_symbols(&base_ast, &base_contract, base_name, &mut functions);
+                extract_function_symbols(
+                    &base_ast,
+                    &base_contract,
+                    base_name,
+                    &mut functions,
+                    false,
+                );
             }
         }
 
@@ -361,13 +392,13 @@ impl FunctionSourceInspector {
                 let Some(ast) = parse_artifact(artifact_path)? else {
                     continue;
                 };
-                collect_contract_functions(&ast, contract_name, &mut all_fns);
+                collect_contract_functions(&ast, contract_name, &mut all_fns, true);
                 let inherited = self.inherited_contracts(artifact_path, contract_name)?;
                 for (base_contract, base_path) in inherited {
                     let Some(base_ast) = parse_artifact(base_path)? else {
                         continue;
                     };
-                    collect_contract_functions(&base_ast, &base_contract, &mut all_fns);
+                    collect_contract_functions(&base_ast, &base_contract, &mut all_fns, false);
                 }
             }
             all_fns.sort();
@@ -511,6 +542,25 @@ impl FunctionSourceInspector {
         Ok(())
     }
 
+    /// Resolve the refined contract node type for a contract AST node ID.
+    fn contract_node_type_for_id(
+        &self,
+        artifact_path: impl AsRef<Path>,
+        contract_id: i64,
+    ) -> Result<String> {
+        let Some(ast) = parse_artifact(artifact_path)? else {
+            return Ok("ContractDefinition".to_string());
+        };
+        for node in &ast.nodes {
+            if let SourceUnitNode::ContractDefinition(cd) = node
+                && cd.id == contract_id
+            {
+                return Ok(contract_node_type(cd).to_string());
+            }
+        }
+        Ok("ContractDefinition".to_string())
+    }
+
     /// Recursively resolve all referenced declarations.
     fn resolve_recursive(&self, root: ResolvedSymbol) -> Result<Vec<ResolvedSymbol>> {
         let mut resolved: Vec<ResolvedSymbol> = Vec::new();
@@ -560,7 +610,7 @@ impl FunctionSourceInspector {
 
                 // For ContractDefinition symbols, also resolve base contracts
                 // (inheritance) so parent interfaces are recursively resolved.
-                if symbol.node_type == "ContractDefinition" {
+                if is_contract_node_type(&symbol.node_type) {
                     for node in &ast.nodes {
                         if let SourceUnitNode::ContractDefinition(cd) = node
                             && cd.src.offset == symbol.offset
@@ -572,12 +622,14 @@ impl FunctionSourceInspector {
                                 {
                                     let info = self.symbol_index.artifact_info(entry.artifact_id);
                                     if info.build_info_id == build_info_id {
+                                        let node_type = self
+                                            .contract_node_type_for_id(&info.artifact_path, id)?;
                                         let rs = ResolvedSymbol {
                                             symbol: entry.name.clone(),     // checkrs: allow(clone_in_loops)
                                             file: info.source_file.clone(), // checkrs: allow(clone_in_loops)
                                             offset: entry.offset,
                                             length: entry.length,
-                                            node_type: entry.node_type.clone(), // checkrs: allow(clone_in_loops)
+                                            node_type,
                                         };
                                         let key = (rs.file.clone(), rs.offset); // checkrs: allow(clone_in_loops)
                                         let new_symbol = !seen.contains(&key);
@@ -657,6 +709,7 @@ fn extract_function_symbols(
     contract_name: &str,
     function_name: &str,
     out: &mut HashMap<String, ResolvedSymbol>,
+    include_special: bool,
 ) {
     let source_file = &ast.absolute_path;
     for node in &ast.nodes {
@@ -668,6 +721,13 @@ fn extract_function_symbols(
                     && fd.implemented
                     && function_name_for_display(&fd.kind, &fd.name) == function_name
                 {
+                    let is_special = matches!(
+                        fd.kind,
+                        FunctionKind::Constructor | FunctionKind::Receive | FunctionKind::Fallback
+                    );
+                    if !include_special && is_special {
+                        continue;
+                    }
                     let display_name = function_name_for_display(&fd.kind, &fd.name);
                     let sig = format!(
                         "{}.{}({})",
@@ -690,7 +750,12 @@ fn extract_function_symbols(
 }
 
 /// Collect available function names in a contract.
-fn collect_contract_functions(ast: &SourceUnit, contract_name: &str, out: &mut Vec<String>) {
+fn collect_contract_functions(
+    ast: &SourceUnit,
+    contract_name: &str,
+    out: &mut Vec<String>,
+    include_special: bool,
+) {
     for node in &ast.nodes {
         if let SourceUnitNode::ContractDefinition(cd) = node
             && cd.name == contract_name
@@ -699,6 +764,13 @@ fn collect_contract_functions(ast: &SourceUnit, contract_name: &str, out: &mut V
                 if let ContractDefinitionNode::FunctionDefinition(fd) = inner
                     && fd.implemented
                 {
+                    let is_special = matches!(
+                        fd.kind,
+                        FunctionKind::Constructor | FunctionKind::Receive | FunctionKind::Fallback
+                    );
+                    if !include_special && is_special {
+                        continue;
+                    }
                     out.push(function_name_for_display(&fd.kind, &fd.name).to_string());
                 }
             }
@@ -1014,12 +1086,25 @@ fn resolve_and_add_symbol(
             "[resolve_and_add_symbol] adding {} (id={}) from {:?}",
             symbol, id, info.source_file
         );
+        let mut node_type = entry.node_type.clone();
+        if node_type == "ContractDefinition"
+            && let Ok(Some(ast)) = parse_artifact(&info.artifact_path)
+        {
+            for node in &ast.nodes {
+                if let SourceUnitNode::ContractDefinition(cd) = node
+                    && cd.id == id
+                {
+                    node_type = contract_node_type(cd).to_string();
+                    break;
+                }
+            }
+        }
         results.push(ResolvedSymbol {
             symbol,
             file: info.source_file.clone(),
             offset: entry.offset,
             length: entry.length,
-            node_type: entry.node_type.clone(),
+            node_type,
         });
     } else {
         debug!(
@@ -1039,7 +1124,7 @@ fn resolve_id_in_ast(id: i64, ast: &SourceUnit, source_file: &Path) -> Option<Re
                         file: source_file.to_path_buf(),
                         offset: cd.src.offset,
                         length: cd.src.length,
-                        node_type: "ContractDefinition".into(),
+                        node_type: contract_node_type(cd).into(),
                     });
                 }
                 for inner in &cd.nodes {
@@ -1544,6 +1629,17 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/inspect_resolves_inherited_function.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_labels_abstract_contract() {
+        let output = inspect("AbstractHeading", "run").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_labels_abstract_contract.txt"
             )
         );
     }

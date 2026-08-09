@@ -24,6 +24,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   contracts defined in other source files. Previously only the queried
   contract's own artifact AST was searched, so inherited functions such as
   OpenZeppelin's `owner` failed with `"not found"`.
+- `solray inspect function-source` now labels abstract contracts as "Abstract
+  Contract" instead of "Interface"; interfaces and libraries keep their own
+  headings.
+- `solray inspect function-source` no longer lists inherited constructors,
+  `receive`, or `fallback` functions when resolving a derived contract.
 
 ## [0.6.0] - 2026-08-08
 

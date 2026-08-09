@@ -1,0 +1,41 @@
+# AbstractHeading - run Source Code
+
+Source path: `src/AbstractHeading.sol:13`
+
+```solidity
+function run() external view returns (uint256) {
+    return base.baseValue();
+}
+```
+
+---
+
+## Abstract Contract: `AbstractBase`
+
+Source path: `src/AbstractHeading.sol:4`
+
+```solidity
+abstract contract AbstractBase
+```
+
+---
+
+## Function: `baseValue`
+
+Source path: `src/AbstractHeading.sol:5`
+
+```solidity
+function baseValue() public pure virtual returns (uint256) {
+    return 1;
+}
+```
+
+---
+
+## Variable: `base`
+
+Source path: `src/AbstractHeading.sol:11`
+
+```solidity
+AbstractBase public base
+```
