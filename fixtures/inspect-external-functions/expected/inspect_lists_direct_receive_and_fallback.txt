@@ -21,7 +21,7 @@ SPECIAL FUNCTIONS
 1. fallback()
    source: src/DirectFallback.sol:9
    visibility: external
-   mutability: nonpayable
+   mutability: payable
    modifiers: none
 
 2. receive()

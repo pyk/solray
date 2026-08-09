@@ -60,6 +60,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   functions inherited from base contracts in other files.
 - `solray inspect external-functions` reports the declaring source line for
   inherited `fallback` and `receive` functions instead of `:0`.
+- `solray inspect external-functions` reports `fallback` state mutability from
+  the artifact ABI instead of always printing `nonpayable`.
 - `solray inspect function-source` labels abstract contracts as "Abstract
   Contract" instead of "Interface".
 - `solray inspect function-source` omits inherited constructors, `receive`, and

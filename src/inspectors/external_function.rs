@@ -259,14 +259,14 @@ impl ExternalFunctionInspector {
                     );
                     special.push(info);
                 }
-                AbiItem::Fallback(_) => {
+                AbiItem::Fallback(fallback) => {
                     let info = resolve_special(
                         "fallback",
                         &index,
                         &contract_name,
                         &FunctionKind::Fallback,
                         &contract_source_file,
-                        StateMutability::Nonpayable,
+                        fallback.state_mutability.clone(), // checkrs: allow(clone_in_loops)
                     );
                     special.push(info);
                 }
