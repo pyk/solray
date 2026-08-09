@@ -1,0 +1,7 @@
+# InheritedSpecialParent - receive Source Code
+
+Source path: `src/InheritedSpecial.sol:5`
+
+```solidity
+receive() external payable {}
+```

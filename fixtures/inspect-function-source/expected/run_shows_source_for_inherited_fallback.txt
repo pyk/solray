@@ -1,0 +1,7 @@
+# InheritedSpecialParent - fallback Source Code
+
+Source path: `src/InheritedSpecial.sol:7`
+
+```solidity
+fallback() external payable {}
+```

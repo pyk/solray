@@ -64,8 +64,10 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   the artifact ABI instead of always printing `nonpayable`.
 - `solray inspect function-source` labels abstract contracts as "Abstract
   Contract" instead of "Interface".
-- `solray inspect function-source` omits inherited constructors, `receive`, and
-  `fallback`.
+- `solray inspect function-source` resolves inherited `receive` and `fallback`
+  functions from their declaring base contract.
+- `solray inspect function-source` omits inherited constructors from
+  resolution.
 - `solray inspect external-functions`, `call-graph`, and `call-path` report
   correct line numbers for CRLF projects.
 - `solray inspect call-graph` resolves overridden functions to the queried

@@ -372,7 +372,14 @@ impl FunctionSourceInspector {
             let Some(ast) = parse_artifact(artifact_path)? else {
                 continue;
             };
-            extract_function_symbols(&ast, contract_name, base_name, &mut functions, true, true);
+            extract_function_symbols(
+                &ast,
+                contract_name,
+                base_name,
+                &mut functions,
+                SpecialFunctionFilter::All,
+                true,
+            );
             let inherited = self.inherited_contracts(artifact_path, contract_name)?;
             for (base_contract, base_path) in inherited {
                 let Some(base_ast) = parse_artifact(base_path)? else {
@@ -383,7 +390,7 @@ impl FunctionSourceInspector {
                     &base_contract,
                     base_name,
                     &mut functions,
-                    false,
+                    SpecialFunctionFilter::FallbackReceive,
                     false,
                 );
             }
@@ -395,7 +402,13 @@ impl FunctionSourceInspector {
                 let Some(ast) = parse_artifact(artifact_path)? else {
                     continue;
                 };
-                collect_contract_functions(&ast, contract_name, &mut all_fns, true, true);
+                collect_contract_functions(
+                    &ast,
+                    contract_name,
+                    &mut all_fns,
+                    SpecialFunctionFilter::All,
+                    true,
+                );
                 let inherited = self.inherited_contracts(artifact_path, contract_name)?;
                 for (base_contract, base_path) in inherited {
                     let Some(base_ast) = parse_artifact(base_path)? else {
@@ -405,7 +418,7 @@ impl FunctionSourceInspector {
                         &base_ast,
                         &base_contract,
                         &mut all_fns,
-                        false,
+                        SpecialFunctionFilter::FallbackReceive,
                         false,
                     );
                 }
@@ -712,13 +725,22 @@ fn function_name_for_display<'a>(kind: &FunctionKind, name: &'a str) -> &'a str 
     }
 }
 
+/// Which special function kinds to include when collecting symbols.
+#[derive(Clone, Copy)]
+enum SpecialFunctionFilter {
+    /// Include inherited `receive` and `fallback` functions, but not constructors.
+    FallbackReceive,
+    /// Include constructors, `receive`, and `fallback`.
+    All,
+}
+
 /// Extract function symbols from an AST for a given contract/function name.
 fn extract_function_symbols(
     ast: &SourceUnit,
     contract_name: &str,
     function_name: &str,
     out: &mut HashMap<String, ResolvedSymbol>,
-    include_special: bool,
+    special: SpecialFunctionFilter,
     include_interface_declarations: bool,
 ) {
     let source_file = &ast.absolute_path;
@@ -738,7 +760,13 @@ fn extract_function_symbols(
                         fd.kind,
                         FunctionKind::Constructor | FunctionKind::Receive | FunctionKind::Fallback
                     );
-                    if !include_special && is_special {
+                    let include_special = match special {
+                        SpecialFunctionFilter::All => true,
+                        SpecialFunctionFilter::FallbackReceive => {
+                            matches!(fd.kind, FunctionKind::Receive | FunctionKind::Fallback)
+                        }
+                    };
+                    if is_special && !include_special {
                         continue;
                     }
                     let display_name = function_name_for_display(&fd.kind, &fd.name);
@@ -781,7 +809,7 @@ fn collect_contract_functions(
     ast: &SourceUnit,
     contract_name: &str,
     out: &mut Vec<String>,
-    include_special: bool,
+    special: SpecialFunctionFilter,
     include_interface_declarations: bool,
 ) {
     for node in &ast.nodes {
@@ -799,7 +827,13 @@ fn collect_contract_functions(
                         fd.kind,
                         FunctionKind::Constructor | FunctionKind::Receive | FunctionKind::Fallback
                     );
-                    if !include_special && is_special {
+                    let include_special = match special {
+                        SpecialFunctionFilter::All => true,
+                        SpecialFunctionFilter::FallbackReceive => {
+                            matches!(fd.kind, FunctionKind::Receive | FunctionKind::Fallback)
+                        }
+                    };
+                    if is_special && !include_special {
                         continue;
                     }
                     out.push(function_name_for_display(&fd.kind, &fd.name).to_string());
@@ -1709,6 +1743,28 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_shows_source_for_fallback.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_shows_source_for_inherited_fallback() {
+        let output = inspect("InheritedSpecialChild", "fallback").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_shows_source_for_inherited_fallback.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_shows_source_for_inherited_receive() {
+        let output = inspect("InheritedSpecialChild", "receive").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_shows_source_for_inherited_receive.txt"
             )
         );
     }
