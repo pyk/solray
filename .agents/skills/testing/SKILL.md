@@ -83,12 +83,7 @@ listed by `inspect contracts`, or a missing symbol or invalid source emitted by
 You MUST use the following template:
 
 ````markdown
-
 # Solray Bug Reports
-
-Project Path: `<absolute_path>`
-
--------------------------------------------------------------------------------
 
 ## BUG-01: <Bug Title>
 
