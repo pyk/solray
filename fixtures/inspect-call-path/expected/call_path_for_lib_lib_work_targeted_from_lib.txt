@@ -8,51 +8,51 @@ Source: `src/Library.sol:5`
 ### Path 1
 
 ```
-SecondUser::secondUserWork
+SecondUser.secondUserWork
 src/SecondUser.sol:9
-└── Lib::libWork
+└── Lib.libWork
     src/Library.sol:5
 ```
 
 ### Path 2
 
 ```
-Target::externalCallingLib
+Target.externalCallingLib
 src/Main.sol:51
-└── Lib::libWork
+└── Lib.libWork
     src/Library.sol:5
 ```
 
 ### Path 3
 
 ```
-Target::fallback
+Target.fallback
 src/Main.sol:60
-└── Target::targetInternal
+└── Target.targetInternal
     src/Main.sol:36
-    └── Lib::libWork
+    └── Lib.libWork
         src/Library.sol:5
 ```
 
 ### Path 4
 
 ```
-Target::receive
+Target.receive
 src/Main.sol:56
-└── Target::targetInternal
+└── Target.targetInternal
     src/Main.sol:36
-    └── Lib::libWork
+    └── Lib.libWork
         src/Library.sol:5
 ```
 
 ### Path 5
 
 ```
-Target::targetExternal
+Target.targetExternal
 src/Main.sol:43
-└── Target::targetInternal
+└── Target.targetInternal
     src/Main.sol:36
-    └── Lib::libWork
+    └── Lib.libWork
         src/Library.sol:5
 ```
 

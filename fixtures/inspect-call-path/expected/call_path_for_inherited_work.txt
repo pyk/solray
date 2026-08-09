@@ -8,9 +8,9 @@ Source: `src/Base.sol:7`
 ### Path 1
 
 ```
-CrossFileTarget::entry
+CrossFileTarget.entry
 src/CrossFileTarget.sol:7
-└── Base::inheritedWork
+└── Base.inheritedWork
     src/Base.sol:7
 ```
 

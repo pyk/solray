@@ -8,27 +8,27 @@ Source: `src/Main.sol:36`
 ### Path 1
 
 ```
-Target::fallback
+Target.fallback
 src/Main.sol:60
-└── Target::targetInternal
+└── Target.targetInternal
     src/Main.sol:36
 ```
 
 ### Path 2
 
 ```
-Target::receive
+Target.receive
 src/Main.sol:56
-└── Target::targetInternal
+└── Target.targetInternal
     src/Main.sol:36
 ```
 
 ### Path 3
 
 ```
-Target::targetExternal
+Target.targetExternal
 src/Main.sol:43
-└── Target::targetInternal
+└── Target.targetInternal
     src/Main.sol:36
 ```
 

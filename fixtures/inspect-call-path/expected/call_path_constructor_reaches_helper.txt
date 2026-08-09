@@ -8,18 +8,18 @@ Source: `src/Constructor.sol:5`
 ### Path 1
 
 ```
-Constructor::constructor
+Constructor.constructor
 src/Constructor.sol:11
-└── Constructor::helper
+└── Constructor.helper
     src/Constructor.sol:5
 ```
 
 ### Path 2
 
 ```
-Constructor::entry
+Constructor.entry
 src/Constructor.sol:7
-└── Constructor::helper
+└── Constructor.helper
     src/Constructor.sol:5
 ```
 

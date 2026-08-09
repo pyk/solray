@@ -8,9 +8,9 @@ Source: `src/Unchecked.sol:7`
 ### Path 1
 
 ```
-UncheckedTarget::externalWork
+UncheckedTarget.externalWork
 src/Unchecked.sol:11
-└── UncheckedTarget::internalWork
+└── UncheckedTarget.internalWork
     src/Unchecked.sol:7
 ```
 

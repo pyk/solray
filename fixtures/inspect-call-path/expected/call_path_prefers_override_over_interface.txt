@@ -8,7 +8,7 @@ Source: `src/Override.sol:9`
 ### Path 1
 
 ```
-Override::transfer
+Override.transfer
 src/Override.sol:9
 ```
 

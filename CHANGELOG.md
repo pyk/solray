@@ -14,6 +14,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 - `make build-fixtures` now runs `forge clean` for every fixture project before
   rebuilding, so local and CI artifact states are always deterministic.
+- `solray inspect call-path` now renders function paths with dot notation
+  (`Lpd.transfer`) to match `solray inspect call-graph`.
 
 ### Fixed
 

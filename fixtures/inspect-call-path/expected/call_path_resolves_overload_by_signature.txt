@@ -8,9 +8,9 @@ Source: `src/Overloaded.sol:9`
 ### Path 1
 
 ```
-Overloaded::run
+Overloaded.run
 src/Overloaded.sol:5
-└── Overloaded::_work
+└── Overloaded._work
     src/Overloaded.sol:9
 ```
 

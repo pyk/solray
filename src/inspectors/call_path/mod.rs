@@ -136,7 +136,7 @@ fn format_target_display(target: &str) -> String {
 /// Format a [`CallGraphNode`] for call-path display (no visibility, no params).
 fn format_call_path_node(node: &CallGraphNode) -> String {
     let func_name = node.func_name();
-    format!("{}::{}", node.contract_name, func_name)
+    format!("{}.{}", node.contract_name, func_name)
 }
 
 /// Extract the linear path from root to the target node.
