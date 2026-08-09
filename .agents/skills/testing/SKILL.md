@@ -38,7 +38,7 @@ listed by `inspect contracts`, or a missing symbol or invalid source emitted by
 | STT-03 | A bug MUST be reported when any output contradicts the verified Solidity source or artifact data                                                         |
 | STT-04 | A declaration MUST be listed only by the command matching its Solidity kind: `contracts`, `abstracts`, `interfaces`, or `libraries`                      |
 | STT-05 | `inspect contracts` output MUST list every deployable (non-abstract, non-interface, non-library) contract                                                |
-| STT-06 | `inspect function-source` output MUST include the requested function's source code                                                                       |
+| STT-06 | `inspect function-source` output MUST include the requested function's source code for implemented functions                                             |
 | STT-07 | `inspect function-source` output MUST include every symbol referenced by the function, recursively                                                       |
 | STT-08 | `inspect function-source` output MUST NOT omit or drop any referenced symbol                                                                             |
 | STT-09 | `inspect function-source` code blocks MUST be valid Solidity source                                                                                      |
@@ -53,6 +53,8 @@ listed by `inspect contracts`, or a missing symbol or invalid source emitted by
 | STT-18 | You MUST test against the project's current build state, including incremental and stale artifacts                                                       |
 | STT-19 | Bugs reproduced only with incremental build artifacts MUST be reported                                                                                   |
 | STT-20 | When `solray-bug-reports.md` already exists, you MUST append new bug reports to it                                                                       |
+| STT-21 | `inspect function-source` MUST NOT be expected to resolve functions declared in interfaces                                                               |
+| STT-22 | A failure to resolve an interface function MUST NOT be reported as a bug                                                                                 |
 
 -------------------------------------------------------------------------------
 
