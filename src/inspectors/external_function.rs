@@ -4,7 +4,7 @@
 //! output with source locations, visibility, mutability, and modifiers for
 //! every externally callable function.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -401,6 +401,8 @@ struct FunctionIndex {
     by_name: HashMap<(String, String), Vec<FuncInfo>>,
     /// Key: (contract_name, kind_name) -> FuncInfo for special functions (fallback, receive).
     by_kind: HashMap<(String, String), FuncInfo>,
+    /// Contract names whose Solidity kind is `interface`.
+    interface_contracts: HashSet<String>,
     /// File cache for computing line numbers.
     line_cache: HashMap<PathBuf, Vec<usize>>,
 }
@@ -410,6 +412,7 @@ impl FunctionIndex {
         Self {
             by_name: HashMap::new(),
             by_kind: HashMap::new(),
+            interface_contracts: HashSet::new(),
             line_cache: HashMap::new(),
         }
     }
@@ -491,7 +494,7 @@ impl FunctionIndex {
             }
         }
         // Fall back to any registered contract (inherited functions).
-        let mut candidates: Vec<&FuncInfo> = self
+        let candidates: Vec<&FuncInfo> = self
             .by_name
             .iter()
             .filter(|((_, n), _)| n == name)
@@ -501,14 +504,17 @@ impl FunctionIndex {
             return None;
         }
         // Flattened projects put interfaces and implementations in the same
-        // file, so prefer the Solidity declaration kind over the file name.
-        let mut concrete: Vec<&FuncInfo> = candidates
+        // file, so prefer the declaration kind that matches the queried
+        // contract: concrete implementations for contracts, interface
+        // declarations for interfaces.
+        let prefer_interface = self.interface_contracts.contains(contract_name);
+        let mut preferred: Vec<&FuncInfo> = candidates
             .iter()
             .copied()
-            .filter(|info| !info.is_interface)
+            .filter(|info| info.is_interface == prefer_interface)
             .collect();
-        concrete.sort_by_key(|info| (info.line.unwrap_or(0), info.location.offset));
-        if let Some(info) = concrete
+        preferred.sort_by_key(|info| (info.line.unwrap_or(0), info.location.offset));
+        if let Some(info) = preferred
             .iter()
             .copied()
             .find(|info| info.signature == signature)
@@ -517,19 +523,24 @@ impl FunctionIndex {
         }
         // Public state-variable getters have an empty AST signature even
         // though their ABI signature includes the mapping key, so prefer any
-        // concrete declaration before falling back to interface declarations.
-        if let Some(info) = concrete.first() {
+        // matching-kind declaration before falling back to the other kind.
+        if let Some(info) = preferred.first() {
             return Some(info);
         }
-        if let Some(info) = candidates
+        let mut fallback: Vec<&FuncInfo> = candidates
+            .iter()
+            .copied()
+            .filter(|info| info.is_interface != prefer_interface)
+            .collect();
+        fallback.sort_by_key(|info| (info.line.unwrap_or(0), info.location.offset));
+        if let Some(info) = fallback
             .iter()
             .copied()
             .find(|info| info.signature == signature)
         {
             return Some(info);
         }
-        candidates.sort_by_key(|info| (info.line.unwrap_or(0), info.location.offset));
-        Some(candidates.remove(0))
+        fallback.first().copied()
     }
 
     fn resolve_by_kind(&self, contract_name: &str, kind: &FunctionKind) -> Option<&FuncInfo> {
@@ -642,6 +653,9 @@ fn index_contract(
     source_file: &Option<PathBuf>,
     project_root: &Path,
 ) {
+    if cd.contract_kind == ContractKind::Interface {
+        index.interface_contracts.insert(cd.name.clone());
+    }
     for node in &cd.nodes {
         match node {
             ContractDefinitionNode::FunctionDefinition(fd)
@@ -891,6 +905,19 @@ mod tests {
                 )
             );
         }
+    }
+
+    #[test]
+    fn inspect_shows_source_for_inherited_interface_functions() {
+        let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("IChildRouter");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../fixtures/inspect-external-functions/expected/inspect_shows_source_for_inherited_interface_functions.txt"
+            )
+        );
     }
 
     #[test]

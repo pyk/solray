@@ -1,0 +1,32 @@
+Contract: IChildRouter
+File: src/FlattenedInterface.sol
+
+Summary:
+- 3 externally callable functions
+- 2 mutable functions
+- 1 view functions
+- 0 callback functions
+- 0 special functions
+
+MUTABLE FUNCTIONS
+
+1. addLiquidity(address,address,uint256)
+   source: src/FlattenedInterface.sol:6
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+2. removeLiquidity(uint256)
+   source: src/FlattenedInterface.sol:10
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+VIEW FUNCTIONS
+
+1. factory()
+   source: src/FlattenedInterface.sol:5
+   visibility: external
+   mutability: view
+   modifiers: none
+

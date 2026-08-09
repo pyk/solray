@@ -23,6 +23,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect external-functions` resolves inherited ABI entries to base
+  interface declarations when the queried contract is an interface.
 - `solray inspect call-graph` includes low-level calls made with
   `{value: ...}`.
 - `solray inspect modifiers` reports correct line numbers for CRLF projects.
