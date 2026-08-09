@@ -25,6 +25,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect external-functions` now deterministically resolves inherited
+  functions and public getters to the implementing contract's declaration
+  instead of an interface declaration with the same name. Previously the
+  fallback selected from `HashMap` iteration order, so flattened projects that
+  declared interfaces and implementations in one file reported nondeterministic
+  source lines. Added a flattened override regression fixture.
 - `solray inspect` commands now ignore import-only artifacts (files that only
   re-export a contract from another file). Previously those artifacts were
   indexed by file name even though their AST declared nothing, so plain-name

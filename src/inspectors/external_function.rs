@@ -12,8 +12,8 @@ use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use solc::abi::{Abi, AbiItem, Function as AbiFunction, StateMutability};
 use solc::ast::{
-    ContractDefinition, ContractDefinitionNode, FunctionDefinition, FunctionKind, SourceLocation,
-    SourceUnit, SourceUnitNode, VariableDeclaration, Visibility,
+    ContractDefinition, ContractDefinitionNode, ContractKind, FunctionDefinition, FunctionKind,
+    SourceLocation, SourceUnit, SourceUnitNode, VariableDeclaration, Visibility,
 };
 use tracing::debug;
 
@@ -348,10 +348,16 @@ struct FuncInfo {
     visibility: Visibility,
     modifiers: Vec<String>,
     signature: String,
+    is_interface: bool,
 }
 
 impl FuncInfo {
-    fn from_ast(fn_def: &FunctionDefinition, file: Option<String>, line: Option<usize>) -> Self {
+    fn from_ast(
+        fn_def: &FunctionDefinition,
+        file: Option<String>,
+        line: Option<usize>,
+        is_interface: bool,
+    ) -> Self {
         Self {
             location: fn_def.src.clone(),
             file,
@@ -363,10 +369,16 @@ impl FuncInfo {
                 .map(|m| m.modifier_name.name.to_string())
                 .collect(),
             signature: ast_param_signature(&fn_def.parameters.parameters),
+            is_interface,
         }
     }
 
-    fn from_variable(var: &VariableDeclaration, file: Option<String>, line: Option<usize>) -> Self {
+    fn from_variable(
+        var: &VariableDeclaration,
+        file: Option<String>,
+        line: Option<usize>,
+        is_interface: bool,
+    ) -> Self {
         Self {
             location: var.src.clone(),
             file,
@@ -374,6 +386,7 @@ impl FuncInfo {
             visibility: var.visibility.clone(),
             modifiers: vec![],
             signature: String::new(),
+            is_interface,
         }
     }
 
@@ -407,6 +420,7 @@ impl FunctionIndex {
         fn_def: &FunctionDefinition,
         source_file: Option<PathBuf>,
         project_root: &Path,
+        is_interface: bool,
     ) {
         let display_file = source_file.as_ref().and_then(|p| {
             p.strip_prefix(project_root)
@@ -416,7 +430,7 @@ impl FunctionIndex {
         let line = source_file
             .as_ref()
             .and_then(|f| self.byte_offset_to_line(f, fn_def.src.offset));
-        let info = FuncInfo::from_ast(fn_def, display_file, line);
+        let info = FuncInfo::from_ast(fn_def, display_file, line, is_interface);
         match fn_def.kind {
             FunctionKind::Receive | FunctionKind::Fallback => {
                 let kind_name = format!("{:?}", fn_def.kind);
@@ -438,6 +452,7 @@ impl FunctionIndex {
         var: &VariableDeclaration,
         source_file: Option<PathBuf>,
         project_root: &Path,
+        is_interface: bool,
     ) {
         if var.visibility != Visibility::Public {
             return;
@@ -450,7 +465,7 @@ impl FunctionIndex {
         let line = source_file
             .as_ref()
             .and_then(|f| self.byte_offset_to_line(f, var.src.offset));
-        let info = FuncInfo::from_variable(var, display_file, line);
+        let info = FuncInfo::from_variable(var, display_file, line, is_interface);
         self.by_name
             .entry((contract_name.to_string(), var.name.clone()))
             .or_default()
@@ -485,6 +500,27 @@ impl FunctionIndex {
         if candidates.is_empty() {
             return None;
         }
+        // Flattened projects put interfaces and implementations in the same
+        // file, so prefer the Solidity declaration kind over the file name.
+        let mut concrete: Vec<&FuncInfo> = candidates
+            .iter()
+            .copied()
+            .filter(|info| !info.is_interface)
+            .collect();
+        concrete.sort_by_key(|info| (info.line.unwrap_or(0), info.location.offset));
+        if let Some(info) = concrete
+            .iter()
+            .copied()
+            .find(|info| info.signature == signature)
+        {
+            return Some(info);
+        }
+        // Public state-variable getters have an empty AST signature even
+        // though their ABI signature includes the mapping key, so prefer any
+        // concrete declaration before falling back to interface declarations.
+        if let Some(info) = concrete.first() {
+            return Some(info);
+        }
         if let Some(info) = candidates
             .iter()
             .copied()
@@ -492,20 +528,7 @@ impl FunctionIndex {
         {
             return Some(info);
         }
-        // Prefer candidates from non-interface source files.
-        for info in &candidates {
-            let is_interface = match info.file.as_deref() {
-                Some(f) => Path::new(f)
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .map(|s| s.starts_with('I'))
-                    .unwrap_or(false),
-                None => false,
-            };
-            if !is_interface {
-                return Some(info);
-            }
-        }
+        candidates.sort_by_key(|info| (info.line.unwrap_or(0), info.location.offset));
         Some(candidates.remove(0))
     }
 
@@ -624,10 +647,22 @@ fn index_contract(
             ContractDefinitionNode::FunctionDefinition(fd)
                 if fd.visibility == Visibility::External || fd.visibility == Visibility::Public =>
             {
-                index.register(&cd.name, fd, source_file.clone(), project_root);
+                index.register(
+                    &cd.name,
+                    fd,
+                    source_file.clone(),
+                    project_root,
+                    cd.contract_kind == ContractKind::Interface,
+                );
             }
             ContractDefinitionNode::VariableDeclaration(var) => {
-                index.register_variable(&cd.name, var, source_file.clone(), project_root);
+                index.register_variable(
+                    &cd.name,
+                    var,
+                    source_file.clone(),
+                    project_root,
+                    cd.contract_kind == ContractKind::Interface,
+                );
             }
             _ => {}
         }
@@ -839,6 +874,23 @@ mod tests {
                 "../../fixtures/inspect-external-functions/expected/inspect_shows_source_for_inherited_functions.txt"
             )
         );
+    }
+
+    #[test]
+    fn inspect_shows_source_for_flattened_inherited_functions() {
+        let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("Child");
+        // The fallback selection used HashMap iteration order before the fix,
+        // so run repeatedly to exercise both orderings.
+        for _ in 0..8 {
+            let output = inspector.inspect(&id).unwrap().to_string();
+            assert_eq!(
+                output,
+                include_str!(
+                    "../../fixtures/inspect-external-functions/expected/inspect_shows_source_for_flattened_inherited_functions.txt"
+                )
+            );
+        }
     }
 
     #[test]

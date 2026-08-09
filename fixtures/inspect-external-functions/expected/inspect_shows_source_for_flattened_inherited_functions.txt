@@ -1,0 +1,32 @@
+Contract: Child
+File: src/FlattenedOverride.sol
+
+Summary:
+- 3 externally callable functions
+- 1 mutable functions
+- 2 view functions
+- 0 callback functions
+- 0 special functions
+
+MUTABLE FUNCTIONS
+
+1. process(uint256)
+   source: src/FlattenedOverride.sol:14
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+VIEW FUNCTIONS
+
+1. balanceOf(address)
+   source: src/FlattenedOverride.sol:12
+   visibility: public
+   mutability: view
+   modifiers: none
+
+2. total()
+   source: src/FlattenedOverride.sol:11
+   visibility: public
+   mutability: view
+   modifiers: none
+
