@@ -305,4 +305,17 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn call_graph_for_constructor() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("Constructor", "constructor");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_for_constructor.txt"
+            )
+        );
+    }
 }

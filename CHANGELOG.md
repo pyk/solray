@@ -57,6 +57,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   overloads, and `solray inspect call-graph` accepts the same syntax. Added
   call-path and call-graph regression fixtures and `--debug` support for
   `inspect call-path`.
+- `solray inspect call-graph` and `solray inspect call-path` now name
+  constructors correctly. Solidity constructor AST nodes have an empty `name`,
+  so call-graph lookup by `"constructor"` previously failed and call-path
+  rendered constructor roots as `Contract::`. Added constructor regression
+  fixtures to both test suites.
 
 ## [0.6.0] - 2026-08-08
 

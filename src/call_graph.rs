@@ -1148,7 +1148,7 @@ fn extract_contract_functions(cd: ContractDefinition, source_file: &Path) -> Vec
             };
             Some(FunctionInfo {
                 id: fd.id,
-                name: fd.name.clone(),
+                name: function_name_for_display(&fd.kind, &fd.name).to_string(),
                 contract_name: contract_name.clone(),
                 file: file.clone(),
                 parameters: fd.parameters.parameters.clone(),
@@ -1159,12 +1159,17 @@ fn extract_contract_functions(cd: ContractDefinition, source_file: &Path) -> Vec
         .collect()
 }
 
-fn build_signature(info: &FunctionInfo) -> String {
-    let name = match info.definition.kind {
+fn function_name_for_display<'a>(kind: &FunctionKind, name: &'a str) -> &'a str {
+    match kind {
+        FunctionKind::Constructor => "constructor",
         FunctionKind::Receive => "receive",
         FunctionKind::Fallback => "fallback",
-        _ => &info.name,
-    };
+        _ => name,
+    }
+}
+
+fn build_signature(info: &FunctionInfo) -> String {
+    let name = function_name_for_display(&info.definition.kind, &info.name);
     format!(
         "{}::{}({})",
         info.contract_name,

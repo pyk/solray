@@ -1,0 +1,25 @@
+## Call Paths
+
+Target: `helper`
+Source: `src/Constructor.sol:5`
+
+2 paths found.
+
+### Path 1
+
+```
+Constructor::constructor
+src/Constructor.sol:11
+└── Constructor::helper
+    src/Constructor.sol:5
+```
+
+### Path 2
+
+```
+Constructor::entry
+src/Constructor.sol:7
+└── Constructor::helper
+    src/Constructor.sol:5
+```
+

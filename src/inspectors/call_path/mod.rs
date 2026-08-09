@@ -406,4 +406,17 @@ mod tests {
             "\"_work\" has multiple overloads in \"Overloaded\"; use the full signature."
         );
     }
+
+    #[test]
+    fn call_path_constructor_reaches_helper() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("Constructor", "helper");
+        let output = inspector.inspect(&id, "helper").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_constructor_reaches_helper.txt"
+            )
+        );
+    }
 }
