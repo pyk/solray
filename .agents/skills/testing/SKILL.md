@@ -52,13 +52,15 @@ listed by `inspect contracts`, or a missing symbol or invalid source emitted by
 | STT-17 | You MUST NOT rebuild the Foundry project before testing                                                                                                  |
 | STT-18 | You MUST test against the project's current build state, including incremental and stale artifacts                                                       |
 | STT-19 | Bugs reproduced only with incremental build artifacts MUST be reported                                                                                   |
-| STT-20 | When `solray-bug-reports.md` already exists, you MUST abort before running any inspection command                                                        |
+| STT-20 | When `solray-bug-reports.md` already exists, you MUST append new bug reports to it                                                                       |
 
 -------------------------------------------------------------------------------
 
 ## Workflow
 
-1. Abort when `solray-bug-reports.md` already exists.
+1. Load `solray-bug-reports.md`:
+   - Create it when it does not exist.
+   - Keep its existing content when it already exists.
 
 2. Check all available commands:
 
@@ -72,7 +74,7 @@ listed by `inspect contracts`, or a missing symbol or invalid source emitted by
    - Verify the output against the Solidity source and Foundry artifacts.
    - Classify every discrepancy as a bug using the Rules.
 
-4. Write the bug reports to `solray-bug-reports.md` using the Template.
+4. Write new bug reports to `solray-bug-reports.md` using the Template.
 
 -------------------------------------------------------------------------------
 
@@ -133,3 +135,7 @@ Actual output:
 -------------------------------------------------------------------------------
 
 ````
+
+When appending to an existing report, add only the `## BUG-##` section
+(starting with the `---` separator) and continue the bug numbering from the
+last existing entry.
