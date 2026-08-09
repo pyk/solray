@@ -29,6 +29,7 @@ contract list, an unresolved modifier, or an invalid source block.
 |   1 | Regression test | Test function in the affected inspector or scanner test module |
 |   2 | Test fixture    | `fixtures/<feature>/src/` and `fixtures/<feature>/expected/`   |
 |   3 | Fixed source    | Affected source under `src/inspectors/` or `src/scanners/`     |
+|   4 | Changelog entry | `CHANGELOG.md` under `[Unreleased]`                            |
 
 -------------------------------------------------------------------------------
 
@@ -60,6 +61,7 @@ contract list, an unresolved modifier, or an invalid source block.
 | FIX-22 | When consulting crate documentation, you MUST use `cargo txt`                                                              |
 | FIX-23 | You MUST run `make lint` before finishing                                                                                  |
 | FIX-24 | You MUST run `make test` before finishing                                                                                  |
+| FIX-25 | You MUST add a `### Fixed` entry for the bug to `CHANGELOG.md` under `[Unreleased]` before finishing                       |
 
 -------------------------------------------------------------------------------
 
@@ -144,6 +146,9 @@ contract list, an unresolved modifier, or an invalid source block.
      ```bash
      cargo test <test_name>
      ```
+
+   - Add a `### Fixed` entry for the bug to `CHANGELOG.md` under `[Unreleased]`
+     before finishing.
 
    - Run `make lint` and `make test` before finishing:
 
