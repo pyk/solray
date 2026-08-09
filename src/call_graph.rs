@@ -14,6 +14,7 @@ use solc::ast::{
     FunctionDefinition, FunctionKind, SourceUnit, SourceUnitNode, TypeName, VariableDeclaration,
     Visibility,
 };
+use tracing::debug;
 
 use crate::artifact_index::ArtifactIndex;
 use crate::build_info::BuildInfo;
@@ -301,13 +302,12 @@ impl CallGraph {
 
         let target_name = id.function_name();
 
-        let target_ids: Vec<i64> = functions
+        let target_functions: Vec<&FunctionInfo> = functions
             .values()
             .filter(|fi| fi.name == target_name)
-            .map(|fi| fi.id)
             .collect();
 
-        if target_ids.is_empty() {
+        if target_functions.is_empty() {
             // If there was contract-level ambiguity, emit a suggestion error.
             if let Some(candidates) = ambiguity_candidates {
                 bail!(format_ambiguity_error(
@@ -321,7 +321,14 @@ impl CallGraph {
             bail!("\"{target_name}\" not found in \"{contract_name}\".");
         }
 
-        let target_id = target_ids[0];
+        let target_info = select_target_function(&target_functions, &id.artifact_id().name)
+            .context("target function list is non-empty")?;
+        debug!(
+            contract = %target_info.contract_name,
+            function = %target_name,
+            "selected target function declaration"
+        );
+        let target_id = target_info.id;
         let mut visited: HashSet<i64> = HashSet::new();
         self.build_call_node(target_id, &cache, &mut functions, &mut visited)
     }
@@ -949,6 +956,24 @@ fn find_contract_name(functions: &HashMap<i64, FunctionInfo>, target_name: &str)
         .unwrap_or_default()
 }
 
+/// Select the function declaration that should represent a requested name.
+///
+/// The queried contract's own declaration takes precedence over inherited
+/// declarations with the same name.
+fn select_target_function<'a>(
+    candidates: &[&'a FunctionInfo],
+    preferred_contract: &str,
+) -> Option<&'a FunctionInfo> {
+    candidates.iter().copied().min_by_key(|fi| {
+        (
+            fi.contract_name != preferred_contract,
+            fi.contract_name.as_str(),
+            fi.definition.src.offset,
+            fi.id,
+        )
+    })
+}
+
 fn load_artifact_functions(
     path: impl AsRef<Path>,
     functions: &mut HashMap<i64, FunctionInfo>,
@@ -1258,5 +1283,30 @@ mod tests {
         assert_eq!(sources[0].1, "276:110");
         assert_eq!(sources[1].0, PathBuf::from("src/Helper.sol"));
         assert_eq!(sources[1].1, "109:72");
+    }
+
+    #[test]
+    fn select_target_function_prefers_own_contract() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/inspect-call-graph/out/Override.sol");
+        let iface = contract_functions(&root.join("IOverride.json"), "IOverride");
+        let own = contract_functions(&root.join("Override.json"), "Override");
+
+        let selected = select_target_function(&[&iface[0], &own[0]], "Override").unwrap();
+        assert_eq!(selected.contract_name, "Override");
+    }
+
+    fn contract_functions(path: impl AsRef<Path>, contract_name: &str) -> Vec<FunctionInfo> {
+        let ast = parse_artifact_ast(path).unwrap().unwrap();
+        let source_file = PathBuf::from("src/Override.sol");
+        let mut out = Vec::new();
+        for node in ast.nodes {
+            if let SourceUnitNode::ContractDefinition(cd) = node {
+                if cd.name == contract_name {
+                    out.extend(extract_contract_functions(cd, &source_file));
+                }
+            }
+        }
+        out
     }
 }

@@ -78,6 +78,9 @@ enum InspectSubcommand {
         /// Enable trace logging for performance diagnostics
         #[arg(short, long)]
         verbose: bool,
+        /// Enable debug logging for resolution tracing
+        #[arg(short, long)]
+        debug: bool,
     },
     /// Show call paths from entry functions to a target function
     CallPath {
@@ -228,12 +231,19 @@ fn main() -> Result<()> {
                 function,
                 project,
                 verbose,
+                debug,
             } => {
                 if verbose {
                     let _ = tracing_subscriber::fmt()
                         .with_max_level(tracing::Level::TRACE)
                         .with_target(true)
                         .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
+                        .with_writer(std::io::stderr)
+                        .try_init();
+                } else if debug {
+                    let _ = tracing_subscriber::fmt()
+                        .with_max_level(tracing::Level::DEBUG)
+                        .with_target(true)
                         .with_writer(std::io::stderr)
                         .try_init();
                 }

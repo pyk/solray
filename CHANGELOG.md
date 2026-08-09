@@ -43,6 +43,13 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   projects with CRLF line endings. Previously the line helpers read raw CRLF
   bytes while solc AST offsets are LF-normalized, so functions were reported
   several lines early. Added CRLF regression fixtures to all three test suites.
+- `solray inspect call-graph` now deterministically resolves overridden
+  functions to the queried contract's own declaration instead of an inherited
+  interface with the same name. Previously the matching declaration was picked
+  from HashMap iteration order, so ERC-20 functions such as `transfer`, `name`,
+  and `decimals` could resolve to `IERC20`/`IERC20Metadata`. Added an
+  override-preference regression fixture and `--debug` support for
+  `inspect call-graph`.
 
 ## [0.6.0] - 2026-08-08
 
