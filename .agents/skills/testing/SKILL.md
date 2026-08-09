@@ -56,6 +56,9 @@ listed by `inspect contracts`, or a missing symbol or invalid source emitted by
 | STT-21 | `inspect function-source` MUST NOT be expected to resolve functions declared in interfaces                                                                       |
 | STT-22 | A failure to resolve an interface function MUST NOT be reported as a bug                                                                                         |
 | STT-23 | `inspect function-source` MUST render referenced contracts, abstract contracts, interfaces, and libraries as their declaration header and top-level NatSpec only |
+| STT-24 | `inspect call-path <Contract> <function>` MUST resolve only targets declared by `<Contract>` or its inherited contracts                                          |
+| STT-25 | `inspect call-path` MUST report every external function in any project contract that calls the resolved target as a path root                                    |
+| STT-26 | A `not found` error for a target not declared by the queried contract or its inherited contracts MUST NOT be reported as a bug                                   |
 
 -------------------------------------------------------------------------------
 
