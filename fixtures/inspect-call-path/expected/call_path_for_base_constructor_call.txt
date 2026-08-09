@@ -1,0 +1,36 @@
+## Call Paths
+
+Target: `_transferOwnership`
+Source: `src/ModifierBase.sol:20`
+
+3 paths found.
+
+### Path 1
+
+```
+GuardUser.changeOwner
+src/ModifierBase.sol:32
+└── GuardBase._transferOwnership
+    src/ModifierBase.sol:20
+```
+
+### Path 2
+
+```
+GuardUser.constructor
+src/ModifierBase.sol:30
+└── GuardBase.constructor
+    src/ModifierBase.sol:24
+    └── GuardBase._transferOwnership
+        src/ModifierBase.sol:20
+```
+
+### Path 3
+
+```
+GuardUser.renounce
+src/ModifierBase.sol:36
+└── GuardBase._transferOwnership
+    src/ModifierBase.sol:20
+```
+

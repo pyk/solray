@@ -1,0 +1,25 @@
+## Call Paths
+
+Target: `_checkOwner`
+Source: `src/ModifierBase.sol:16`
+
+2 paths found.
+
+### Path 1
+
+```
+GuardUser.changeOwner
+src/ModifierBase.sol:32
+└── GuardBase._checkOwner
+    src/ModifierBase.sol:16
+```
+
+### Path 2
+
+```
+GuardUser.renounce
+src/ModifierBase.sol:36
+└── GuardBase._checkOwner
+    src/ModifierBase.sol:16
+```
+

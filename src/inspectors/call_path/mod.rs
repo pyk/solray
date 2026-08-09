@@ -421,6 +421,32 @@ mod tests {
     }
 
     #[test]
+    fn call_path_for_modifier_call() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("GuardUser", "_checkOwner");
+        let output = inspector.inspect(&id, "_checkOwner").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_for_modifier_call.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_path_for_base_constructor_call() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("GuardUser", "_transferOwnership");
+        let output = inspector.inspect(&id, "_transferOwnership").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_for_base_constructor_call.txt"
+            )
+        );
+    }
+
+    #[test]
     fn call_path_for_public_getter() {
         let inspector = CallPathInspector::new(fixture_call_path_project());
         let id = make_id("Getter", "project");
