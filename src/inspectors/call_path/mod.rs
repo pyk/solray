@@ -298,6 +298,20 @@ mod tests {
     }
 
     #[test]
+    fn call_path_errors_for_unrelated_interface_function() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("Unrelated", "transfer");
+        let err = inspector.inspect(&id, "transfer").unwrap_err().to_string();
+        assert_eq!(
+            err,
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_errors_for_unrelated_interface_function.txt"
+            )
+            .trim_end()
+        );
+    }
+
+    #[test]
     fn call_path_for_parent_work_targeted_from_parent() {
         let inspector = CallPathInspector::new(fixture_call_path_project());
         let id = make_id("Parent", "parentWork");

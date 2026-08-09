@@ -23,6 +23,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect call-path` rejects functions that are not exposed by the
+  queried contract instead of counting unrelated interface declarations as
+  overloads.
 - `solray inspect call-graph` rejects functions that are not exposed by the
   queried contract instead of resolving them to unrelated interface
   declarations in flattened projects.

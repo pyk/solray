@@ -412,7 +412,12 @@ impl CallGraph {
         // 2. Load functions from the target artifact to validate the function.
         let cache: RefCell<HashMap<PathBuf, Vec<FunctionInfo>>> = RefCell::new(HashMap::new());
         let mut functions: HashMap<i64, FunctionInfo> = HashMap::new();
-        load_artifact_functions(&artifact_path, &mut functions, &cache)?;
+        load_contract_functions(
+            &artifact_path,
+            &id.artifact_id().name,
+            &mut functions,
+            &cache,
+        )?;
         self.load_inherited_functions(
             &artifact_path,
             id.artifact_id().name.as_str(),
@@ -1217,7 +1222,7 @@ fn load_contract_functions(
         if let Some(cached) = cache_ref.get(path) {
             for fi in cached {
                 if fi.contract_name == contract_name {
-                    functions.insert(fi.id, fi.clone());
+                    functions.insert(fi.id, fi.clone()); // checkrs: allow(clone_in_loops)
                 }
             }
             return Ok(());
