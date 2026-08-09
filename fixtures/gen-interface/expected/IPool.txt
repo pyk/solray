@@ -2,7 +2,10 @@
 pragma solidity ^0.8.0;
 
 interface IPool {
-    type Status is uint8;
+    enum Status {
+        Inactive,
+        Active
+    }
     type Price is uint128;
 
     struct Deposit {

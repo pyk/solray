@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use solc::abi::{Abi, AbiItem, Component, Function as AbiFunction, Param, StateMutability};
+use solc::ast::{ContractDefinitionNode, SourceUnit, SourceUnitNode};
 
 use crate::artifact_index::ArtifactIndex;
 use crate::inspectors::artifact_id::ArtifactId;
@@ -79,9 +80,10 @@ impl InterfaceGenerator {
         let abi = artifact.abi.with_context(|| {
             format!("artifact `{}` is missing the ABI", artifact_path.display())
         })?;
+        let enums = enum_members(artifact.ast);
 
         let interface_name = format!("I{}", id.name);
-        let source = render_interface(&interface_name, &abi);
+        let source = render_interface(&interface_name, &abi, &enums);
         Ok(InterfaceGeneratorOutput::new(
             &id.name,
             &interface_name,
@@ -130,20 +132,23 @@ impl InterfaceGenerator {
 /// Collects user-defined types referenced by ABI parameters while rendering
 /// their Solidity type names.
 struct TypeResolver {
-    /// Enum names mapped to their canonical ABI type (e.g. `Status` -> `uint8`).
-    enums: BTreeMap<String, String>,
+    /// Enum definitions referenced by ABI parameters, keyed by enum name.
+    enums: BTreeMap<String, EnumType>,
     /// User-defined value type names mapped to their underlying type.
     udts: BTreeMap<String, String>,
     /// Struct definitions, keyed by struct name.
     structs: BTreeMap<String, StructType>,
+    /// Enum member lists from the artifact AST, keyed by enum name.
+    enum_defs: BTreeMap<String, Vec<String>>,
 }
 
 impl TypeResolver {
-    fn new() -> Self {
+    fn new(enum_defs: BTreeMap<String, Vec<String>>) -> Self {
         Self {
             enums: BTreeMap::new(),
             udts: BTreeMap::new(),
             structs: BTreeMap::new(),
+            enum_defs,
         }
     }
 
@@ -209,7 +214,11 @@ impl TypeResolver {
             let (name, suffix) = split_array_suffix(enum_path);
             self.enums
                 .entry(name.to_string())
-                .or_insert_with(|| base_canonical_type(canonical).to_string());
+                .or_insert_with(|| EnumType {
+                    name: name.to_string(),
+                    members: self.enum_defs.get(name).cloned().unwrap_or_default(),
+                    canonical: base_canonical_type(canonical).to_string(),
+                });
             return format!("{name}{suffix}");
         }
 
@@ -252,9 +261,21 @@ struct StructMember {
     r#type: String,
 }
 
+/// An enum definition referenced by ABI parameters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct EnumType {
+    name: String,
+    members: Vec<String>,
+    canonical: String,
+}
+
 /// Render the complete Solidity interface source for an ABI.
-fn render_interface(interface_name: &str, abi: &Abi) -> String {
-    let mut resolver = TypeResolver::new();
+fn render_interface(
+    interface_name: &str,
+    abi: &Abi,
+    enum_defs: &BTreeMap<String, Vec<String>>,
+) -> String {
+    let mut resolver = TypeResolver::new(enum_defs.clone());
     let mut functions: Vec<&AbiFunction> = abi
         .items
         .iter()
@@ -275,8 +296,15 @@ fn render_interface(interface_name: &str, abi: &Abi) -> String {
     out.push_str("pragma solidity ^0.8.0;\n");
     out.push_str(&format!("\ninterface {interface_name} {{\n"));
 
-    for (name, canonical) in &resolver.enums {
-        out.push_str(&format!("    type {name} is {canonical};\n"));
+    for enum_type in resolver.enums.values() {
+        if enum_type.members.is_empty() {
+            out.push_str(&format!(
+                "    type {} is {};\n",
+                enum_type.name, enum_type.canonical
+            ));
+        } else {
+            out.push_str(&render_enum(enum_type));
+        }
     }
     for (name, canonical) in &resolver.udts {
         out.push_str(&format!("    type {name} is {canonical};\n"));
@@ -305,6 +333,21 @@ fn render_interface(interface_name: &str, abi: &Abi) -> String {
     }
 
     out.push_str("}\n");
+    out
+}
+
+/// Render an enum definition with 8-space member indentation.
+fn render_enum(enum_type: &EnumType) -> String {
+    let mut out = format!("    enum {} {{\n", enum_type.name);
+    for (i, member) in enum_type.members.iter().enumerate() {
+        out.push_str(&format!("        {member}"));
+        if i + 1 < enum_type.members.len() {
+            out.push(',');
+            out.push('\n');
+        }
+    }
+    out.push('\n');
+    out.push_str("    }\n");
     out
 }
 
@@ -432,6 +475,8 @@ fn format_ambiguity_error(candidates: &[PathBuf], contract_name: &str) -> String
 /// Minimal artifact wrapper for reading the ABI.
 #[derive(Deserialize)]
 struct Artifact {
+    #[serde(default)]
+    ast: Option<SourceUnit>,
     abi: Option<Abi>,
 }
 
@@ -442,6 +487,42 @@ impl Artifact {
         serde_json::from_str(&content)
             .with_context(|| format!("failed to parse artifact `{}`", path.display()))
     }
+}
+
+/// Collect enum member lists from an artifact AST, including enums declared
+/// at the source-unit level and inside contracts.
+fn enum_members(ast: Option<SourceUnit>) -> BTreeMap<String, Vec<String>> {
+    let Some(ast) = ast else {
+        return BTreeMap::new();
+    };
+
+    let mut enums = BTreeMap::new();
+    for node in ast.nodes {
+        match node {
+            SourceUnitNode::EnumDefinition(enum_def) => {
+                enums.insert(
+                    enum_def.name,
+                    enum_def.members.into_iter().map(|m| m.name).collect(),
+                );
+            }
+            SourceUnitNode::ContractDefinition(contract) => {
+                for node in contract.nodes {
+                    if let ContractDefinitionNode::EnumDefinition(enum_def) = node {
+                        enums.insert(
+                            enum_def.name,
+                            enum_def
+                                .members
+                                .into_iter()
+                                .map(|member| member.name)
+                                .collect(),
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    enums
 }
 
 #[cfg(test)]

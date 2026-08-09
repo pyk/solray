@@ -25,6 +25,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray gen interface` now emits real `enum` declarations with their original
+  members for enums referenced by the ABI, instead of converting them to
+  user-defined value types such as `type OrderStatus is uint8;`. The generated
+  interface now preserves enum member names and matches the source contract's
+  types.
 - `solray inspect function-source` no longer leaks unrelated declarations into
   resolved output after incremental builds. The build-info resolver previously
   matched artifacts by source path alone, so a recompiled file could be scoped
