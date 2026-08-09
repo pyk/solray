@@ -13,6 +13,7 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - `solray inspect call-graph`, `solray inspect call-path`, and
   `solray inspect external-functions` now support `--debug` for resolution
   tracing.
+- `solray scan erc20-transfer-sink` now supports `--debug` for scan tracing.
 
 ### Changed
 
@@ -90,6 +91,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   `IERC20.sol:IERC20`), and file-qualified IDs accept those source paths.
   Previously import-only artifacts with no contract declaration produced
   identical suggestions that could not be used to disambiguate.
+- `solray scan erc20-transfer-sink` now reports correct transfer expressions
+  and source lines in projects with CRLF line endings. Previously it sliced raw
+  CRLF source bytes with LF-normalized solc AST offsets, so every snippet and
+  line number was shifted. Added a CRLF regression source to the
+  `scan-erc20-transfer-sinks` fixture suite.
 
 ## [0.6.0] - 2026-08-08
 

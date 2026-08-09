@@ -14,6 +14,7 @@ use solc::ast::{
     Block, ContractDefinitionNode, Expression, FunctionCallExpression, SourceUnit, SourceUnitNode,
     Statement,
 };
+use tracing::debug;
 use walkdir::WalkDir;
 
 use crate::project::Project;
@@ -407,6 +408,12 @@ fn build_transfer_sink(
     fc: &solc::ast::FunctionCall,
     ctx: &ScanContext,
 ) -> Option<Erc20TransferSink> {
+    debug!(
+        file = %ctx.source_file.display(),
+        offset = fc.src.offset,
+        length = fc.src.length,
+        "building transfer sink"
+    );
     let source_text = source_text_for_location(ctx.source_file, fc.src.offset, fc.src.length)?;
     let line = ctx
         .line_cache
@@ -429,6 +436,7 @@ fn build_transfer_sink(
 /// Extract the source text for a given byte offset and length from a file.
 fn source_text_for_location(file: &Path, offset: usize, length: usize) -> Option<String> {
     let content = fs::read_to_string(file).ok()?;
+    let content = content.replace('\r', "");
     if offset + length > content.len() {
         return None;
     }
@@ -451,6 +459,7 @@ impl LineCache {
         let mut cache = self.cache.borrow_mut();
         let entry = cache.entry(file.to_path_buf()).or_insert_with(|| {
             let content = fs::read_to_string(file).ok()?;
+            let content = content.replace('\r', "");
             Some(
                 content
                     .as_bytes()
@@ -482,14 +491,14 @@ mod tests {
     use crate::project::Project;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/erc20-transfer-sinks")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/scan-erc20-transfer-sinks")
     }
 
     #[test]
     fn scan_finds_transfer_sinks() {
         let scanner = Erc20TransferSinkScanner::new(Project::open(fixture_path()));
         let output = scanner.scan().unwrap();
-        let expected = include_str!("../../fixtures/erc20-transfer-sinks/expected/output.txt");
+        let expected = include_str!("../../fixtures/scan-erc20-transfer-sinks/expected/output.txt");
         assert_eq!(output.to_string(), expected);
     }
 
@@ -535,7 +544,8 @@ mod tests {
                 sink.file.display()
             );
         }
-        // We know exactly 6 sinks exist in src/ from the fixture.
-        assert_eq!(output.sinks.len(), 6);
+        // We know exactly 8 sinks exist in src/ from the fixture (6 from
+        // TokenTransfer.sol and 2 from the CRLF Crlf.sol).
+        assert_eq!(output.sinks.len(), 8);
     }
 }

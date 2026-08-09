@@ -176,6 +176,9 @@ enum ScanSubcommand {
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
+        /// Show debug logs while scanning
+        #[arg(long)]
+        debug: bool,
     },
     /// Scan for asset transfer calls (ERC20 transfers, ETH transfers, and
     /// low-level calls with value).
@@ -212,7 +215,14 @@ fn main() -> Result<()> {
             }
         },
         Command::Scan(args) => match args.subcommand {
-            ScanSubcommand::Erc20TransferSink { project } => {
+            ScanSubcommand::Erc20TransferSink { project, debug } => {
+                if debug {
+                    let _ = tracing_subscriber::fmt()
+                        .with_max_level(tracing::Level::DEBUG)
+                        .with_target(true)
+                        .with_writer(std::io::stderr)
+                        .try_init();
+                }
                 let project = Project::open(&project);
                 let scanner = Erc20TransferSinkScanner::new(project);
                 let output = scanner.scan()?;
