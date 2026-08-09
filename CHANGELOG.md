@@ -23,6 +23,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect call-graph` includes low-level calls made with
+  `{value: ...}`.
 - `solray inspect modifiers` reports correct line numbers for CRLF projects.
 - `solray inspect call-path` rejects functions that are not exposed by the
   queried contract instead of counting unrelated interface declarations as

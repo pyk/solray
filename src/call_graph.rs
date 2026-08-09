@@ -993,10 +993,27 @@ impl CallGraph {
                         })?;
                     }
                     FunctionCallExpression::FunctionCallOptions(fco) => {
-                        resolve_called_function_id_from_fc_expression(&fco.expression)
-                            .map_or(Ok(()), |id| {
-                                self.push_loaded_function(id, cache, functions, visited, nodes)
-                            })?;
+                        if let Expression::MemberAccess(ma) = &*fco.expression
+                            && ma.referenced_declaration.is_none()
+                            && is_low_level_call(&ma.member_name)
+                        {
+                            let sig = format!("(address).{}()", ma.member_name);
+                            nodes.push(CallGraphNode::new(
+                                &sig,
+                                "",
+                                PathBuf::new(),
+                                "low-level",
+                                "",
+                                vec![],
+                            ));
+                        } else {
+                            resolve_called_function_id_from_fc_expression(&fco.expression).map_or(
+                                Ok(()),
+                                |id| {
+                                    self.push_loaded_function(id, cache, functions, visited, nodes)
+                                },
+                            )?;
+                        }
                     }
                     _ => {}
                 }

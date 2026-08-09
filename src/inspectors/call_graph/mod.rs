@@ -269,6 +269,19 @@ mod tests {
     }
 
     #[test]
+    fn call_graph_includes_low_level_call_with_value() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("ValueCaller", "callWithValue");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_includes_low_level_call_with_value.txt"
+            )
+        );
+    }
+
+    #[test]
     fn call_graph_for_inherited_function() {
         let inspector = CallGraphInspector::new(fixture_project());
         let id = make_id("CrossFileInheritor", "baseWork");
