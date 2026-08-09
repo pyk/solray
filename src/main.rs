@@ -108,6 +108,9 @@ enum InspectSubcommand {
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
+        /// Enable debug logging for resolution tracing
+        #[arg(short, long)]
+        debug: bool,
     },
     /// Show the inheritance graph of a contract or interface
     InheritanceGraph {
@@ -283,7 +286,14 @@ fn main() -> Result<()> {
                 let output = inspector.inspect()?;
                 print!("{output}");
             }
-            InspectSubcommand::ExternalFunctions { id, project } => {
+            InspectSubcommand::ExternalFunctions { id, project, debug } => {
+                if debug {
+                    let _ = tracing_subscriber::fmt()
+                        .with_max_level(tracing::Level::DEBUG)
+                        .with_target(true)
+                        .with_writer(std::io::stderr)
+                        .try_init();
+                }
                 let project = Project::open(&project);
                 let inspector = ExternalFunctionInspector::new(project);
                 let id = ArtifactId::new(&id);

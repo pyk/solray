@@ -15,6 +15,7 @@ use solc::ast::{
     ContractDefinition, ContractDefinitionNode, FunctionDefinition, FunctionKind, SourceLocation,
     SourceUnit, SourceUnitNode, VariableDeclaration, Visibility,
 };
+use tracing::debug;
 
 use crate::artifact_index::ArtifactIndex;
 use crate::inspectors::artifact_id::ArtifactId;
@@ -200,9 +201,17 @@ impl ExternalFunctionInspector {
             match item {
                 AbiItem::Function(function) => {
                     let signature = external_function_signature(function);
-                    let info = index
-                        .resolve_function(&contract_name, &function.name, function.inputs.len())
-                        .or_else(|| index.resolve_function_by_abi(&contract_name, function));
+                    debug!(
+                        contract = %contract_name,
+                        function = %function.name,
+                        param_count = function.inputs.len(),
+                        "resolving external function source"
+                    );
+                    let info = index.resolve_function(
+                        &contract_name,
+                        &function.name,
+                        &abi_param_signature(function),
+                    );
 
                     let fi = info.cloned();
                     let (source, visibility, modifiers) = match fi {
@@ -332,6 +341,7 @@ struct FuncInfo {
     location: SourceLocation,
     visibility: Visibility,
     modifiers: Vec<String>,
+    signature: String,
 }
 
 impl FuncInfo {
@@ -346,6 +356,7 @@ impl FuncInfo {
                 .iter()
                 .map(|m| m.modifier_name.name.to_string())
                 .collect(),
+            signature: ast_param_signature(&fn_def.parameters.parameters),
         }
     }
 
@@ -356,6 +367,7 @@ impl FuncInfo {
             line,
             visibility: var.visibility.clone(),
             modifiers: vec![],
+            signature: String::new(),
         }
     }
 
@@ -443,15 +455,19 @@ impl FunctionIndex {
         &self,
         contract_name: &str,
         name: &str,
-        _param_count: usize,
+        signature: &str,
     ) -> Option<&FuncInfo> {
         // Prefer functions defined in the target contract.
         if let Some(infos) = self
             .by_name
             .get(&(contract_name.to_string(), name.to_string()))
-            && let Some(info) = infos.first()
         {
-            return Some(info);
+            if let Some(info) = infos.iter().find(|info| info.signature == signature) {
+                return Some(info);
+            }
+            if let Some(info) = infos.first() {
+                return Some(info);
+            }
         }
         // Fall back to any registered contract (inherited functions).
         let mut candidates: Vec<&FuncInfo> = self
@@ -462,6 +478,13 @@ impl FunctionIndex {
             .collect();
         if candidates.is_empty() {
             return None;
+        }
+        if let Some(info) = candidates
+            .iter()
+            .copied()
+            .find(|info| info.signature == signature)
+        {
+            return Some(info);
         }
         // Prefer candidates from non-interface source files.
         for info in &candidates {
@@ -478,14 +501,6 @@ impl FunctionIndex {
             }
         }
         Some(candidates.remove(0))
-    }
-
-    fn resolve_function_by_abi(
-        &self,
-        contract_name: &str,
-        function: &AbiFunction,
-    ) -> Option<&FuncInfo> {
-        self.resolve_function(contract_name, &function.name, function.inputs.len())
     }
 
     fn resolve_by_kind(&self, contract_name: &str, kind: &FunctionKind) -> Option<&FuncInfo> {
@@ -632,10 +647,45 @@ fn external_function_signature(function: &AbiFunction) -> String {
         function
             .inputs
             .iter()
-            .map(|p| p.r#type.as_str())
-            .collect::<Vec<&str>>()
+            .map(|p| match &p.internal_type {
+                Some(t) if t.starts_with("struct ") =>
+                    t.rsplit('.').next().unwrap_or(t).to_string(),
+                _ => p.r#type.clone(),
+            })
+            .collect::<Vec<String>>()
             .join(",")
     )
+}
+
+/// Canonical ABI parameter signature used to disambiguate overloads.
+///
+/// Uses the ABI `internalType` when available so overloads that differ only by
+/// user-defined types (for example `skip(Alpha)` vs `skip(Beta)`) stay
+/// distinguishable even though their canonical ABI type is `tuple`.
+fn abi_param_signature(function: &AbiFunction) -> String {
+    function
+        .inputs
+        .iter()
+        .map(|p| normalize_type_key(p.internal_type.as_deref().unwrap_or(&p.r#type)))
+        .collect::<Vec<String>>()
+        .join(",")
+}
+
+/// AST parameter signature for a function declaration.
+fn ast_param_signature(params: &[VariableDeclaration]) -> String {
+    params
+        .iter()
+        .map(|p| normalize_type_key(p.type_descriptions.type_string.as_deref().unwrap_or("")))
+        .collect::<Vec<String>>()
+        .join(",")
+}
+
+/// Normalize solc/ABI type strings so both sides use the same key.
+fn normalize_type_key(s: &str) -> String {
+    s.replace(" memory", "")
+        .replace(" calldata", "")
+        .replace(" storage", "")
+        .replace(" payable", "")
 }
 
 /// Returns `true` if the function name corresponds to a well-known ERC callback.
@@ -690,7 +740,7 @@ mod tests {
     use crate::project::Project;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/external-functions")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-external-functions")
     }
 
     #[test]
@@ -701,7 +751,7 @@ mod tests {
         assert_eq!(
             output,
             include_str!(
-                "../../fixtures/external-functions/expected/inspect_shows_external_functions_for_a_unique_contract.txt"
+                "../../fixtures/inspect-external-functions/expected/inspect_shows_external_functions_for_a_unique_contract.txt"
             )
         );
     }
@@ -714,7 +764,7 @@ mod tests {
         assert_eq!(
             output,
             include_str!(
-                "../../fixtures/external-functions/expected/inspect_shows_external_functions_for_path_qualified_contract.txt"
+                "../../fixtures/inspect-external-functions/expected/inspect_shows_external_functions_for_path_qualified_contract.txt"
             )
         );
     }
@@ -727,7 +777,7 @@ mod tests {
         assert_eq!(
             err,
             include_str!(
-                "../../fixtures/external-functions/expected/inspect_errors_for_unknown_contract.txt"
+                "../../fixtures/inspect-external-functions/expected/inspect_errors_for_unknown_contract.txt"
             )
             .trim_end()
         );
@@ -741,7 +791,7 @@ mod tests {
         assert_eq!(
             output,
             include_str!(
-                "../../fixtures/external-functions/expected/inspect_lists_direct_receive_and_fallback.txt"
+                "../../fixtures/inspect-external-functions/expected/inspect_lists_direct_receive_and_fallback.txt"
             )
         );
     }
@@ -754,7 +804,7 @@ mod tests {
         assert_eq!(
             output,
             include_str!(
-                "../../fixtures/external-functions/expected/inspect_lists_inherited_receive_and_fallback.txt"
+                "../../fixtures/inspect-external-functions/expected/inspect_lists_inherited_receive_and_fallback.txt"
             )
         );
     }
@@ -767,7 +817,7 @@ mod tests {
         assert_eq!(
             output,
             include_str!(
-                "../../fixtures/external-functions/expected/inspect_classifies_callbacks_with_source.txt"
+                "../../fixtures/inspect-external-functions/expected/inspect_classifies_callbacks_with_source.txt"
             )
         );
     }
@@ -780,7 +830,20 @@ mod tests {
         assert_eq!(
             output,
             include_str!(
-                "../../fixtures/external-functions/expected/inspect_shows_source_for_inherited_functions.txt"
+                "../../fixtures/inspect-external-functions/expected/inspect_shows_source_for_inherited_functions.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_shows_source_for_overloaded_functions() {
+        let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("Overloaded");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../fixtures/inspect-external-functions/expected/inspect_shows_source_for_overloaded_functions.txt"
             )
         );
     }
@@ -793,7 +856,7 @@ mod tests {
         assert_eq!(
             output,
             include_str!(
-                "../../fixtures/external-functions/expected/inspect_shows_source_for_crlf_file.txt"
+                "../../fixtures/inspect-external-functions/expected/inspect_shows_source_for_crlf_file.txt"
             )
         );
     }
@@ -806,7 +869,7 @@ mod tests {
         assert_eq!(
             err,
             include_str!(
-                "../../fixtures/external-functions/expected/inspect_errors_for_ambiguous_contract.txt"
+                "../../fixtures/inspect-external-functions/expected/inspect_errors_for_ambiguous_contract.txt"
             )
         );
     }

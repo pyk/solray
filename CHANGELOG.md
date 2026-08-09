@@ -10,6 +10,10 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Added
 
+- `solray inspect call-graph`, `solray inspect call-path`, and
+  `solray inspect external-functions` now support `--debug` for resolution
+  tracing.
+
 ### Changed
 
 - `make build-fixtures` now runs `forge clean` for every fixture project before
@@ -50,15 +54,13 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   interface with the same name. Previously the matching declaration was picked
   from HashMap iteration order, so ERC-20 functions such as `transfer`, `name`,
   and `decimals` could resolve to `IERC20`/`IERC20Metadata`. Added an
-  override-preference regression fixture and `--debug` support for
-  `inspect call-graph`.
+  override-preference regression fixture.
 - `solray inspect call-path` now resolves overridden functions to the queried
   contract's own declaration instead of counting inherited interface
   declarations as overloads. Full signatures such as
   `_approve(address,address,uint256)` are now accepted to disambiguate genuine
   overloads, and `solray inspect call-graph` accepts the same syntax. Added
-  call-path and call-graph regression fixtures and `--debug` support for
-  `inspect call-path`.
+  call-path and call-graph regression fixtures.
 - `solray inspect call-graph` and `solray inspect call-path` now name
   constructors correctly. Solidity constructor AST nodes have an empty `name`,
   so call-graph lookup by `"constructor"` previously failed and call-path
@@ -74,6 +76,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   only walked function bodies, so `onlyOwner` calls such as `_checkOwner` and
   base constructor calls such as `Ownable(_r)` were missing. Added modifier and
   base-constructor regression fixtures to the call-graph test suite.
+- `solray inspect external-functions` now reports the correct source line for
+  every overload instead of mapping all overloads to the first declaration.
+  Function overloads are matched by their full normalized parameter signature
+  (ABI `internalType`/AST `typeString`) instead of parameter count, so
+  same-arity overloads with different types resolve correctly. Added an
+  overloaded-function regression fixture.
 
 ## [0.6.0] - 2026-08-08
 

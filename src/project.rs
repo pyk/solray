@@ -274,7 +274,7 @@ mod tests {
     use super::*;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/external-functions")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-external-functions")
     }
 
     #[test]

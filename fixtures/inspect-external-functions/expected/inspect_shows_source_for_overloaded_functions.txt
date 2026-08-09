@@ -1,0 +1,42 @@
+Contract: Overloaded
+File: src/Overloaded.sol
+
+Summary:
+- 5 externally callable functions
+- 5 mutable functions
+- 0 view functions
+- 0 callback functions
+- 0 special functions
+
+MUTABLE FUNCTIONS
+
+1. doWork(uint256,bytes)
+   source: src/Overloaded.sol:6
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+2. doWork(uint256)
+   source: src/Overloaded.sol:5
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+3. doWork(uint256,bytes,address)
+   source: src/Overloaded.sol:7
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+4. skip(address)
+   source: src/Overloaded.sol:9
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
+5. skip(uint256)
+   source: src/Overloaded.sol:8
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+
