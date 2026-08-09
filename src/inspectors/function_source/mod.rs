@@ -135,7 +135,7 @@ impl std::fmt::Display for FunctionSourceInspectorOutput {
 
             let full_path = project_abs.join(&root.file);
 
-            if let Ok(content) = fs::read_to_string(&full_path) {
+            if let Ok(content) = read_source_normalized(&full_path) {
                 file_contents.insert(root.file.clone(), content);
             }
 
@@ -194,7 +194,7 @@ impl std::fmt::Display for FunctionSourceInspectorOutput {
                 let content = if let Some(c) = file_contents.get(&symbol.file) {
                     c.clone() // checkrs: allow(clone_in_loops)
                 } else {
-                    let Ok(c) = fs::read_to_string(&full_path) else {
+                    let Ok(c) = read_source_normalized(&full_path) else {
                         writeln!(f)?;
                         writeln!(f, "## {}: `{}`", heading, display_name)?;
                         writeln!(f)?;
@@ -1278,7 +1278,7 @@ fn resolve_inheritdoc_natspec(
                 // Found the matching function -- extract natspec from its source
                 let source_file = &ast.absolute_path;
                 let full_path = project_path.as_ref().join(source_file);
-                let Ok(content) = fs::read_to_string(&full_path) else {
+                let Ok(content) = read_source_normalized(&full_path) else {
                     return natspec.to_string();
                 };
                 let resolved = extract_natspec(&content, fd.src.offset);
@@ -1293,6 +1293,15 @@ fn resolve_inheritdoc_natspec(
 
     // Resolution failed -- return the original natspec unchanged
     natspec.to_string()
+}
+
+/// Read a source file with LF-normalized line endings.
+///
+/// Solc reports AST `src` offsets against LF-normalized source text, so
+/// slicing raw CRLF bytes would shift every offset after the first line break.
+fn read_source_normalized(path: impl AsRef<Path>) -> std::io::Result<String> {
+    let content = fs::read_to_string(path)?;
+    Ok(content.replace('\r', ""))
 }
 
 /// Format parameter declarations into a comma-separated type list.
@@ -1402,7 +1411,7 @@ mod tests {
     use crate::project::Project;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/function-source")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-function-source")
     }
 
     fn inspect(contract: &str, function_name: &str) -> Result<FunctionSourceInspectorOutput> {
@@ -1419,7 +1428,18 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_shows_source_for_execute.txt"
+                "../../../fixtures/inspect-function-source/expected/run_shows_source_for_execute.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_shows_source_for_crlf_file() {
+        let output = inspect("Crlf", "run").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_shows_source_for_crlf.txt"
             )
         );
     }
@@ -1430,7 +1450,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_shows_source_for_constructor.txt"
+                "../../../fixtures/inspect-function-source/expected/run_shows_source_for_constructor.txt"
             )
         );
     }
@@ -1441,7 +1461,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_shows_source_for_receive.txt"
+                "../../../fixtures/inspect-function-source/expected/run_shows_source_for_receive.txt"
             )
         );
     }
@@ -1452,7 +1472,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_shows_source_for_fallback.txt"
+                "../../../fixtures/inspect-function-source/expected/run_shows_source_for_fallback.txt"
             )
         );
     }
@@ -1463,7 +1483,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_shows_source_with_recursive_refs.txt"
+                "../../../fixtures/inspect-function-source/expected/run_shows_source_with_recursive_refs.txt"
             )
         );
     }
@@ -1474,7 +1494,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_shows_source_for_overloaded_with_params.txt"
+                "../../../fixtures/inspect-function-source/expected/run_shows_source_for_overloaded_with_params.txt"
             )
         );
     }
@@ -1485,7 +1505,7 @@ mod tests {
         assert_eq!(
             err,
             include_str!(
-                "../../../fixtures/function-source/expected/run_errors_for_unknown_contract.txt"
+                "../../../fixtures/inspect-function-source/expected/run_errors_for_unknown_contract.txt"
             )
         );
     }
@@ -1496,7 +1516,7 @@ mod tests {
         assert_eq!(
             err,
             include_str!(
-                "../../../fixtures/function-source/expected/run_errors_for_unknown_function.txt"
+                "../../../fixtures/inspect-function-source/expected/run_errors_for_unknown_function.txt"
             )
         );
     }
@@ -1509,7 +1529,7 @@ mod tests {
         assert_eq!(
             err,
             include_str!(
-                "../../../fixtures/function-source/expected/run_errors_for_overloaded_function.txt"
+                "../../../fixtures/inspect-function-source/expected/run_errors_for_overloaded_function.txt"
             )
         );
     }
@@ -1520,7 +1540,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_shows_natspec_block_comment.txt"
+                "../../../fixtures/inspect-function-source/expected/run_shows_natspec_block_comment.txt"
             )
         );
     }
@@ -1531,7 +1551,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_resolves_user_defined_types_in_variable_declarations.txt"
+                "../../../fixtures/inspect-function-source/expected/run_resolves_user_defined_types_in_variable_declarations.txt"
             )
         );
     }
@@ -1542,7 +1562,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_resolves_cross_file_type_references.txt"
+                "../../../fixtures/inspect-function-source/expected/run_resolves_cross_file_type_references.txt"
             )
         );
     }
@@ -1553,7 +1573,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_resolves_index_access_expressions.txt"
+                "../../../fixtures/inspect-function-source/expected/run_resolves_index_access_expressions.txt"
             )
         );
     }
@@ -1564,7 +1584,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/incremental_build_does_not_leak_symbols.txt"
+                "../../../fixtures/inspect-function-source/expected/incremental_build_does_not_leak_symbols.txt"
             )
         );
     }
@@ -1575,7 +1595,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_resolves_function_return_types.txt"
+                "../../../fixtures/inspect-function-source/expected/run_resolves_function_return_types.txt"
             )
         );
     }
@@ -1586,7 +1606,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_extracts_regular_block_comments.txt"
+                "../../../fixtures/inspect-function-source/expected/run_extracts_regular_block_comments.txt"
             )
         );
     }
@@ -1602,7 +1622,9 @@ mod tests {
         let output = inspect("ModifierRef", "increment").unwrap();
         assert_eq!(
             output.to_string(),
-            include_str!("../../../fixtures/function-source/expected/run_resolves_modifiers.txt")
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_resolves_modifiers.txt"
+            )
         );
     }
 
@@ -1612,7 +1634,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_resolves_cross_file_modifier.txt"
+                "../../../fixtures/inspect-function-source/expected/run_resolves_cross_file_modifier.txt"
             )
         );
     }
@@ -1622,7 +1644,9 @@ mod tests {
         let output = inspect("InheritdocUser", "doSomething").unwrap();
         assert_eq!(
             output.to_string(),
-            include_str!("../../../fixtures/function-source/expected/run_resolves_inheritdoc.txt")
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_resolves_inheritdoc.txt"
+            )
         );
     }
 
@@ -1632,7 +1656,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_resolves_cross_file_function_references.txt"
+                "../../../fixtures/inspect-function-source/expected/run_resolves_cross_file_function_references.txt"
             )
         );
     }
@@ -1643,7 +1667,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_resolves_chained_function_calls.txt"
+                "../../../fixtures/inspect-function-source/expected/run_resolves_chained_function_calls.txt"
             )
         );
     }
@@ -1654,7 +1678,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_resolves_interface_inheritance.txt"
+                "../../../fixtures/inspect-function-source/expected/run_resolves_interface_inheritance.txt"
             )
         );
     }
@@ -1665,7 +1689,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_resolves_interface_types_through_variable_declaration.txt"
+                "../../../fixtures/inspect-function-source/expected/run_resolves_interface_types_through_variable_declaration.txt"
             )
         );
     }
@@ -1676,7 +1700,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/function-source/expected/run_resolves_interface_types_through_type_conversion.txt"
+                "../../../fixtures/inspect-function-source/expected/run_resolves_interface_types_through_type_conversion.txt"
             )
         );
     }

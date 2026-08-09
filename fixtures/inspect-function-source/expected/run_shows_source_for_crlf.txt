@@ -1,0 +1,32 @@
+# Crlf - run Source Code
+
+Source path: `src/Crlf.sol:9`
+
+```solidity
+function run() external view returns (uint256) {
+    if (value == 0) {
+        revert Bad();
+    }
+    return value;
+}
+```
+
+---
+
+## Error: `Bad`
+
+Source path: `src/Crlf.sol:5`
+
+```solidity
+error Bad();
+```
+
+---
+
+## Variable: `value`
+
+Source path: `src/Crlf.sol:7`
+
+```solidity
+uint256 public value
+```

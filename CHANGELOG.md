@@ -14,6 +14,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect function-source` now resolves source ranges correctly in
+  projects with CRLF line endings. Previously it sliced raw CRLF source bytes
+  with LF-normalized solc AST offsets, so function and symbol blocks were
+  truncated or misaligned. Added a CRLF regression fixture to the
+  `function-source` test suite.
+
 ## [0.6.0] - 2026-08-08
 
 ### Added
