@@ -372,7 +372,7 @@ impl FunctionSourceInspector {
             let Some(ast) = parse_artifact(artifact_path)? else {
                 continue;
             };
-            extract_function_symbols(&ast, contract_name, base_name, &mut functions, true);
+            extract_function_symbols(&ast, contract_name, base_name, &mut functions, true, true);
             let inherited = self.inherited_contracts(artifact_path, contract_name)?;
             for (base_contract, base_path) in inherited {
                 let Some(base_ast) = parse_artifact(base_path)? else {
@@ -384,6 +384,7 @@ impl FunctionSourceInspector {
                     base_name,
                     &mut functions,
                     false,
+                    false,
                 );
             }
         }
@@ -394,13 +395,19 @@ impl FunctionSourceInspector {
                 let Some(ast) = parse_artifact(artifact_path)? else {
                     continue;
                 };
-                collect_contract_functions(&ast, contract_name, &mut all_fns, true);
+                collect_contract_functions(&ast, contract_name, &mut all_fns, true, true);
                 let inherited = self.inherited_contracts(artifact_path, contract_name)?;
                 for (base_contract, base_path) in inherited {
                     let Some(base_ast) = parse_artifact(base_path)? else {
                         continue;
                     };
-                    collect_contract_functions(&base_ast, &base_contract, &mut all_fns, false);
+                    collect_contract_functions(
+                        &base_ast,
+                        &base_contract,
+                        &mut all_fns,
+                        false,
+                        false,
+                    );
                 }
             }
             all_fns.sort();
@@ -712,6 +719,7 @@ fn extract_function_symbols(
     function_name: &str,
     out: &mut HashMap<String, ResolvedSymbol>,
     include_special: bool,
+    include_interface_declarations: bool,
 ) {
     let source_file = &ast.absolute_path;
     for node in &ast.nodes {
@@ -720,7 +728,10 @@ fn extract_function_symbols(
         {
             for inner in &cd.nodes {
                 if let ContractDefinitionNode::FunctionDefinition(fd) = inner
-                    && fd.implemented
+                    && (fd.implemented
+                        || (cd.name == contract_name
+                            && include_interface_declarations
+                            && cd.contract_kind == ContractKind::Interface))
                     && function_name_for_display(&fd.kind, &fd.name) == function_name
                 {
                     let is_special = matches!(
@@ -771,6 +782,7 @@ fn collect_contract_functions(
     contract_name: &str,
     out: &mut Vec<String>,
     include_special: bool,
+    include_interface_declarations: bool,
 ) {
     for node in &ast.nodes {
         if let SourceUnitNode::ContractDefinition(cd) = node
@@ -778,7 +790,10 @@ fn collect_contract_functions(
         {
             for inner in &cd.nodes {
                 if let ContractDefinitionNode::FunctionDefinition(fd) = inner
-                    && fd.implemented
+                    && (fd.implemented
+                        || (cd.name == contract_name
+                            && include_interface_declarations
+                            && cd.contract_kind == ContractKind::Interface))
                 {
                     let is_special = matches!(
                         fd.kind,
@@ -1694,6 +1709,17 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_shows_source_for_fallback.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_interface_function_root() {
+        let output = inspect("ITypeConversion", "doOther").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_resolves_interface_function_root.txt"
             )
         );
     }

@@ -881,14 +881,14 @@ mod tests {
     }
 
     #[test]
-    fn inspect_suggests_source_paths_for_ambiguous_contract() {
+    fn inspect_resolves_plain_name_ierc20() {
         let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
         let id = ArtifactId::new("IERC20");
-        let err = inspector.inspect(&id).unwrap_err().to_string();
+        let output = inspector.inspect(&id).unwrap();
         assert_eq!(
-            err,
+            output.to_string(),
             include_str!(
-                "../../fixtures/inspect-external-functions/expected/inspect_suggests_source_paths_for_ambiguous_contract.txt"
+                "../../fixtures/inspect-external-functions/expected/inspect_resolves_plain_name_ierc20.txt"
             )
         );
     }

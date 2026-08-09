@@ -1,6 +1,0 @@
-found 2 "IERC20"
-
-Select one of the following:
-
-solray inspect external-functions src/IERC20.sol:IERC20
-solray inspect external-functions src/interfaces/IERC20.sol:IERC20

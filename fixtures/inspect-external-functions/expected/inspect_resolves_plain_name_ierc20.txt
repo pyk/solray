@@ -1,0 +1,18 @@
+Contract: IERC20
+File: src/IERC20.sol
+
+Summary:
+- 1 externally callable functions
+- 1 mutable functions
+- 0 view functions
+- 0 callback functions
+- 0 special functions
+
+MUTABLE FUNCTIONS
+
+1. transfer(address,uint256)
+   source: src/IERC20.sol:5
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+

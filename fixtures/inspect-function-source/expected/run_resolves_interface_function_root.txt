@@ -1,0 +1,7 @@
+# ITypeConversion - doOther Source Code
+
+Source path: `src/ITypeConversion.sol:5`
+
+```solidity
+function doOther(uint256 x) external view returns (uint256);
+```

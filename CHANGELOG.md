@@ -25,6 +25,14 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect` commands now ignore import-only artifacts (files that only
+  re-export a contract from another file). Previously those artifacts were
+  indexed by file name even though their AST declared nothing, so plain-name
+  lookups such as `IERC20` failed with an ambiguity error when a project also
+  contained the real declaration.
+- `solray inspect function-source` now resolves interface function declarations
+  as inspection roots (for example `IERC20 transfer`), instead of reporting
+  them as not found.
 - `solray gen interface` now emits real `enum` declarations with their original
   members for enums referenced by the ABI, instead of converting them to
   user-defined value types such as `type OrderStatus is uint8;`. The generated
