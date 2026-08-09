@@ -52,19 +52,26 @@ listed by `inspect contracts`, or a missing symbol or invalid source emitted by
 | STT-17 | You MUST NOT rebuild the Foundry project before testing                                                                                                  |
 | STT-18 | You MUST test against the project's current build state, including incremental and stale artifacts                                                       |
 | STT-19 | Bugs reproduced only with incremental build artifacts MUST be reported                                                                                   |
+| STT-20 | When `solray-bug-reports.md` already exists, you MUST abort before running any inspection command                                                        |
 
 -------------------------------------------------------------------------------
 
 ## Workflow
 
-1. Run `solray --version` to make sure `solray` is available.
-2. Run `solray --help` to check all available commands.
+1. Abort when `solray-bug-reports.md` already exists.
+
+2. Check all available commands:
+
+   ```bash
+   cargo run -- --help
+   ```
+
 3. Try each command one by one against the project:
-   - Convert the command into `cargo run --`.
    - Keep the project's existing artifacts; do not clean or rebuild the
      project.
    - Verify the output against the Solidity source and Foundry artifacts.
    - Classify every discrepancy as a bug using the Rules.
+
 4. Write the bug reports to `solray-bug-reports.md` using the Template.
 
 -------------------------------------------------------------------------------
@@ -89,6 +96,10 @@ Command:
 cargo run -- inspect contracts --project <absolute_path>
 ```
 
+Root cause:
+
+<explain the root cause>
+
 Expected output:
 
 <description about expected output>
@@ -106,6 +117,10 @@ Command:
 ```bash
 cargo run -- inspect contracts --project <absolute_path>
 ```
+
+Root cause:
+
+<explain the root cause>
 
 Expected output:
 
