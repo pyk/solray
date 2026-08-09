@@ -14,6 +14,7 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   `solray inspect external-functions` now support `--debug` for resolution
   tracing.
 - `solray scan erc20-transfer-sink` now supports `--debug` for scan tracing.
+- `solray scan asset-transfers` now supports `--debug` for scan tracing.
 
 ### Changed
 
@@ -96,6 +97,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   CRLF source bytes with LF-normalized solc AST offsets, so every snippet and
   line number was shifted. Added a CRLF regression source to the
   `scan-erc20-transfer-sinks` fixture suite.
+- `solray scan asset-transfers` now reports correct transfer expressions and
+  source lines in projects with CRLF line endings. Previously it sliced raw
+  CRLF source bytes with LF-normalized solc AST offsets, so every expression
+  and line number was shifted. Added a CRLF regression source to the
+  `scan-asset-transfers` fixture suite.
 
 ## [0.6.0] - 2026-08-08
 

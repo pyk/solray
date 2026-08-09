@@ -186,6 +186,9 @@ enum ScanSubcommand {
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
+        /// Show debug logs while scanning
+        #[arg(long)]
+        debug: bool,
     },
 }
 
@@ -228,7 +231,14 @@ fn main() -> Result<()> {
                 let output = scanner.scan()?;
                 print!("{output}");
             }
-            ScanSubcommand::AssetTransfers { project } => {
+            ScanSubcommand::AssetTransfers { project, debug } => {
+                if debug {
+                    let _ = tracing_subscriber::fmt()
+                        .with_max_level(tracing::Level::DEBUG)
+                        .with_target(true)
+                        .with_writer(std::io::stderr)
+                        .try_init();
+                }
                 let project = Project::open(&project);
                 let scanner = AssetTransferScanner::new(project);
                 let output = scanner.scan()?;

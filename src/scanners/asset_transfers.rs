@@ -14,6 +14,7 @@ use solc::ast::{
     Block, ContractDefinitionNode, Expression, FunctionCall, FunctionCallExpression, FunctionKind,
     SourceUnit, SourceUnitNode, StateMutability, Statement, Visibility,
 };
+use tracing::debug;
 use walkdir::WalkDir;
 
 use crate::build_info::BuildInfo;
@@ -548,6 +549,13 @@ fn build_transfer_sink(
     member_name: &str,
     ctx: &ScanContext,
 ) -> Option<AssetTransfer> {
+    debug!(
+        file = %ctx.source_file.display(),
+        member = member_name,
+        offset = fc.src.offset,
+        length = fc.src.length,
+        "building asset transfer sink"
+    );
     let raw = source_text_for_location(ctx.source_file, fc.src.offset, fc.src.length)?;
     let expression = normalize_expression(&raw);
     let line = ctx
@@ -649,6 +657,7 @@ fn format_visibility(v: &Visibility) -> String {
 /// Extract the source text for a given byte offset and length from a file.
 fn source_text_for_location(file: &Path, offset: usize, length: usize) -> Option<String> {
     let content = fs::read_to_string(file).ok()?;
+    let content = content.replace('\r', "");
     if offset + length > content.len() {
         return None;
     }
@@ -680,6 +689,7 @@ impl LineCache {
         let mut cache = self.cache.borrow_mut();
         let entry = cache.entry(file.to_path_buf()).or_insert_with(|| {
             let content = fs::read_to_string(file).ok()?;
+            let content = content.replace('\r', "");
             Some(
                 content
                     .as_bytes()
@@ -711,14 +721,14 @@ mod tests {
     use crate::project::Project;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/asset-transfers")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/scan-asset-transfers")
     }
 
     #[test]
     fn scan_finds_all_asset_transfers() {
         let scanner = AssetTransferScanner::new(Project::open(fixture_path()));
         let output = scanner.scan().unwrap();
-        let expected = include_str!("../../fixtures/asset-transfers/expected/output.txt");
+        let expected = include_str!("../../fixtures/scan-asset-transfers/expected/output.txt");
         assert_eq!(output.to_string(), expected);
     }
 
@@ -726,7 +736,8 @@ mod tests {
     fn scan_finds_correct_number_of_transfers() {
         let scanner = AssetTransferScanner::new(Project::open(fixture_path()));
         let output = scanner.scan().unwrap();
-        assert_eq!(output.transfers.len(), 19);
+        // 19 from the LF sources plus 5 from the CRLF CrlfTransfers.sol.
+        assert_eq!(output.transfers.len(), 24);
     }
 
     #[test]
