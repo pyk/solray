@@ -342,18 +342,32 @@ impl FunctionSourceInspector {
 
         let mut functions: HashMap<String, ResolvedSymbol> = HashMap::new();
         for artifact_path in artifact_paths {
-            let parsed = parse_artifact(artifact_path)?;
-            if let Some(ast) = parsed {
-                extract_function_symbols(&ast, contract_name, base_name, &mut functions);
+            let Some(ast) = parse_artifact(artifact_path)? else {
+                continue;
+            };
+            extract_function_symbols(&ast, contract_name, base_name, &mut functions);
+            let inherited = self.inherited_contracts(artifact_path, contract_name)?;
+            for (base_contract, base_path) in inherited {
+                let Some(base_ast) = parse_artifact(base_path)? else {
+                    continue;
+                };
+                extract_function_symbols(&base_ast, &base_contract, base_name, &mut functions);
             }
         }
 
         if functions.is_empty() {
             let mut all_fns: Vec<String> = Vec::new();
             for artifact_path in artifact_paths {
-                let parsed = parse_artifact(artifact_path)?;
-                if let Some(ast) = parsed {
-                    collect_contract_functions(&ast, contract_name, &mut all_fns);
+                let Some(ast) = parse_artifact(artifact_path)? else {
+                    continue;
+                };
+                collect_contract_functions(&ast, contract_name, &mut all_fns);
+                let inherited = self.inherited_contracts(artifact_path, contract_name)?;
+                for (base_contract, base_path) in inherited {
+                    let Some(base_ast) = parse_artifact(base_path)? else {
+                        continue;
+                    };
+                    collect_contract_functions(&base_ast, &base_contract, &mut all_fns);
                 }
             }
             all_fns.sort();
@@ -369,9 +383,10 @@ impl FunctionSourceInspector {
 
         if is_exact {
             let target_sig = format!("{}.{}", contract_name, function_name);
+            let suffix = format!(".{}", function_name);
             let matched: Vec<&ResolvedSymbol> = functions
                 .values()
-                .filter(|s| s.symbol == target_sig)
+                .filter(|s| s.symbol == target_sig || s.symbol.ends_with(&suffix))
                 .collect();
             if matched.is_empty() {
                 let mut msg = format!(
@@ -379,6 +394,24 @@ impl FunctionSourceInspector {
                     function_name, contract_name
                 );
                 let mut sorted: Vec<&String> = functions.values().map(|s| &s.symbol).collect();
+                sorted.sort();
+                for sym in sorted {
+                    let fn_name = sym.split_once('.').map(|(_, sig)| sig).unwrap_or(sym);
+                    msg.push_str(&format!(
+                        "\nsolray inspect function-source {} \"{}\"",
+                        contract_name, fn_name
+                    ));
+                }
+                msg.push('\n');
+                bail!(msg);
+            }
+            if matched.len() > 1 {
+                let mut msg = format!(
+                    "found {} \"{}\"\n\nSelect one of the following:\n",
+                    matched.len(),
+                    function_name
+                );
+                let mut sorted: Vec<&String> = matched.iter().map(|s| &s.symbol).collect();
                 sorted.sort();
                 for sym in sorted {
                     let fn_name = sym.split_once('.').map(|(_, sig)| sig).unwrap_or(sym);
@@ -416,6 +449,66 @@ impl FunctionSourceInspector {
             .into_values()
             .next()
             .context("internal error: function list is empty")
+    }
+
+    /// Collect the transitive base contracts of a contract, as
+    /// `(contract_name, artifact_path)` pairs.
+    fn inherited_contracts(
+        &self,
+        artifact_path: impl AsRef<Path>,
+        contract_name: &str,
+    ) -> Result<Vec<(String, PathBuf)>> {
+        let mut visited = HashSet::new();
+        let mut out = Vec::new();
+        self.collect_inherited_contracts(artifact_path, contract_name, &mut visited, &mut out)?;
+        Ok(out)
+    }
+
+    fn collect_inherited_contracts(
+        &self,
+        artifact_path: impl AsRef<Path>,
+        contract_name: &str,
+        visited: &mut HashSet<String>,
+        out: &mut Vec<(String, PathBuf)>,
+    ) -> Result<()> {
+        if !visited.insert(contract_name.to_string()) {
+            return Ok(());
+        }
+        let parsed = parse_artifact(artifact_path)?;
+        let Some(ast) = parsed else {
+            return Ok(());
+        };
+        let build_info_id = self
+            .symbol_index
+            .build_info_for(&ast.absolute_path)
+            .unwrap_or("");
+        for node in &ast.nodes {
+            if let SourceUnitNode::ContractDefinition(cd) = node
+                && cd.name == contract_name
+            {
+                for base in &cd.base_contracts {
+                    if let Some(id) = base.base_name.referenced_declaration
+                        && let Some(entry) = self.symbol_index.get(build_info_id, id)
+                    {
+                        let info = self.symbol_index.artifact_info(entry.artifact_id);
+                        if info.build_info_id == build_info_id {
+                            out.push((
+                                entry.name.clone(),         // checkrs: allow(clone_in_loops)
+                                info.artifact_path.clone(), // checkrs: allow(clone_in_loops)
+                            ));
+                            self.collect_inherited_contracts(
+                                &info.artifact_path,
+                                &entry.name,
+                                visited,
+                                out,
+                            )?;
+                        }
+                    }
+                }
+                break;
+            }
+        }
+        Ok(())
     }
 
     /// Recursively resolve all referenced declarations.
@@ -1440,6 +1533,17 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_shows_source_for_crlf.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_inherited_function() {
+        let output = inspect("Inherited", "owner").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/inspect_resolves_inherited_function.txt"
             )
         );
     }

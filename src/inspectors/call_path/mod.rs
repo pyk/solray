@@ -212,7 +212,7 @@ mod tests {
     use crate::project::Project;
 
     fn fixture_call_path_project() -> Project {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/call-path");
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-call-path");
         Project::open(root)
     }
 
@@ -228,7 +228,9 @@ mod tests {
         let output = inspector.inspect(&id, "targetInternal").unwrap();
         assert_eq!(
             output.to_string(),
-            include_str!("../../../fixtures/call-path/expected/call_path_for_targetInternal.txt")
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_for_targetInternal.txt"
+            )
         );
     }
 
@@ -239,7 +241,9 @@ mod tests {
         let output = inspector.inspect(&id, "parentWork").unwrap();
         assert_eq!(
             output.to_string(),
-            include_str!("../../../fixtures/call-path/expected/call_path_for_parentWork.txt")
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_for_parentWork.txt"
+            )
         );
     }
 
@@ -250,7 +254,9 @@ mod tests {
         let output = inspector.inspect(&id, "grandparentWork").unwrap();
         assert_eq!(
             output.to_string(),
-            include_str!("../../../fixtures/call-path/expected/call_path_for_grandparentWork.txt")
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_for_grandparentWork.txt"
+            )
         );
     }
 
@@ -261,7 +267,9 @@ mod tests {
         let output = inspector.inspect(&id, "libWork").unwrap();
         assert_eq!(
             output.to_string(),
-            include_str!("../../../fixtures/call-path/expected/call_path_for_Lib_libWork.txt")
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_for_Lib_libWork.txt"
+            )
         );
     }
 
@@ -272,7 +280,9 @@ mod tests {
         let output = inspector.inspect(&id, "internalWork").unwrap();
         assert_eq!(
             output.to_string(),
-            include_str!("../../../fixtures/call-path/expected/call_path_for_unchecked_block.txt")
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_for_unchecked_block.txt"
+            )
         );
     }
 
@@ -295,7 +305,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/call-path/expected/call_path_for_parent_work_targeted_from_parent.txt"
+                "../../../fixtures/inspect-call-path/expected/call_path_for_parent_work_targeted_from_parent.txt"
             )
         );
     }
@@ -308,7 +318,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../../fixtures/call-path/expected/call_path_for_lib_lib_work_targeted_from_lib.txt"
+                "../../../fixtures/inspect-call-path/expected/call_path_for_lib_lib_work_targeted_from_lib.txt"
             )
         );
     }
@@ -319,5 +329,18 @@ mod tests {
         let id = make_id("NonExistentContract", "foo");
         let err = inspector.inspect(&id, "foo").unwrap_err().to_string();
         assert_eq!(err, "\"NonExistentContract\" not found.");
+    }
+
+    #[test]
+    fn call_path_for_inherited_work() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("CrossFileTarget", "inheritedWork");
+        let output = inspector.inspect(&id, "inheritedWork").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_for_inherited_work.txt"
+            )
+        );
     }
 }

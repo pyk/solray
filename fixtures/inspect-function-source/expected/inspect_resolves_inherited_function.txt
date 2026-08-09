@@ -1,0 +1,19 @@
+# InheritedBase - owner Source Code
+
+Source path: `src/InheritedBase.sol:9`
+
+```solidity
+function owner() public view virtual returns (uint256) {
+    return value;
+}
+```
+
+---
+
+## Variable: `value`
+
+Source path: `src/InheritedBase.sol:7`
+
+```solidity
+uint256 public value
+```

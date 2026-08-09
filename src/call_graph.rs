@@ -292,6 +292,12 @@ impl CallGraph {
         let cache: RefCell<HashMap<PathBuf, Vec<FunctionInfo>>> = RefCell::new(HashMap::new());
         let mut functions: HashMap<i64, FunctionInfo> = HashMap::new();
         load_artifact_functions(&artifact_path, &mut functions, &cache)?;
+        self.load_inherited_functions(
+            &artifact_path,
+            id.artifact_id().name.as_str(),
+            &mut functions,
+            &cache,
+        )?;
 
         let target_name = id.function_name();
 
@@ -332,6 +338,12 @@ impl CallGraph {
         let cache: RefCell<HashMap<PathBuf, Vec<FunctionInfo>>> = RefCell::new(HashMap::new());
         let mut functions: HashMap<i64, FunctionInfo> = HashMap::new();
         load_artifact_functions(&artifact_path, &mut functions, &cache)?;
+        self.load_inherited_functions(
+            &artifact_path,
+            id.artifact_id().name.as_str(),
+            &mut functions,
+            &cache,
+        )?;
 
         let target_funcs: Vec<&FunctionInfo> = functions
             .values()
@@ -441,6 +453,74 @@ impl CallGraph {
             scoped_target,
         })
     }
+
+    /// Load functions from all transitive base contracts of `contract_name`.
+    ///
+    /// The queried contract's artifact AST only contains its own declarations,
+    /// so inherited functions must be loaded from the base contracts' artifacts.
+    fn load_inherited_functions(
+        &self,
+        artifact_path: impl AsRef<Path>,
+        contract_name: &str,
+        functions: &mut HashMap<i64, FunctionInfo>,
+        cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
+    ) -> Result<()> {
+        let mut visited = HashSet::new();
+        self.load_inherited_functions_recursive(
+            artifact_path,
+            contract_name,
+            &mut visited,
+            functions,
+            cache,
+        )
+    }
+
+    fn load_inherited_functions_recursive(
+        &self,
+        artifact_path: impl AsRef<Path>,
+        contract_name: &str,
+        visited: &mut HashSet<String>,
+        functions: &mut HashMap<i64, FunctionInfo>,
+        cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
+    ) -> Result<()> {
+        if !visited.insert(contract_name.to_string()) {
+            return Ok(());
+        }
+        let Some(ast) = parse_artifact_ast(artifact_path)? else {
+            return Ok(());
+        };
+        let build_info_id = self
+            .symbol_index
+            .build_info_for(&ast.absolute_path)
+            .unwrap_or("");
+        for node in &ast.nodes {
+            if let SourceUnitNode::ContractDefinition(cd) = node
+                && cd.name == contract_name
+            {
+                for base in &cd.base_contracts {
+                    if let Some(id) = base.base_name.referenced_declaration
+                        && let Some(entry) = self.symbol_index.get(build_info_id, id)
+                        && entry.node_type == "ContractDefinition"
+                    {
+                        let info = self.symbol_index.artifact_info(entry.artifact_id);
+                        if info.build_info_id == build_info_id {
+                            load_artifact_functions(&info.artifact_path, functions, cache)?;
+                            self.load_inherited_functions_recursive(
+                                &info.artifact_path,
+                                &entry.name,
+                                visited,
+                                functions,
+                                cache,
+                            )?;
+                        }
+                    }
+                }
+                break;
+            }
+        }
+        Ok(())
+    }
+
     /// Resolve an artifact ID, returning the path and any ambiguity candidates.
     pub fn resolve_artifact_with_candidates(
         &self,
@@ -944,6 +1024,14 @@ fn parse_artifact_functions(path: impl AsRef<Path>) -> Result<Vec<FunctionInfo>>
     }
 
     Ok(functions)
+}
+
+fn parse_artifact_ast(path: impl AsRef<Path>) -> Result<Option<SourceUnit>> {
+    let path = path.as_ref();
+    let content = fs::read_to_string(path)?;
+    let artifact: Artifact = serde_json::from_str(&content)
+        .with_context(|| format!("failed to parse artifact `{}`", path.display()))?;
+    Ok(artifact.ast)
 }
 
 fn extract_contract_functions(cd: ContractDefinition, source_file: &Path) -> Vec<FunctionInfo> {

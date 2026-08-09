@@ -19,6 +19,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   with LF-normalized solc AST offsets, so function and symbol blocks were
   truncated or misaligned. Added a CRLF regression fixture to the
   `function-source` test suite.
+- `solray inspect function-source`, `solray inspect call-graph`, and
+  `solray inspect call-path` now resolve functions inherited from base
+  contracts defined in other source files. Previously only the queried
+  contract's own artifact AST was searched, so inherited functions such as
+  OpenZeppelin's `owner` failed with `"not found"`.
 
 ## [0.6.0] - 2026-08-08
 

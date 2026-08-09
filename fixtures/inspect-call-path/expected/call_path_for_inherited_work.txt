@@ -1,0 +1,16 @@
+## Call Paths
+
+Target: `inheritedWork`
+Source: `src/Base.sol:7`
+
+1 paths found.
+
+### Path 1
+
+```
+CrossFileTarget::entry
+src/CrossFileTarget.sol:7
+└── Base::inheritedWork
+    src/Base.sol:7
+```
+

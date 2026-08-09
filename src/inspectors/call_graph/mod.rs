@@ -146,7 +146,7 @@ mod tests {
     use crate::project::Project;
 
     fn fixture_project() -> Project {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/call-graph");
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-call-graph");
         Project::open(root)
     }
 
@@ -168,7 +168,9 @@ mod tests {
         let output = inspector.inspect(&id).unwrap().to_string();
         assert_eq!(
             output,
-            include_str!("../../../fixtures/call-graph/expected/call_graph_for_readonly.txt")
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_for_readonly.txt"
+            )
         );
     }
 
@@ -179,7 +181,9 @@ mod tests {
         let output = inspector.inspect(&id).unwrap().to_string();
         assert_eq!(
             output,
-            include_str!("../../../fixtures/call-graph/expected/call_graph_for_execute.txt")
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_for_execute.txt"
+            )
         );
     }
 
@@ -191,7 +195,7 @@ mod tests {
         assert_eq!(
             err,
             include_str!(
-                "../../../fixtures/call-graph/expected/call_graph_errors_for_unknown_contract.txt"
+                "../../../fixtures/inspect-call-graph/expected/call_graph_errors_for_unknown_contract.txt"
             )
             .trim_end()
         );
@@ -205,7 +209,7 @@ mod tests {
         assert_eq!(
             err,
             include_str!(
-                "../../../fixtures/call-graph/expected/call_graph_errors_for_unknown_function.txt"
+                "../../../fixtures/inspect-call-graph/expected/call_graph_errors_for_unknown_function.txt"
             )
             .trim_end()
         );
@@ -218,7 +222,9 @@ mod tests {
         let err = inspector.inspect(&id).unwrap_err().to_string();
         assert_eq!(
             err,
-            include_str!("../../../fixtures/call-graph/expected/ambiguity_shows_suggestions.txt")
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/ambiguity_shows_suggestions.txt"
+            )
         );
     }
 
@@ -229,7 +235,9 @@ mod tests {
         let output = inspector.inspect(&id).unwrap().to_string();
         assert_eq!(
             output,
-            include_str!("../../../fixtures/call-graph/expected/call_graph_for_interface_call.txt")
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_for_interface_call.txt"
+            )
         );
     }
 
@@ -241,7 +249,20 @@ mod tests {
         assert_eq!(
             output,
             include_str!(
-                "../../../fixtures/call-graph/expected/call_graph_includes_low_level_call.txt"
+                "../../../fixtures/inspect-call-graph/expected/call_graph_includes_low_level_call.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_graph_for_inherited_function() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("CrossFileInheritor", "baseWork");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_for_inherited_function.txt"
             )
         );
     }
