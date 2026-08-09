@@ -12,8 +12,17 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Changed
 
+- `make build-fixtures` now runs `forge clean` for every fixture project before
+  rebuilding, so local and CI artifact states are always deterministic.
+
 ### Fixed
 
+- `solray inspect function-source` no longer leaks unrelated declarations into
+  resolved output after incremental builds. The build-info resolver previously
+  matched artifacts by source path alone, so a recompiled file could be scoped
+  to an older compilation unit when build-info files were discovered in a
+  different order. It now prefers the exact file-index match, which is
+  deterministic and keeps each artifact in its own node-ID namespace.
 - `solray inspect function-source` now resolves source ranges correctly in
   projects with CRLF line endings. Previously it sliced raw CRLF source bytes
   with LF-normalized solc AST offsets, so function and symbol blocks were

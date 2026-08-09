@@ -378,23 +378,25 @@ fn parse_src(src: Option<&str>) -> ParsedSrc {
 /// Resolve which build-info an artifact belongs to by matching its
 /// source path across build-info files.
 ///
-/// Uses source-path-only matching first so that all artifacts from the same
-/// source file consistently resolve to the same build-info across incremental
-/// builds where file indices change. Falls back to file_index matching when no
-/// build-info contains the source path.
+/// Prefers the exact file-index match: an artifact's AST node IDs are scoped
+/// to the compilation unit that assigned its file index, so the build-info
+/// whose `source_id_to_path` maps that index to the source file is
+/// authoritative regardless of build-info ordering. Falls back to
+/// source-path-only matching when no build-info contains the file index.
 fn resolve_build_info(file_index: &str, source: &Path, build_infos: &[BuildInfo]) -> String {
-    // Prefer source-path-only match so that all artifacts from the same source
-    // file resolve to the same build-info across incremental builds.
-    for info in build_infos {
-        if info.source_id_to_path.values().any(|p| p == source) {
-            return info.id.clone(); // checkrs: allow(clone_in_loops)
-        }
-    }
-    // Fall back to exact file_index match.
+    // Prefer the exact file-index match so that incremental artifacts never
+    // get scoped to an older compilation unit that also contains the source
+    // path (their node IDs only exist in the newer unit's namespace).
     for info in build_infos {
         if let Some(resolved) = info.source_id_to_path.get(file_index)
             && resolved == source
         {
+            return info.id.clone(); // checkrs: allow(clone_in_loops)
+        }
+    }
+    // Fall back to source-path-only match.
+    for info in build_infos {
+        if info.source_id_to_path.values().any(|p| p == source) {
             return info.id.clone(); // checkrs: allow(clone_in_loops)
         }
     }
@@ -451,10 +453,11 @@ mod tests {
     }
 
     /// Simulates an incremental build where file indices are reassigned.
-    /// Without the source-path fallback, artifacts from the same source
-    /// end up with different build-info IDs.
+    /// The exact file-index match must win over a source-path match in an
+    /// older build-info, otherwise an artifact compiled in the new build is
+    /// scoped to the old build's node-ID namespace.
     #[test]
-    fn incremental_build_resolves_by_source_path() {
+    fn incremental_build_resolves_by_exact_file_index() {
         let old = BuildInfo {
             id: "old".into(),
             source_id_to_path: [
@@ -470,19 +473,28 @@ mod tests {
         let build_infos = vec![old, new];
 
         // B.sol artifact was compiled in the new build (file_index=0).
-        // Without source-path fallback, it would resolve to "new" because
-        // exact match finds new build where sid=0 -> B.sol.
-        // With source-path fallback, it resolves to "old" because old build
-        // also contains B.sol (at sid=1).
+        // Its node IDs live in the new build's namespace, so the exact match
+        // must pick "new" even though the old build also contains B.sol.
         let bid = resolve_build_info("0", Path::new("src/B.sol"), &build_infos);
-        assert_eq!(
-            bid, "old",
-            "should resolve to the first build-info that contains the source path"
-        );
+        assert_eq!(bid, "new", "exact file-index match must win");
 
         // A.sol artifact was compiled in the old build (file_index=0).
         // Both source-path and exact match return "old".
         let bid = resolve_build_info("0", Path::new("src/A.sol"), &build_infos);
         assert_eq!(bid, "old");
+
+        // C.sol has no exact file-index match in either build; the
+        // source-path fallback still resolves it.
+        let with_c = BuildInfo {
+            id: "old".into(),
+            source_id_to_path: [
+                ("0".into(), PathBuf::from("src/A.sol")),
+                ("1".into(), PathBuf::from("src/B.sol")),
+                ("5".into(), PathBuf::from("src/C.sol")),
+            ]
+            .into(),
+        };
+        let bid = resolve_build_info("9", Path::new("src/C.sol"), &[with_c]);
+        assert_eq!(bid, "old", "source-path fallback resolves C.sol");
     }
 }
