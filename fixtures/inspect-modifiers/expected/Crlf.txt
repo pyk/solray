@@ -1,0 +1,6 @@
+Contract: Crlf
+Source: src/Crlf.sol
+
+Found 1 modifiers.
+
+1. onlyWhenActive (source: src/Crlf.sol:7)

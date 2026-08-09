@@ -419,9 +419,10 @@ impl ResolutionContext {
     /// Convert a byte offset in a source file to a 1-indexed line number.
     fn byte_offset_to_line(&self, offset: usize, relative_path: impl AsRef<Path>) -> Result<usize> {
         let full_path = self.project_root.join(relative_path);
-        let content = fs::read(&full_path)
+        let content = fs::read_to_string(&full_path)
             .with_context(|| format!("failed to read source file `{}`", full_path.display()))?;
-        let line = content[..offset.min(content.len())]
+        let normalized = content.replace('\r', "");
+        let line = normalized.as_bytes()[..offset.min(normalized.len())]
             .iter()
             .filter(|&&b| b == b'\n')
             .count();
@@ -460,7 +461,7 @@ mod tests {
     use crate::project::Project;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/modifiers")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-modifiers")
     }
 
     #[test]
@@ -469,7 +470,7 @@ mod tests {
         let id = ArtifactId::new("ModifiersChild");
         let output = inspector.inspect(&id).unwrap();
         let text = output.to_string();
-        let expected = include_str!("../../fixtures/modifiers/expected/ModifiersChild.txt");
+        let expected = include_str!("../../fixtures/inspect-modifiers/expected/ModifiersChild.txt");
         assert_eq!(text, expected);
     }
 
@@ -479,7 +480,8 @@ mod tests {
         let id = ArtifactId::new("ModifiersMiddle");
         let output = inspector.inspect(&id).unwrap();
         let text = output.to_string();
-        let expected = include_str!("../../fixtures/modifiers/expected/ModifiersMiddle.txt");
+        let expected =
+            include_str!("../../fixtures/inspect-modifiers/expected/ModifiersMiddle.txt");
         assert_eq!(text, expected);
     }
 
@@ -489,7 +491,7 @@ mod tests {
         let id = ArtifactId::new("ModifiersBase");
         let output = inspector.inspect(&id).unwrap();
         let text = output.to_string();
-        let expected = include_str!("../../fixtures/modifiers/expected/ModifiersBase.txt");
+        let expected = include_str!("../../fixtures/inspect-modifiers/expected/ModifiersBase.txt");
         assert_eq!(text, expected);
     }
 
@@ -500,7 +502,17 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         let text = output.to_string();
         let expected =
-            include_str!("../../fixtures/modifiers/expected/ModifiersInterfaceChild.txt");
+            include_str!("../../fixtures/inspect-modifiers/expected/ModifiersInterfaceChild.txt");
+        assert_eq!(text, expected);
+    }
+
+    #[test]
+    fn inspect_modifiers_crlf_file() {
+        let inspector = ModifierInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("Crlf");
+        let output = inspector.inspect(&id).unwrap();
+        let text = output.to_string();
+        let expected = include_str!("../../fixtures/inspect-modifiers/expected/Crlf.txt");
         assert_eq!(text, expected);
     }
 
@@ -510,7 +522,7 @@ mod tests {
         let id = ArtifactId::new("ModifierRoot");
         let output = inspector.inspect(&id).unwrap();
         let text = output.to_string();
-        let expected = include_str!("../../fixtures/modifiers/expected/ModifierRoot.txt");
+        let expected = include_str!("../../fixtures/inspect-modifiers/expected/ModifierRoot.txt");
         assert_eq!(text, expected);
     }
 }
