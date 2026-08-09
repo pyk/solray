@@ -1,0 +1,3 @@
+Call graph:
+
+VirtualIntermediate._implementation() (internal) (src/VirtualDispatch.sol:22)

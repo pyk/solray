@@ -1,0 +1,6 @@
+Call graph:
+
+VirtualBase.fallback() (external) (src/VirtualDispatch.sol:11)
+├── VirtualIntermediate._beforeFallback() (internal) (src/VirtualDispatch.sol:18)
+│   └── VirtualBase._beforeFallback() (internal) (src/VirtualDispatch.sol:5)
+└── VirtualIntermediate._implementation() (internal) (src/VirtualDispatch.sol:22)

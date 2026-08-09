@@ -71,6 +71,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - `solray inspect function-source` resolves inherited overridden functions to
   the most-derived declaration instead of failing with duplicate identical
   suggestions.
+- `solray inspect call-graph` resolves virtual calls and inherited overrides to
+  the most-derived implementation instead of base declarations, while
+  preserving explicit `super` calls.
 - `solray inspect external-functions`, `call-graph`, and `call-path` report
   correct line numbers for CRLF projects.
 - `solray inspect call-graph` resolves overridden functions to the queried

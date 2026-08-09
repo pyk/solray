@@ -316,6 +316,7 @@ pub struct CallGraph {
     artifact_index: ArtifactIndex,
     symbol_index: SymbolIndex,
     modifier_bodies: RefCell<HashMap<i64, Option<Block>>>,
+    inheritance_order: RefCell<Vec<String>>,
 }
 
 impl CallGraph {
@@ -329,6 +330,7 @@ impl CallGraph {
             artifact_index,
             symbol_index,
             modifier_bodies: RefCell::new(HashMap::new()),
+            inheritance_order: RefCell::new(Vec::new()),
         }
     }
 
@@ -389,8 +391,11 @@ impl CallGraph {
             bail!("\"{raw_target}\" not found in \"{contract_name}\".");
         }
 
-        let target_info = select_target_function(&target_functions, &id.artifact_id().name)
-            .context("target function list is non-empty")?;
+        let target_info = {
+            let inheritance_order = self.inheritance_order.borrow();
+            select_target_function(&target_functions, &inheritance_order)
+                .context("target function list is non-empty")?
+        };
         debug!(
             contract = %target_info.contract_name,
             function = %target.name,
@@ -575,13 +580,18 @@ impl CallGraph {
         cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
     ) -> Result<()> {
         let mut visited = HashSet::new();
+        let mut inheritance_order = vec![contract_name.to_string()];
         self.load_inherited_functions_recursive(
             artifact_path,
             contract_name,
             &mut visited,
             functions,
             cache,
+            &mut inheritance_order,
         )
+        .map(|()| {
+            *self.inheritance_order.borrow_mut() = inheritance_order;
+        })
     }
 
     fn load_inherited_functions_recursive(
@@ -591,6 +601,7 @@ impl CallGraph {
         visited: &mut HashSet<String>,
         functions: &mut HashMap<i64, FunctionInfo>,
         cache: &RefCell<HashMap<PathBuf, Vec<FunctionInfo>>>,
+        inheritance_order: &mut Vec<String>,
     ) -> Result<()> {
         if !visited.insert(contract_name.to_string()) {
             return Ok(());
@@ -613,6 +624,7 @@ impl CallGraph {
                     {
                         let info = self.symbol_index.artifact_info(entry.artifact_id);
                         if info.build_info_id == build_info_id {
+                            inheritance_order.push(entry.name.clone()); // checkrs: allow(clone_in_loops)
                             load_contract_functions(
                                 &info.artifact_path,
                                 &entry.name,
@@ -625,6 +637,7 @@ impl CallGraph {
                                 visited,
                                 functions,
                                 cache,
+                                inheritance_order,
                             )?;
                         }
                     }
@@ -973,7 +986,13 @@ impl CallGraph {
                     FunctionCallExpression::MemberAccess(ma) => {
                         match ma.referenced_declaration {
                             Some(id) => {
-                                self.push_loaded_function(id, cache, functions, visited, nodes)?;
+                                let is_super = matches!(
+                                    &*ma.expression,
+                                    Expression::Identifier(id) if id.name == "super"
+                                );
+                                self.push_loaded_function(
+                                    id, cache, functions, visited, nodes, !is_super,
+                                )?;
                             }
                             None if is_low_level_call(&ma.member_name) => {
                                 let sig = format!("(address).{}()", ma.member_name);
@@ -998,7 +1017,7 @@ impl CallGraph {
                     }
                     FunctionCallExpression::Identifier(id) => {
                         id.referenced_declaration.map_or(Ok(()), |id| {
-                            self.push_loaded_function(id, cache, functions, visited, nodes)
+                            self.push_loaded_function(id, cache, functions, visited, nodes, true)
                         })?;
                     }
                     FunctionCallExpression::FunctionCallOptions(fco) => {
@@ -1019,7 +1038,9 @@ impl CallGraph {
                             resolve_called_function_id_from_fc_expression(&fco.expression).map_or(
                                 Ok(()),
                                 |id| {
-                                    self.push_loaded_function(id, cache, functions, visited, nodes)
+                                    self.push_loaded_function(
+                                        id, cache, functions, visited, nodes, true,
+                                    )
                                 },
                             )?;
                         }
@@ -1156,16 +1177,66 @@ impl CallGraph {
         functions: &mut HashMap<i64, FunctionInfo>,
         visited: &mut HashSet<i64>,
         nodes: &mut Vec<CallGraphNode>,
+        redirect_override: bool,
     ) -> Result<()> {
         if !functions.contains_key(&id) {
             self.ensure_function_loaded(id, cache, functions)?;
         }
 
         if functions.contains_key(&id) {
-            let node = self.build_call_node(id, cache, functions, visited)?;
+            let effective_id = if redirect_override {
+                self.resolve_effective_function_id(id, functions)?
+            } else {
+                id
+            };
+            let node = self.build_call_node(effective_id, cache, functions, visited)?;
             nodes.push(node);
         }
         Ok(())
+    }
+
+    /// Resolve a virtual call to the most-derived override in the queried
+    /// contract's inheritance chain. Non-virtual calls keep their original id.
+    fn resolve_effective_function_id(
+        &self,
+        id: i64,
+        functions: &HashMap<i64, FunctionInfo>,
+    ) -> Result<i64> {
+        let Some(info) = functions.get(&id) else {
+            return Ok(id);
+        };
+        if info.kind != FunctionKind::Function {
+            return Ok(id);
+        }
+        let inheritance_order = self.inheritance_order.borrow();
+        if inheritance_order.is_empty() {
+            return Ok(id);
+        }
+        let signature = format_params(&info.parameters);
+        let rank = |candidate: &FunctionInfo| {
+            let position = inheritance_order
+                .iter()
+                .position(|name| name == &candidate.contract_name)
+                .unwrap_or(usize::MAX);
+            (
+                position,
+                candidate.is_interface,
+                candidate.src_offset,
+                candidate.id,
+            )
+        };
+        let best = functions
+            .values()
+            .filter(|candidate| {
+                candidate.kind == FunctionKind::Function
+                    && candidate.name == info.name
+                    && format_params(&candidate.parameters) == signature
+                    && inheritance_order
+                        .iter()
+                        .any(|name| name == &candidate.contract_name)
+            })
+            .min_by_key(|candidate| rank(candidate));
+        Ok(best.map_or(id, |best| best.id))
     }
 
     fn ensure_function_loaded(
@@ -1223,16 +1294,14 @@ fn find_contract_name(functions: &HashMap<i64, FunctionInfo>, target_name: &str)
 /// declarations with the same name.
 fn select_target_function<'a>(
     candidates: &[&'a FunctionInfo],
-    preferred_contract: &str,
+    inheritance_order: &[String],
 ) -> Option<&'a FunctionInfo> {
     candidates.iter().copied().min_by_key(|fi| {
-        (
-            fi.contract_name != preferred_contract,
-            fi.is_interface,
-            fi.contract_name.as_str(),
-            fi.src_offset,
-            fi.id,
-        )
+        let position = inheritance_order
+            .iter()
+            .position(|name| name == &fi.contract_name)
+            .unwrap_or(usize::MAX);
+        (position, fi.is_interface, fi.src_offset, fi.id)
     })
 }
 
@@ -1629,7 +1698,8 @@ mod tests {
         let iface = contract_functions(&root.join("IOverride.json"), "IOverride");
         let own = contract_functions(&root.join("Override.json"), "Override");
 
-        let selected = select_target_function(&[&iface[0], &own[0]], "Override").unwrap();
+        let selected =
+            select_target_function(&[&iface[0], &own[0]], &["Override".to_string()]).unwrap();
         assert_eq!(selected.contract_name, "Override");
     }
 
