@@ -65,6 +65,37 @@ have a severe negative impact on the project and the user.
 - You must assert exact error messages in tests with `assert_eq!`, never
   `.contains()`.
 
+### Changelog Rules
+
+Follow Keep a Changelog and Semantic Versioning.
+
+- You must record user-visible changes under `## [Unreleased]`.
+
+- You must use the subsections `### Added`, `### Changed`, and `### Fixed`
+  under `[Unreleased]` (leave a subsection empty when unused).
+
+- When preparing a release, you must move `[Unreleased]` entries into a new
+  versioned section `## [X.Y.Z] - YYYY-MM-DD`.
+
+- After cutting a release section, you must keep an empty `[Unreleased]`
+  section at the top with `### Added`, `### Changed`, and `### Fixed` ready for
+  future entries:
+
+  ```md
+  ## [Unreleased]
+
+  ### Added
+
+  ### Changed
+
+  ### Fixed
+
+  ## [X.Y.Z] - YYYY-MM-DD
+  ```
+
+- You must update the comparison links at the bottom of `CHANGELOG.md` when
+  adding a new version section.
+
 ## Tool References
 
 ### cargo txt
