@@ -970,23 +970,32 @@ impl CallGraph {
         match expr {
             Expression::FunctionCall(fc) => {
                 match &*fc.expression {
-                    FunctionCallExpression::MemberAccess(ma) => match ma.referenced_declaration {
-                        Some(id) => {
-                            self.push_loaded_function(id, cache, functions, visited, nodes)?;
+                    FunctionCallExpression::MemberAccess(ma) => {
+                        match ma.referenced_declaration {
+                            Some(id) => {
+                                self.push_loaded_function(id, cache, functions, visited, nodes)?;
+                            }
+                            None if is_low_level_call(&ma.member_name) => {
+                                let sig = format!("(address).{}()", ma.member_name);
+                                nodes.push(CallGraphNode::new(
+                                    &sig,
+                                    "",
+                                    PathBuf::new(),
+                                    "low-level",
+                                    "",
+                                    vec![],
+                                ));
+                            }
+                            None => {}
                         }
-                        None if is_low_level_call(&ma.member_name) => {
-                            let sig = format!("(address).{}()", ma.member_name);
-                            nodes.push(CallGraphNode::new(
-                                &sig,
-                                "",
-                                PathBuf::new(),
-                                "low-level",
-                                "",
-                                vec![],
-                            ));
-                        }
-                        None => {}
-                    },
+                        self.collect_calls_from_expression(
+                            &ma.expression,
+                            cache,
+                            functions,
+                            visited,
+                            nodes,
+                        )?;
+                    }
                     FunctionCallExpression::Identifier(id) => {
                         id.referenced_declaration.map_or(Ok(()), |id| {
                             self.push_loaded_function(id, cache, functions, visited, nodes)
@@ -1014,6 +1023,13 @@ impl CallGraph {
                                 },
                             )?;
                         }
+                        self.collect_calls_from_expression(
+                            &fco.expression,
+                            cache,
+                            functions,
+                            visited,
+                            nodes,
+                        )?;
                     }
                     _ => {}
                 }
@@ -1102,6 +1118,30 @@ impl CallGraph {
             Expression::TupleExpression(tuple) => {
                 for expr in tuple.components.iter().flatten() {
                     self.collect_calls_from_expression(expr, cache, functions, visited, nodes)?;
+                }
+            }
+            Expression::IndexAccess(index) => {
+                self.collect_calls_from_expression(
+                    &index.base_expression,
+                    cache,
+                    functions,
+                    visited,
+                    nodes,
+                )?;
+                if let Some(ref idx) = index.index_expression {
+                    self.collect_calls_from_expression(idx, cache, functions, visited, nodes)?;
+                }
+            }
+            Expression::IndexRangeAccess(index) => {
+                self.collect_calls_from_expression(
+                    &index.base_expression,
+                    cache,
+                    functions,
+                    visited,
+                    nodes,
+                )?;
+                if let Some(ref start) = index.start_expression {
+                    self.collect_calls_from_expression(start, cache, functions, visited, nodes)?;
                 }
             }
             _ => {}

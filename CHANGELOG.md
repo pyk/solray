@@ -23,6 +23,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect call-graph` includes function calls nested inside
+  index-access expressions and member-call bases, for example
+  `_allowances[_msgSender()].sub(...)`.
 - `solray inspect external-functions` resolves inherited ABI entries to base
   interface declarations when the queried contract is an interface.
 - `solray inspect call-graph` includes low-level calls made with

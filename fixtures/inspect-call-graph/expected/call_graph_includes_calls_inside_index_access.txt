@@ -1,0 +1,7 @@
+Call graph:
+
+IndexAccessCaller.run(address) (public) (src/IndexAccessCaller.sol:13)
+├── IndexAccessCaller._approve(address,address,bool) (internal) (src/IndexAccessCaller.sol:17)
+├── IndexAccessCaller._msgSender() (internal) (src/IndexAccessCaller.sol:19)
+├── Helper.doWork() (public) (src/IndexAccessCaller.sol:5)
+└── IndexAccessCaller._msgSender() (internal) (src/IndexAccessCaller.sol:19)

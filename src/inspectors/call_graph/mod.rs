@@ -282,6 +282,19 @@ mod tests {
     }
 
     #[test]
+    fn call_graph_includes_calls_inside_index_access() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("IndexAccessCaller", "run");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_includes_calls_inside_index_access.txt"
+            )
+        );
+    }
+
+    #[test]
     fn call_graph_for_inherited_function() {
         let inspector = CallGraphInspector::new(fixture_project());
         let id = make_id("CrossFileInheritor", "baseWork");
