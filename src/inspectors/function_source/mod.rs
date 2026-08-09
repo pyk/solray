@@ -148,6 +148,17 @@ fn extract_contract_name(symbol: &str) -> &str {
     symbol.split('.').next().unwrap_or("?")
 }
 
+/// Rank a symbol by how close its declaring contract is to the queried
+/// contract in the inheritance chain. Lower is more-derived.
+fn inheritance_rank(symbol: &ResolvedSymbol, inheritance_order: &[String]) -> (usize, usize) {
+    let contract = extract_contract_name(&symbol.symbol);
+    let position = inheritance_order
+        .iter()
+        .position(|name| name == contract)
+        .unwrap_or(usize::MAX);
+    (position, symbol.offset)
+}
+
 impl std::fmt::Display for FunctionSourceInspectorOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let project_abs =
@@ -368,6 +379,7 @@ impl FunctionSourceInspector {
         };
 
         let mut functions: HashMap<String, ResolvedSymbol> = HashMap::new();
+        let mut inheritance_order: Vec<String> = vec![contract_name.to_string()];
         for artifact_path in artifact_paths {
             let Some(ast) = parse_artifact(artifact_path)? else {
                 continue;
@@ -381,13 +393,17 @@ impl FunctionSourceInspector {
                 true,
             );
             let inherited = self.inherited_contracts(artifact_path, contract_name)?;
-            for (base_contract, base_path) in inherited {
+            for (base_contract, base_path) in &inherited {
                 let Some(base_ast) = parse_artifact(base_path)? else {
                     continue;
                 };
+                let is_new_base = !inheritance_order.contains(base_contract);
+                if is_new_base {
+                    inheritance_order.push(base_contract.clone()); // checkrs: allow(clone_in_loops)
+                }
                 extract_function_symbols(
                     &base_ast,
-                    &base_contract,
+                    base_contract,
                     base_name,
                     &mut functions,
                     SpecialFunctionFilter::FallbackReceive,
@@ -459,6 +475,24 @@ impl FunctionSourceInspector {
                 bail!(msg);
             }
             if matched.len() > 1 {
+                // Prefer the most-derived declaration when the same signature
+                // is declared by inherited overrides. Keep the ambiguity error
+                // when the closest contract still has multiple candidates.
+                let best = matched
+                    .iter()
+                    .min_by_key(|symbol| inheritance_rank(symbol, &inheritance_order));
+                if let Some(best) = best
+                    && matched
+                        .iter()
+                        .filter(|symbol| {
+                            inheritance_rank(symbol, &inheritance_order)
+                                == inheritance_rank(best, &inheritance_order)
+                        })
+                        .count()
+                        == 1
+                {
+                    return Ok((*best).clone());
+                }
                 let mut msg = format!(
                     "found {} \"{}\"\n\nSelect one of the following:\n",
                     matched.len(),
@@ -480,6 +514,34 @@ impl FunctionSourceInspector {
         }
 
         if functions.len() > 1 {
+            // When every candidate has the same signature, this is an
+            // inherited override rather than a real overload: prefer the
+            // most-derived declaration.
+            let signatures: HashSet<&str> = functions
+                .values()
+                .map(|s| {
+                    s.symbol
+                        .split_once('.')
+                        .map_or(s.symbol.as_str(), |(_, sig)| sig)
+                })
+                .collect();
+            if signatures.len() == 1 {
+                let best = functions
+                    .values()
+                    .min_by_key(|symbol| inheritance_rank(symbol, &inheritance_order));
+                if let Some(best) = best
+                    && functions
+                        .values()
+                        .filter(|symbol| {
+                            inheritance_rank(symbol, &inheritance_order)
+                                == inheritance_rank(best, &inheritance_order)
+                        })
+                        .count()
+                        == 1
+                {
+                    return Ok(best.clone());
+                }
+            }
             let mut msg = format!(
                 "found {} \"{}\"\n\nSelect one of the following:\n",
                 functions.len(),
@@ -1765,6 +1827,17 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_shows_source_for_inherited_receive.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_inherited_override() {
+        let output = inspect("InheritedOverrideChild", "_beforeFallback").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_resolves_inherited_override.txt"
             )
         );
     }

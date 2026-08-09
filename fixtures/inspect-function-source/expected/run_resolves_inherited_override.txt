@@ -1,0 +1,19 @@
+# InheritedOverrideIntermediate - _beforeFallback Source Code
+
+Source path: `src/InheritedOverride.sol:9`
+
+```solidity
+function _beforeFallback() internal override virtual {
+    super._beforeFallback();
+}
+```
+
+---
+
+## Function: `_beforeFallback`
+
+Source path: `src/InheritedOverride.sol:5`
+
+```solidity
+function _beforeFallback() internal virtual {}
+```
