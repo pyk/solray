@@ -103,7 +103,7 @@ contract list, an unresolved modifier, or an invalid source block.
 
 3. Create the regression test before fixing the bug.
    - Determine the affected feature from the bug report command, for example
-     `contracts`, `function-source`, or `erc20-transfer-sinks`.
+     `contracts`, `inspect-function-source`, or `erc20-transfer-sinks`.
 
    - Abort when `fixtures/<feature>/src/` or `fixtures/<feature>/expected/`
      already contains the fixture.
@@ -164,12 +164,12 @@ contract list, an unresolved modifier, or an invalid source block.
 Match the affected feature's existing test module under `src/inspectors/` or
 `src/scanners/`. Each feature has its own fixture directory:
 
-| Feature                    | Fixture directory                |
-| :------------------------- | :------------------------------- |
-| `inspect contracts`        | `fixtures/contracts/`            |
-| `inspect function-source`  | `fixtures/function-source/`      |
-| `scan erc20-transfer-sink` | `fixtures/erc20-transfer-sinks/` |
-| `scan asset-transfers`     | `fixtures/asset-transfers/`      |
+| Feature                    | Fixture directory                   |
+| :------------------------- | :---------------------------------- |
+| `inspect contracts`        | `fixtures/contracts/`               |
+| `inspect function-source`  | `fixtures/inspect-function-source/` |
+| `scan erc20-transfer-sink` | `fixtures/erc20-transfer-sinks/`    |
+| `scan asset-transfers`     | `fixtures/asset-transfers/`         |
 
 Copy an existing test from the affected module and adapt it to the new fixture.
 Name the expected file after the test case.
