@@ -487,15 +487,19 @@ impl CallGraph {
         //    the configured src directory (e.g., "src" or "contracts"), not
         //    from test or library files.
         let project_root = self.project.path();
-        let src_dir = self
+        let test_dir = self
             .project
             .directories()
             .ok()
-            .map(|d| d.src)
-            .unwrap_or_else(|| PathBuf::from("src"));
+            .map(|d| d.test)
+            .unwrap_or_else(|| PathBuf::from("test"));
 
-        // 5. Collect src-filtered source files, one per source file to avoid
-        //    ID collisions across compilation units.
+        // 5. Collect source files, one per source file to avoid
+        //    ID collisions across compilation units. Every compiled file is
+        //    a candidate root except test files: project contracts in
+        //    library or other directories (listed by `inspect contracts`
+        //    and `inspect abstracts`) are valid path roots even when they
+        //    live outside the configured `src` directory.
         let mut source_files: Vec<(PathBuf, PathBuf)> = Vec::new();
         let mut seen_sources: HashSet<PathBuf> = HashSet::new();
         for path in self.artifact_index.all_entries() {
@@ -505,7 +509,7 @@ impl CallGraph {
             if !seen_sources.insert(source.clone()) {
                 continue;
             }
-            if !is_in_src_dir(&source, project_root, &src_dir) {
+            if is_under_dir(&source, project_root, &test_dir) {
                 continue;
             }
             source_files.push((path.clone(), source)); // checkrs: allow(clone_in_loops)
@@ -516,10 +520,10 @@ impl CallGraph {
         let mut target_src = String::new();
         let mut target_found = false;
 
-        for (artifact_path, _source) in &source_files {
+        for (root_artifact_path, _source) in &source_files {
             let cache: RefCell<HashMap<PathBuf, Vec<FunctionInfo>>> = RefCell::new(HashMap::new());
             let mut functions: HashMap<i64, FunctionInfo> = HashMap::new();
-            load_artifact_functions(artifact_path, &mut functions, &cache)?;
+            load_artifact_functions(root_artifact_path, &mut functions, &cache)?;
 
             // Collect external/public function IDs from this source file.
             let external_ids: Vec<i64> = functions
@@ -529,6 +533,31 @@ impl CallGraph {
                 })
                 .map(|(id, _)| *id)
                 .collect();
+
+            // Load the queried contract's own functions and its inheritance
+            // chain into this file's function map so virtual calls made by
+            // the roots expand to the most-derived overrides (for example
+            // `Proxy.fallback` dispatching to the queried
+            // `TransparentUpgradeableProxy._fallback` instead of the base
+            // `Proxy._fallback`).
+            load_contract_functions(
+                &artifact_path,
+                &id.artifact_id().name,
+                &mut functions,
+                &cache,
+            )?;
+            self.load_inherited_functions(
+                &artifact_path,
+                &id.artifact_id().name,
+                &mut functions,
+                &cache,
+            )?;
+
+            debug!(
+                file = ?root_artifact_path,
+                roots = ?external_ids,
+                "call-path: expanding path roots"
+            );
 
             for &func_id in &external_ids {
                 let mut visited: HashSet<i64> = HashSet::new();
@@ -1256,6 +1285,16 @@ impl CallGraph {
         if inheritance_order.is_empty() {
             return Ok(id);
         }
+        // Only redirect calls to functions declared by the queried contract's
+        // inheritance chain. A same-named function from an unrelated contract
+        // (for example an internal `helper()` in another source file) is not
+        // virtual and must not be redirected to the chain's declaration.
+        if !inheritance_order
+            .iter()
+            .any(|name| name == &info.contract_name)
+        {
+            return Ok(id);
+        }
         let signature = format_params(&info.parameters);
         let rank = |candidate: &FunctionInfo| {
             let position = inheritance_order
@@ -1280,6 +1319,14 @@ impl CallGraph {
                         .any(|name| name == &candidate.contract_name)
             })
             .min_by_key(|candidate| rank(candidate));
+        if let Some(best) = &best {
+            debug!(
+                id,
+                name = %info.name,
+                redirected = best.id,
+                "call-path: resolved virtual call to most-derived override"
+            );
+        }
         Ok(best.map_or(id, |best| best.id))
     }
 
@@ -1423,20 +1470,20 @@ fn extract_artifact_source(path: impl AsRef<Path>) -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// Check if a source file path is under the project's configured `src` directory.
-fn is_in_src_dir(
+/// Check if a source file path is under a given project directory.
+fn is_under_dir(
     source: impl AsRef<Path>,
     project_root: impl AsRef<Path>,
-    src_dir: impl AsRef<Path>,
+    dir: impl AsRef<Path>,
 ) -> bool {
     // The source path from the artifact is an absolute path. Compute the
     // relative path from the project root and check if it starts with the
-    // configured src directory (e.g., "src" or "contracts").
+    // given directory (e.g., "src", "contracts", or "test").
     let relative = source
         .as_ref()
         .strip_prefix(project_root.as_ref())
         .unwrap_or(source.as_ref());
-    relative.starts_with(src_dir.as_ref())
+    relative.starts_with(dir.as_ref())
 }
 
 fn parse_artifact_functions(path: impl AsRef<Path>) -> Result<Vec<FunctionInfo>> {

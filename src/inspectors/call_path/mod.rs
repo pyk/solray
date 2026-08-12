@@ -216,6 +216,11 @@ mod tests {
         Project::open(root)
     }
 
+    fn fixture_call_path_lib_project() -> Project {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-call-path-lib");
+        Project::open(root)
+    }
+
     fn make_id(artifact_id: &str, function: &str) -> FunctionId {
         let aid = ArtifactId::new(artifact_id);
         FunctionId::new(aid, function)
@@ -282,6 +287,45 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-call-path/expected/call_path_for_unchecked_block.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_path_for_target_outside_src() {
+        let inspector = CallPathInspector::new(fixture_call_path_lib_project());
+        let id = make_id("User", "_checkOwner");
+        let output = inspector.inspect(&id, "_checkOwner").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path-lib/expected/call_path_for_target_outside_src.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_path_for_transfer_ownership_outside_src() {
+        let inspector = CallPathInspector::new(fixture_call_path_lib_project());
+        let id = make_id("User", "_transferOwnership");
+        let output = inspector.inspect(&id, "_transferOwnership").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path-lib/expected/call_path_for_transfer_ownership_outside_src.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_path_for_owner_outside_src() {
+        let inspector = CallPathInspector::new(fixture_call_path_lib_project());
+        let id = make_id("User", "owner");
+        let output = inspector.inspect(&id, "owner").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path-lib/expected/call_path_for_owner_outside_src.txt"
             )
         );
     }

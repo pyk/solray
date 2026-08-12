@@ -1,0 +1,45 @@
+## Call Paths
+
+Target: `_transferOwnership`
+Source: `shared/OwnerLib.sol:15`
+
+4 paths found.
+
+### Path 1
+
+```
+OwnerLib.constructor
+shared/OwnerLib.sol:19
+└── OwnerLib._transferOwnership
+    shared/OwnerLib.sol:15
+```
+
+### Path 2
+
+```
+OwnerLib.renounceOwnership
+shared/OwnerLib.sol:23
+└── OwnerLib._transferOwnership
+    shared/OwnerLib.sol:15
+```
+
+### Path 3
+
+```
+OwnerLib.transferOwnership
+shared/OwnerLib.sol:28
+└── OwnerLib._transferOwnership
+    shared/OwnerLib.sol:15
+```
+
+### Path 4
+
+```
+User.constructor
+src/User.sol:7
+└── OwnerLib.constructor
+    shared/OwnerLib.sol:19
+    └── OwnerLib._transferOwnership
+        shared/OwnerLib.sol:15
+```
+

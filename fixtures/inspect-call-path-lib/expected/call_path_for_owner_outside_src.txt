@@ -1,0 +1,47 @@
+## Call Paths
+
+Target: `owner`
+Source: `shared/OwnerLib.sol:7`
+
+4 paths found.
+
+### Path 1
+
+```
+OwnerLib.owner
+shared/OwnerLib.sol:7
+```
+
+### Path 2
+
+```
+OwnerLib.renounceOwnership
+shared/OwnerLib.sol:23
+└── OwnerLib._checkOwner
+    shared/OwnerLib.sol:11
+    └── OwnerLib.owner
+        shared/OwnerLib.sol:7
+```
+
+### Path 3
+
+```
+OwnerLib.transferOwnership
+shared/OwnerLib.sol:28
+└── OwnerLib._checkOwner
+    shared/OwnerLib.sol:11
+    └── OwnerLib.owner
+        shared/OwnerLib.sol:7
+```
+
+### Path 4
+
+```
+User.poke
+src/User.sol:9
+└── OwnerLib._checkOwner
+    shared/OwnerLib.sol:11
+    └── OwnerLib.owner
+        shared/OwnerLib.sol:7
+```
+

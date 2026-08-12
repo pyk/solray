@@ -14,26 +14,22 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect call-path` now reports paths rooted in every compiled project
+  contract, including files outside the configured `src` directory (only the
+  `test` directory is excluded), so inherited functions such as
+  `Ownable.renounceOwnership` are valid roots; virtual calls from those roots
+  resolve to the queried contract's most-derived override.
 - `solray inspect call-graph` now includes contract creation calls
-  (`new Contract(...)`) in the graph, resolving the created contract's
-  constructor and expanding its own calls. Contract creations were previously
-  dropped because the expression collector did not handle `NewExpression`
-  nodes.
-- `solray inspect function-source` now renders the contract referenced by a
+  (`new Contract(...)`), expanding the created contract's constructor; such
+  calls were previously dropped because `NewExpression` was not handled.
+- `solray inspect function-source` now renders the contract created by a
   `new Contract(...)` expression as a resolved symbol (header and NatSpec, plus
-  its base contracts). The created contract's declaration was previously
-  omitted because the function-call collector did not handle `NewExpression`
-  nodes.
-- `solray inspect function-source` no longer resolves every sibling function
-  when a library, contract, or interface is referenced by identifier. The
-  whole-declaration range of a container symbol previously pulled in symbols
-  reachable only from unrelated members (for example `Math.log2`, `Time.pack`,
-  or `SafeERC20.forceApprove`). Container symbols now render only their own
-  header and inheritance, and members resolve through their own references.
-- The CLI writes command output through a broken-pipe-aware writer, so piping
-  output into a consumer that closes early (for example
-  `solray inspect function-source ... | head`) exits quietly instead of
-  panicking with a broken-pipe error.
+  base contracts); the created contract was previously omitted.
+- `solray inspect function-source` no longer pulls in symbols from unrelated
+  library or contract members when a container is referenced by identifier;
+  container symbols render only their own header and inheritance.
+- The CLI writes output through a broken-pipe-aware writer, so piping into
+  `head`/`less` exits quietly instead of panicking.
 
 ## [0.7.0] - 2026-08-09
 
