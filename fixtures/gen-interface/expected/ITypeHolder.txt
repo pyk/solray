@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface ITypeHolder {
+    enum OtherLibStatus {
+        Off,
+        On
+    }
+    enum Status {
+        None,
+        Active
+    }
+
+    struct Info {
+        uint256 value;
+        Status status;
+    }
+
+    struct OtherLibInfo {
+        bool enabled;
+    }
+
+    function info() external pure returns (Info memory);
+    function other() external pure returns (OtherLibInfo memory);
+    function otherStatus() external pure returns (OtherLibStatus);
+    function status() external pure returns (Status);
+}

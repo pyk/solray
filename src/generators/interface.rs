@@ -5,7 +5,7 @@
 //! structs, enums, and user-defined value types those functions reference.
 //! The referenced types are declared inline so the interface is self-contained.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -83,7 +83,7 @@ impl InterfaceGenerator {
         let enums = enum_members(artifact.ast);
 
         let interface_name = format!("I{}", id.name);
-        let source = render_interface(&interface_name, &abi, &enums);
+        let source = render_interface(&interface_name, &abi, &enums, &self.project);
         Ok(InterfaceGeneratorOutput::new(
             &id.name,
             &interface_name,
@@ -131,7 +131,7 @@ impl InterfaceGenerator {
 
 /// Collects user-defined types referenced by ABI parameters while rendering
 /// their Solidity type names.
-struct TypeResolver {
+struct TypeResolver<'a> {
     /// Enum definitions referenced by ABI parameters, keyed by enum name.
     enums: BTreeMap<String, EnumType>,
     /// User-defined value type names mapped to their underlying type.
@@ -140,15 +140,28 @@ struct TypeResolver {
     structs: BTreeMap<String, StructType>,
     /// Enum member lists from the artifact AST, keyed by enum name.
     enum_defs: BTreeMap<String, Vec<String>>,
+    /// Mapping from a qualified type path (e.g. `AgentInfo.Info`) to the
+    /// unique local name used in the generated interface.
+    type_names: BTreeMap<String, String>,
+    /// Local type names already assigned in the generated interface.
+    used_names: BTreeSet<String>,
+    /// Project used to look up enum members in the declaring artifact.
+    project: &'a Project,
+    /// Cached enum member lookups keyed by qualified enum path.
+    enum_lookup_cache: BTreeMap<String, Option<Vec<String>>>,
 }
 
-impl TypeResolver {
-    fn new(enum_defs: BTreeMap<String, Vec<String>>) -> Self {
+impl<'a> TypeResolver<'a> {
+    fn new(enum_defs: BTreeMap<String, Vec<String>>, project: &'a Project) -> Self {
         Self {
             enums: BTreeMap::new(),
             udts: BTreeMap::new(),
             structs: BTreeMap::new(),
             enum_defs,
+            type_names: BTreeMap::new(),
+            used_names: BTreeSet::new(),
+            project,
+            enum_lookup_cache: BTreeMap::new(),
         }
     }
 
@@ -186,6 +199,7 @@ impl TypeResolver {
 
         if let Some(struct_path) = internal.strip_prefix("struct ") {
             let (name, suffix) = split_array_suffix(struct_path);
+            let local_name = self.local_type_name(name);
             let members = components
                 .map(|components| {
                     components
@@ -202,24 +216,26 @@ impl TypeResolver {
                 })
                 .unwrap_or_default();
             self.structs
-                .entry(name.to_string())
+                .entry(local_name.clone())
                 .or_insert_with(|| StructType {
-                    name: name.to_string(),
+                    name: local_name.clone(),
                     members,
                 });
-            return format!("{name}{suffix}");
+            return format!("{local_name}{suffix}");
         }
 
         if let Some(enum_path) = internal.strip_prefix("enum ") {
             let (name, suffix) = split_array_suffix(enum_path);
+            let local_name = self.local_type_name(name);
+            let members = self.enum_members_for(name);
             self.enums
-                .entry(name.to_string())
+                .entry(local_name.clone())
                 .or_insert_with(|| EnumType {
-                    name: name.to_string(),
-                    members: self.enum_defs.get(name).cloned().unwrap_or_default(),
+                    name: local_name.clone(),
+                    members,
                     canonical: base_canonical_type(canonical).to_string(),
                 });
-            return format!("{name}{suffix}");
+            return format!("{local_name}{suffix}");
         }
 
         if is_builtin_type(internal) {
@@ -237,13 +253,65 @@ impl TypeResolver {
 
         if !internal.contains(' ') && is_value_type(canonical) {
             let (name, suffix) = split_array_suffix(internal);
+            let local_name = self.local_type_name(name);
             self.udts
-                .entry(name.to_string())
+                .entry(local_name.clone())
                 .or_insert_with(|| base_canonical_type(canonical).to_string());
-            return format!("{name}{suffix}");
+            return format!("{local_name}{suffix}");
         }
 
         internal.to_string()
+    }
+
+    /// Assign a valid, unique local Solidity identifier to a type path such
+    /// as `AgentInfo.Info` or `IPayment.Proof`. Qualified paths cannot be
+    /// declared inside an interface, so the last path segment is used as the
+    /// local name and, when that name is already taken, the sanitized
+    /// qualifier is prepended.
+    fn local_type_name(&mut self, full_name: &str) -> String {
+        if let Some(name) = self.type_names.get(full_name) {
+            return name.clone();
+        }
+        let (qualifier, last) = full_name.rsplit_once('.').unwrap_or(("", full_name));
+        let mut candidate = last.to_string();
+        if self.used_names.contains(&candidate) {
+            let base = if qualifier.is_empty() {
+                candidate
+            } else {
+                format!("{}{}", sanitize_identifier(qualifier), last)
+            };
+            candidate = base.clone();
+            let mut counter = 2;
+            while self.used_names.contains(&candidate) {
+                candidate = format!("{base}_{counter}");
+                counter += 1;
+            }
+        }
+        self.used_names.insert(candidate.clone());
+        self.type_names
+            .insert(full_name.to_string(), candidate.clone());
+        candidate
+    }
+
+    /// Collect the members of an enum referenced by ABI parameters.
+    ///
+    /// Members come from the queried artifact's AST first (`enum_defs`);
+    /// qualified enums such as `EmergencyPause.Level` are resolved from the
+    /// artifact of the library that declares them.
+    fn enum_members_for(&mut self, full_name: &str) -> Vec<String> {
+        if let Some(members) = self.enum_defs.get(full_name) {
+            return members.clone();
+        }
+        let Some((qualifier, name)) = full_name.rsplit_once('.') else {
+            return Vec::new();
+        };
+        if let Some(cached) = self.enum_lookup_cache.get(full_name) {
+            return cached.clone().unwrap_or_default();
+        }
+        let members = load_enum_members(self.project, qualifier, name);
+        self.enum_lookup_cache
+            .insert(full_name.to_string(), members.clone());
+        members.unwrap_or_default()
     }
 }
 
@@ -274,8 +342,9 @@ fn render_interface(
     interface_name: &str,
     abi: &Abi,
     enum_defs: &BTreeMap<String, Vec<String>>,
+    project: &Project,
 ) -> String {
-    let mut resolver = TypeResolver::new(enum_defs.clone());
+    let mut resolver = TypeResolver::new(enum_defs.clone(), project);
     let mut functions: Vec<&AbiFunction> = abi
         .items
         .iter()
@@ -525,6 +594,46 @@ fn enum_members(ast: Option<SourceUnit>) -> BTreeMap<String, Vec<String>> {
     enums
 }
 
+/// Read the members of the enum `name` declared by the contract or library
+/// `qualifier` from its artifact AST.
+fn load_enum_members(project: &Project, qualifier: &str, name: &str) -> Option<Vec<String>> {
+    let index = ArtifactIndex::build(project.out_dir());
+    let candidates = index.get(qualifier)?;
+    for path in candidates {
+        let artifact = Artifact::parse(path).ok()?;
+        let Some(ast) = artifact.ast else {
+            continue;
+        };
+        for node in ast.nodes {
+            match node {
+                SourceUnitNode::EnumDefinition(enum_def) if enum_def.name == name => {
+                    return Some(enum_def.members.into_iter().map(|m| m.name).collect());
+                }
+                SourceUnitNode::ContractDefinition(contract) if contract.name == qualifier => {
+                    for node in contract.nodes {
+                        if let ContractDefinitionNode::EnumDefinition(enum_def) = node
+                            && enum_def.name == name
+                        {
+                            return Some(enum_def.members.into_iter().map(|m| m.name).collect());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    None
+}
+
+/// Strip everything but identifier characters from a type qualifier so it
+/// can be embedded in a generated local name.
+fn sanitize_identifier(qualifier: &str) -> String {
+    qualifier
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -550,6 +659,18 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!("../../fixtures/gen-interface/expected/IPool.txt")
+        );
+    }
+
+    #[test]
+    fn generate_interface_for_library_qualified_types() {
+        let generator = InterfaceGenerator::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("TypeHolder");
+        let output = generator.generate(&id).unwrap();
+        assert_eq!(output.interface_name(), "ITypeHolder");
+        assert_eq!(
+            output.to_string(),
+            include_str!("../../fixtures/gen-interface/expected/ITypeHolder.txt")
         );
     }
 

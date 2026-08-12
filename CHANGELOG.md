@@ -14,6 +14,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray gen interface` now emits valid Solidity for library-qualified types:
+  structs, enums, and user-defined value types declared in libraries (for
+  example `AgentInfo.Info`, `EmergencyPause.Level`, `IPayment.Proof`) are
+  declared locally under unique names instead of dotted paths that fail to
+  parse, and enum members are recovered from the declaring library's artifact.
 - `solray inspect call-path` now resolves names declared by an abstract base
   and overridden by a derived contract (for example
   `Proxy._implementation`/`ERC1967Proxy._implementation`) to the most-derived
