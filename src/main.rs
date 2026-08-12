@@ -1,5 +1,7 @@
 //! Solray CLI: inspect Foundry projects from the command line.
 
+use std::fmt::Display;
+use std::io::Write;
 use std::path::PathBuf;
 
 use anyhow::Result;
@@ -214,7 +216,7 @@ fn main() -> Result<()> {
                 let generator = InterfaceGenerator::new(project);
                 let id = ArtifactId::new(&contract);
                 let output = generator.generate(&id)?;
-                print!("{output}");
+                print_output(&output);
             }
         },
         Command::Scan(args) => match args.subcommand {
@@ -229,7 +231,7 @@ fn main() -> Result<()> {
                 let project = Project::open(&project);
                 let scanner = Erc20TransferSinkScanner::new(project);
                 let output = scanner.scan()?;
-                print!("{output}");
+                print_output(&output);
             }
             ScanSubcommand::AssetTransfers { project, debug } => {
                 if debug {
@@ -242,7 +244,7 @@ fn main() -> Result<()> {
                 let project = Project::open(&project);
                 let scanner = AssetTransferScanner::new(project);
                 let output = scanner.scan()?;
-                print!("{output}");
+                print_output(&output);
             }
         },
         Command::Inspect(args) => match args.subcommand {
@@ -250,7 +252,7 @@ fn main() -> Result<()> {
                 let project = Project::open(&project);
                 let inspector = AbstractInspector::new(project);
                 let output = inspector.inspect()?;
-                print!("{output}");
+                print_output(&output);
             }
             InspectSubcommand::CallGraph {
                 contract,
@@ -278,7 +280,7 @@ fn main() -> Result<()> {
                 let artifact_id = ArtifactId::new(&contract);
                 let function_id = FunctionId::new(artifact_id, &function);
                 let output = inspector.inspect(&function_id)?;
-                print!("{output}");
+                print_output(&output);
             }
             InspectSubcommand::CallPath {
                 contract,
@@ -298,13 +300,13 @@ fn main() -> Result<()> {
                 let artifact_id = ArtifactId::new(&contract);
                 let function_id = FunctionId::new(artifact_id, &function);
                 let output = inspector.inspect(&function_id, &function)?;
-                print!("{output}");
+                print_output(&output);
             }
             InspectSubcommand::Contracts { project } => {
                 let project = Project::open(&project);
                 let inspector = ContractInspector::new(project);
                 let output = inspector.inspect()?;
-                print!("{output}");
+                print_output(&output);
             }
             InspectSubcommand::ExternalFunctions { id, project, debug } => {
                 if debug {
@@ -318,7 +320,7 @@ fn main() -> Result<()> {
                 let inspector = ExternalFunctionInspector::new(project);
                 let id = ArtifactId::new(&id);
                 let output = inspector.inspect(&id)?;
-                print!("{output}");
+                print_output(&output);
             }
             InspectSubcommand::InheritanceGraph { id, project, debug } => {
                 if debug {
@@ -332,13 +334,13 @@ fn main() -> Result<()> {
                 let inspector = InheritanceGraphInspector::new(project);
                 let id = ArtifactId::new(&id);
                 let output = inspector.inspect(&id)?;
-                print!("{output}");
+                print_output(&output);
             }
             InspectSubcommand::Interfaces { project } => {
                 let project = Project::open(&project);
                 let inspector = InterfaceInspector::new(project);
                 let output = inspector.inspect()?;
-                print!("{output}");
+                print_output(&output);
             }
             InspectSubcommand::Modifiers { id, project, debug } => {
                 if debug {
@@ -352,13 +354,13 @@ fn main() -> Result<()> {
                 let inspector = ModifierInspector::new(project);
                 let id = ArtifactId::new(&id);
                 let output = inspector.inspect(&id)?;
-                print!("{output}");
+                print_output(&output);
             }
             InspectSubcommand::Libraries { project } => {
                 let project = Project::open(&project);
                 let inspector = LibraryInspector::new(project);
                 let output = inspector.inspect()?;
-                print!("{output}");
+                print_output(&output);
             }
             InspectSubcommand::FunctionSource {
                 contract,
@@ -377,19 +379,38 @@ fn main() -> Result<()> {
                 let inspector = FunctionSourceInspector::inspect_project(project);
                 let id = ArtifactId::new(&contract);
                 let output = inspector.inspect(&id, &function)?;
-                print!("{output}");
+                print_output(&output);
             }
             InspectSubcommand::StorageLayout { id, project } => {
                 let project = Project::open(&project);
                 let inspector = StorageLayoutInspector::new(project);
                 let id = StorageLayoutId::new(&id);
                 let output = inspector.inspect(&id)?;
-                print!("{output}");
+                print_output(&output);
             }
         },
     }
 
     Ok(())
+}
+
+/// Print command output to stdout, exiting quietly when the consumer closes
+/// the pipe early (e.g. `solray inspect ... | head`). The Rust runtime
+/// ignores `SIGPIPE`, so a closed stdout would otherwise panic with a
+/// broken-pipe error.
+fn print_output(output: impl Display) {
+    let rendered = output.to_string();
+    let mut stdout = std::io::stdout().lock();
+    match stdout.write_all(rendered.as_bytes()) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => {
+            std::process::exit(0);
+        }
+        Err(error) => {
+            eprintln!("error: failed to write output: {error}");
+            std::process::exit(1);
+        }
+    }
 }
 
 #[cfg(test)]

@@ -20,6 +20,10 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   reachable only from unrelated members (for example `Math.log2`, `Time.pack`,
   or `SafeERC20.forceApprove`). Container symbols now render only their own
   header and inheritance, and members resolve through their own references.
+- The CLI writes command output through a broken-pipe-aware writer, so piping
+  output into a consumer that closes early (for example
+  `solray inspect function-source ... | head`) exits quietly instead of
+  panicking with a broken-pipe error.
 
 ## [0.7.0] - 2026-08-09
 
