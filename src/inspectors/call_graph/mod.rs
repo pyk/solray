@@ -360,6 +360,32 @@ mod tests {
     }
 
     #[test]
+    fn call_graph_resolves_child_to_implementation() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("InterfaceChild", "checkBalance");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_resolves_child_to_implementation.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_graph_keeps_qualified_base_call() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("QualifiedChild", "approve");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_keeps_qualified_base_call.txt"
+            )
+        );
+    }
+
+    #[test]
     fn call_graph_resolves_virtual_dispatch() {
         let inspector = CallGraphInspector::new(fixture_project());
         let id = make_id("VirtualChild", "fallback");

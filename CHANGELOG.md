@@ -29,6 +29,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - `solray inspect call-graph` now resolves inherited functions to the
   implementing declaration instead of an interface listed earlier in the
   inheritance order.
+- `solray inspect call-graph` now expands virtual calls to the implementing
+  declaration instead of an interface declared earlier in the inheritance
+  chain.
+- `solray inspect call-graph` no longer redirects explicitly-qualified base
+  calls (`BaseContract.func(...)`, like `super.func(...)`) to a derived
+  override, which previously produced a self-loop.
 - `solray inspect function-source` now renders the contract created by a
   `new Contract(...)` expression as a resolved symbol (header and NatSpec, plus
   base contracts); the created contract was previously omitted.

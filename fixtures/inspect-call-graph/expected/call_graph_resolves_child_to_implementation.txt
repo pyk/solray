@@ -1,0 +1,4 @@
+Call graph:
+
+InterfaceChild.checkBalance(address) (external) (src/InterfaceChild.sol:17)
+└── ChildTokenImpl.balanceOf(address) (public) (src/InterfaceChild.sol:11)

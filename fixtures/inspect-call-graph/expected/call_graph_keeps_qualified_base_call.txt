@@ -1,0 +1,5 @@
+Call graph:
+
+QualifiedChild.approve(address,uint256) (external) (src/QualifiedBase.sol:13)
+└── QualifiedChild._approve(address,address,uint256) (internal) (src/QualifiedBase.sol:18)
+    └── BaseToken._approve(address,address,uint256) (internal) (src/QualifiedBase.sol:7)

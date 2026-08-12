@@ -1069,12 +1069,9 @@ impl CallGraph {
                     FunctionCallExpression::MemberAccess(ma) => {
                         match ma.referenced_declaration {
                             Some(id) => {
-                                let is_super = matches!(
-                                    &*ma.expression,
-                                    Expression::Identifier(id) if id.name == "super"
-                                );
+                                let redirect = !self.is_direct_base_member_access(ma);
                                 self.push_loaded_function(
-                                    id, cache, functions, visited, nodes, !is_super,
+                                    id, cache, functions, visited, nodes, redirect,
                                 )?;
                             }
                             None if is_low_level_call(&ma.member_name) => {
@@ -1118,11 +1115,17 @@ impl CallGraph {
                                 vec![],
                             ));
                         } else {
+                            let redirect = match &*fco.expression {
+                                Expression::MemberAccess(ma) => {
+                                    !self.is_direct_base_member_access(ma)
+                                }
+                                _ => true,
+                            };
                             resolve_called_function_id_from_fc_expression(&fco.expression).map_or(
                                 Ok(()),
                                 |id| {
                                     self.push_loaded_function(
-                                        id, cache, functions, visited, nodes, true,
+                                        id, cache, functions, visited, nodes, redirect,
                                     )
                                 },
                             )?;
@@ -1261,6 +1264,26 @@ impl CallGraph {
         Ok(())
     }
 
+    /// Whether a member access is a statically-dispatched call on a base
+    /// contract: `super.member(...)` or `BaseContract.member(...)`. Such calls
+    /// must keep the referenced declaration and must not be redirected to a
+    /// derived override.
+    fn is_direct_base_member_access(&self, ma: &solc::ast::MemberAccess) -> bool {
+        let Expression::Identifier(id) = &*ma.expression else {
+            return false;
+        };
+        if id.name == "super" {
+            return true;
+        }
+        let Some(ref_id) = id.referenced_declaration else {
+            return false;
+        };
+        matches!(
+            self.symbol_index.get_unscoped(ref_id),
+            Some(entry) if entry.node_type == "ContractDefinition"
+        )
+    }
+
     fn push_loaded_function(
         &self,
         id: i64,
@@ -1320,6 +1343,12 @@ impl CallGraph {
                 .position(|name| name == &candidate.contract_name)
                 .unwrap_or(usize::MAX);
             (
+                // Implemented declarations win over abstract interface
+                // declarations, matching the compiler's own resolution (solc
+                // resolves an inherited call to the most-derived declaration
+                // with a body, even when an interface base is listed earlier
+                // in the inheritance order).
+                !candidate.body.is_some(),
                 position,
                 candidate.is_interface,
                 candidate.src_offset,
