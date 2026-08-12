@@ -626,25 +626,6 @@ impl FunctionSourceInspector {
         Ok(())
     }
 
-    /// Resolve the refined contract node type for a contract AST node ID.
-    fn contract_node_type_for_id(
-        &self,
-        artifact_path: impl AsRef<Path>,
-        contract_id: i64,
-    ) -> Result<String> {
-        let Some(ast) = parse_artifact(artifact_path)? else {
-            return Ok("ContractDefinition".to_string());
-        };
-        for node in &ast.nodes {
-            if let SourceUnitNode::ContractDefinition(cd) = node
-                && cd.id == contract_id
-            {
-                return Ok(contract_node_type(cd).to_string());
-            }
-        }
-        Ok("ContractDefinition".to_string())
-    }
-
     /// Recursively resolve all referenced declarations.
     fn resolve_recursive(&self, root: ResolvedSymbol) -> Result<Vec<ResolvedSymbol>> {
         let mut resolved: Vec<ResolvedSymbol> = Vec::new();
@@ -681,7 +662,7 @@ impl FunctionSourceInspector {
                 // would collect references from every member body, not just the
                 // referenced declaration. Only member symbols that are actually
                 // referenced are resolved, so container symbols contribute just
-                // their own header (and their base contracts below).
+                // their own header.
                 if !is_contract_node_type(&symbol.node_type) {
                     let refs = collect_referenced_declarations(
                         ast,
@@ -696,42 +677,6 @@ impl FunctionSourceInspector {
                         let new_symbol = !seen.contains(&key);
                         if new_symbol {
                             queue.push(rs);
-                        }
-                    }
-                }
-
-                // For ContractDefinition symbols, also resolve base contracts
-                // (inheritance) so parent interfaces are recursively resolved.
-                if is_contract_node_type(&symbol.node_type) {
-                    for node in &ast.nodes {
-                        if let SourceUnitNode::ContractDefinition(cd) = node
-                            && cd.src.offset == symbol.offset
-                            && cd.src.length == symbol.length
-                        {
-                            for base in &cd.base_contracts {
-                                if let Some(id) = base.base_name.referenced_declaration
-                                    && let Some(entry) = self.symbol_index.get(build_info_id, id)
-                                {
-                                    let info = self.symbol_index.artifact_info(entry.artifact_id);
-                                    if info.build_info_id == build_info_id {
-                                        let node_type = self
-                                            .contract_node_type_for_id(&info.artifact_path, id)?;
-                                        let rs = ResolvedSymbol {
-                                            symbol: entry.name.clone(),     // checkrs: allow(clone_in_loops)
-                                            file: info.source_file.clone(), // checkrs: allow(clone_in_loops)
-                                            offset: entry.offset,
-                                            length: entry.length,
-                                            node_type,
-                                        };
-                                        let key = (rs.file.clone(), rs.offset); // checkrs: allow(clone_in_loops)
-                                        let new_symbol = !seen.contains(&key);
-                                        if new_symbol {
-                                            queue.push(rs);
-                                        }
-                                    }
-                                }
-                            }
-                            break;
                         }
                     }
                 }
@@ -1754,6 +1699,17 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_shows_source_for_execute.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_does_not_render_container_bases() {
+        let output = inspect("ContainerRef", "constructor").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_does_not_render_container_bases.txt"
             )
         );
     }

@@ -31,26 +31,6 @@ interface IChild is IParentA, IParentB
 
 ---
 
-## Interface: `IParentA`
-
-Source path: `src/IParentA.sol:4`
-
-```solidity
-interface IParentA
-```
-
----
-
-## Interface: `IParentB`
-
-Source path: `src/IParentB.sol:4`
-
-```solidity
-interface IParentB
-```
-
----
-
 ## Variable: `CHILD`
 
 Source path: `src/InheritanceUser.sol:7`

@@ -45,7 +45,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   base contracts); the created contract was previously omitted.
 - `solray inspect function-source` no longer pulls in symbols from unrelated
   library or contract members when a container is referenced by identifier;
-  container symbols render only their own header and inheritance.
+  container symbols render only their own declaration header, and their base
+  contracts and interfaces are no longer resolved as separate sections.
 - The CLI writes output through a broken-pipe-aware writer, so piping into
   `head`/`less` exits quietly instead of panicking.
 

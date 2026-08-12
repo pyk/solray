@@ -1,0 +1,52 @@
+# ContainerRef - constructor Source Code
+
+Source path: `src/ContainerRef.sol:25`
+
+```solidity
+constructor() {
+    abi.encodeCall(ConcreteBase.concreteValue, ());
+    abi.encodeCall(IChildContract.childValue, ());
+}
+```
+
+---
+
+## Contract: `ConcreteBase`
+
+Source path: `src/ContainerRef.sol:18`
+
+```solidity
+contract ConcreteBase is AbstractBase
+```
+
+---
+
+## Function: `childValue`
+
+Source path: `src/ContainerRef.sol:9`
+
+```solidity
+function childValue() external view returns (uint256);
+```
+
+---
+
+## Function: `concreteValue`
+
+Source path: `src/ContainerRef.sol:19`
+
+```solidity
+function concreteValue() public pure returns (uint256) {
+    return 2;
+}
+```
+
+---
+
+## Interface: `IChildContract`
+
+Source path: `src/ContainerRef.sol:8`
+
+```solidity
+interface IChildContract is IParentA, IParentB
+```
