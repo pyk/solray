@@ -676,19 +676,27 @@ impl FunctionSourceInspector {
                 && let Some(ast) = artifact_cache.get(a_path)
             {
                 let build_info_id = self.symbol_index.build_info_for(&symbol.file).unwrap_or("");
-                let refs = collect_referenced_declarations(
-                    ast,
-                    symbol.offset,
-                    symbol.length,
-                    &symbol.file,
-                    &self.symbol_index,
-                    build_info_id,
-                );
-                for rs in refs {
-                    let key = (rs.file.clone(), rs.offset); // checkrs: allow(clone_in_loops)
-                    let new_symbol = !seen.contains(&key);
-                    if new_symbol {
-                        queue.push(rs);
+                // Contract-kind symbols (contracts, abstracts, interfaces, and
+                // libraries) span the whole declaration, so walking their range
+                // would collect references from every member body, not just the
+                // referenced declaration. Only member symbols that are actually
+                // referenced are resolved, so container symbols contribute just
+                // their own header (and their base contracts below).
+                if !is_contract_node_type(&symbol.node_type) {
+                    let refs = collect_referenced_declarations(
+                        ast,
+                        symbol.offset,
+                        symbol.length,
+                        &symbol.file,
+                        &self.symbol_index,
+                        build_info_id,
+                    );
+                    for rs in refs {
+                        let key = (rs.file.clone(), rs.offset); // checkrs: allow(clone_in_loops)
+                        let new_symbol = !seen.contains(&key);
+                        if new_symbol {
+                            queue.push(rs);
+                        }
                     }
                 }
 
@@ -2088,6 +2096,17 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_shows_source_for_public_getter.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_does_not_include_unreferenced_library_symbols() {
+        let output = inspect("LibraryScopeUser", "run").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_does_not_include_unreferenced_library_symbols.txt"
             )
         );
     }

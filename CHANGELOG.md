@@ -14,6 +14,13 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect function-source` no longer resolves every sibling function
+  when a library, contract, or interface is referenced by identifier. The
+  whole-declaration range of a container symbol previously pulled in symbols
+  reachable only from unrelated members (for example `Math.log2`, `Time.pack`,
+  or `SafeERC20.forceApprove`). Container symbols now render only their own
+  header and inheritance, and members resolve through their own references.
+
 ## [0.7.0] - 2026-08-09
 
 ### Added

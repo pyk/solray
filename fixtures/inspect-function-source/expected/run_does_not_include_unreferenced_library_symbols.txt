@@ -1,0 +1,47 @@
+# LibraryScopeUser - run Source Code
+
+Source path: `src/LibraryScope.sol:27`
+
+```solidity
+/// @notice Calls the used library function.
+/// @param x The input value.
+/// @return The computed result.
+function run(uint256 x) external pure returns (uint256) {
+    return LibraryScopeLib.used(x);
+}
+```
+
+---
+
+## Error: `UsedError`
+
+Source path: `src/LibraryScope.sol:6`
+
+```solidity
+error UsedError();
+```
+
+---
+
+## Function: `used`
+
+Source path: `src/LibraryScope.sol:10`
+
+```solidity
+/// @notice Adds one, or reverts with UsedError.
+function used(uint256 x) internal pure returns (uint256) {
+    if (x == 0) revert UsedError();
+    return x + 1;
+}
+```
+
+---
+
+## Library: `LibraryScopeLib`
+
+Source path: `src/LibraryScope.sol:5`
+
+```solidity
+/// @notice A library with a used and an unused sibling function.
+library LibraryScopeLib
+```
