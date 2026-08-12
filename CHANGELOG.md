@@ -14,6 +14,10 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+## [0.8.0] - 2026-08-12
+
+### Fixed
+
 - `solray gen interface` now emits valid Solidity for library-qualified types:
   structs, enums, and user-defined value types declared in libraries (for
   example `AgentInfo.Info`, `EmergencyPause.Level`, `IPayment.Proof`) are
@@ -327,7 +331,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - Support for incremental builds, cross-file references, and NatSpec blocks in
   function source resolution
 
-[unreleased]: https://github.com/pyk/solray/compare/v0.7.0...HEAD
+[unreleased]: https://github.com/pyk/solray/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/pyk/solray/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/pyk/solray/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/pyk/solray/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/pyk/solray/compare/v0.4.0...v0.5.0
