@@ -459,6 +459,24 @@ impl CallGraph {
             1 => own_funcs[0],
             0 if concrete_funcs.len() == 1 => concrete_funcs[0],
             0 if concrete_funcs.is_empty() && target_funcs.len() == 1 => target_funcs[0],
+            0 if concrete_funcs.len() > 1 => {
+                // Multiple concrete declarations with the same name (for
+                // example an abstract base declaration and its override) are
+                // not overloads: prefer the most-derived declaration in the
+                // queried contract's inheritance chain, matching
+                // `inspect call-graph` and `inspect function-source`.
+                let inheritance_order = self.inheritance_order.borrow();
+                match select_target_function(&concrete_funcs, &inheritance_order) {
+                    Some(fi) => fi,
+                    None => {
+                        bail!(
+                            "\"{}\" has multiple overloads in \"{}\"; use the full signature.",
+                            target_function,
+                            id.artifact_id().name
+                        );
+                    }
+                }
+            }
             _ => {
                 bail!(
                     "\"{}\" has multiple overloads in \"{}\"; use the full signature.",

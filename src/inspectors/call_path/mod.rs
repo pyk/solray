@@ -305,6 +305,19 @@ mod tests {
     }
 
     #[test]
+    fn call_path_resolves_abstract_base_override() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("ChainTop", "_implementation");
+        let output = inspector.inspect(&id, "_implementation").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_resolves_abstract_base_override.txt"
+            )
+        );
+    }
+
+    #[test]
     fn call_path_for_transfer_ownership_outside_src() {
         let inspector = CallPathInspector::new(fixture_call_path_lib_project());
         let id = make_id("User", "_transferOwnership");

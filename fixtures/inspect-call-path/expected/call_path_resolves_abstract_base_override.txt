@@ -1,0 +1,25 @@
+## Call Paths
+
+Target: `_implementation`
+Source: `src/AbstractChain.sol:9`
+
+2 paths found.
+
+### Path 1
+
+```
+ChainMid.run
+src/AbstractChain.sol:13
+└── ChainMid._implementation
+    src/AbstractChain.sol:9
+```
+
+### Path 2
+
+```
+ChainTop.trigger
+src/AbstractChain.sol:19
+└── ChainMid._implementation
+    src/AbstractChain.sol:9
+```
+

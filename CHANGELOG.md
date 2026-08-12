@@ -14,6 +14,10 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect call-path` now resolves names declared by an abstract base
+  and overridden by a derived contract (for example
+  `Proxy._implementation`/`ERC1967Proxy._implementation`) to the most-derived
+  override instead of reporting a phantom "multiple overloads" error.
 - `solray inspect call-path` now reports paths rooted in every compiled project
   contract, including files outside the configured `src` directory (only the
   `test` directory is excluded), so inherited functions such as
