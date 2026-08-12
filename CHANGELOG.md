@@ -19,6 +19,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   constructor and expanding its own calls. Contract creations were previously
   dropped because the expression collector did not handle `NewExpression`
   nodes.
+- `solray inspect function-source` now renders the contract referenced by a
+  `new Contract(...)` expression as a resolved symbol (header and NatSpec, plus
+  its base contracts). The created contract's declaration was previously
+  omitted because the function-call collector did not handle `NewExpression`
+  nodes.
 - `solray inspect function-source` no longer resolves every sibling function
   when a library, contract, or interface is referenced by identifier. The
   whole-declaration range of a container symbol previously pulled in symbols

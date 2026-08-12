@@ -1704,6 +1704,13 @@ fn collect_from_function_call(
                 collect_from_expression(opt, seen_ids, results, ctx);
             }
         }
+        FunctionCallExpression::NewExpression(ne) => {
+            if let TypeName::UserDefinedTypeName(udtn) = &ne.type_name
+                && let Some(id) = udtn.referenced_declaration
+            {
+                resolve_and_add_symbol(id, seen_ids, results, ctx);
+            }
+        }
         _ => {}
     }
     for arg in &fc.arguments {
@@ -1791,6 +1798,17 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_shows_source_for_constructor.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_new_contract_creation() {
+        let output = inspect("NewContract", "constructor").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_resolves_new_contract_creation.txt"
             )
         );
     }

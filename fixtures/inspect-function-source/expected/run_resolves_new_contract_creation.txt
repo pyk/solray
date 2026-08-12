@@ -1,0 +1,32 @@
+# NewContract - constructor Source Code
+
+Source path: `src/NewContract.sol:26`
+
+```solidity
+constructor() {
+    new NewHelper(msg.sender);
+}
+```
+
+---
+
+## Contract: `NewBase`
+
+Source path: `src/NewContract.sol:4`
+
+```solidity
+contract NewBase
+```
+
+---
+
+## Contract: `NewHelper`
+
+Source path: `src/NewContract.sol:17`
+
+```solidity
+/**
+ * @dev Helper contract created by NewContract.
+ */
+contract NewHelper is NewBase
+```
