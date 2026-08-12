@@ -347,6 +347,19 @@ mod tests {
     }
 
     #[test]
+    fn call_graph_prefers_implementation_over_earlier_interface() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("InterfaceFirst", "transfer");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_prefers_implementation_over_earlier_interface.txt"
+            )
+        );
+    }
+
+    #[test]
     fn call_graph_resolves_virtual_dispatch() {
         let inspector = CallGraphInspector::new(fixture_project());
         let id = make_id("VirtualChild", "fallback");

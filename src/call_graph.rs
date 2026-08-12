@@ -1410,7 +1410,17 @@ fn select_target_function<'a>(
             .iter()
             .position(|name| name == &fi.contract_name)
             .unwrap_or(usize::MAX);
-        (position, fi.is_interface, fi.src_offset, fi.id)
+        // Implemented declarations win over abstract interface declarations,
+        // matching the compiler's own resolution (solc resolves an inherited
+        // call to the most-derived declaration with a body, even when an
+        // interface base is listed earlier in the inheritance order).
+        (
+            !fi.body.is_some(),
+            position,
+            fi.is_interface,
+            fi.src_offset,
+            fi.id,
+        )
     })
 }
 

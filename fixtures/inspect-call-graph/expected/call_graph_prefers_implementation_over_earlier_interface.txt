@@ -1,0 +1,4 @@
+Call graph:
+
+TokenImpl.transfer(address,uint256) (public) (src/InterfaceFirst.sol:12)
+└── TokenImpl._transfer(address,uint256) (internal) (src/InterfaceFirst.sol:17)
