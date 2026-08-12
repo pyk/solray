@@ -1,0 +1,7 @@
+Call graph:
+
+NewContract.constructor() (public) (src/NewContract.sol:23)
+└── NewHelper.constructor(address) (public) (src/NewContract.sol:17)
+    ├── NewBase.constructor(address) (public) (src/NewContract.sol:9)
+    │   └── NewBase._init(address) (internal) (src/NewContract.sol:5)
+    └── NewHelper.helper() (internal) (src/NewContract.sol:15)

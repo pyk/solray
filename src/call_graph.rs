@@ -12,7 +12,7 @@ use serde::Deserialize;
 use solc::ast::{
     Block, ContractDefinition, ContractDefinitionNode, ContractKind, Expression,
     FunctionCallExpression, FunctionKind, ModifierInvocation, ModifierInvocationKind, SourceUnit,
-    SourceUnitNode, TypeName, VariableDeclaration, Visibility,
+    SourceUnitNode, TypeName, UserDefinedTypeName, VariableDeclaration, Visibility,
 };
 use tracing::debug;
 
@@ -827,6 +827,42 @@ impl CallGraph {
             .map(|fi| fi.id))
     }
 
+    /// Resolve the constructor invoked by a `new <Contract>(...)` expression.
+    fn load_new_contract_constructor(
+        &self,
+        type_name: &UserDefinedTypeName,
+        functions: &mut HashMap<i64, FunctionInfo>,
+    ) -> Result<Option<i64>> {
+        let Some(contract_id) = type_name.referenced_declaration else {
+            return Ok(None);
+        };
+        let contract_name: Option<&str> = type_name
+            .path_node
+            .as_ref()
+            .map(|p| p.name.as_str())
+            .or(type_name.name.as_deref());
+        if let Some(name) = contract_name
+            && let Some(id) = functions
+                .values()
+                .find(|fi| fi.kind == FunctionKind::Constructor && fi.contract_name == name)
+        {
+            return Ok(Some(id.id));
+        }
+        let Some(entry) = self.symbol_index.get_unscoped(contract_id) else {
+            return Ok(None);
+        };
+        let artifact_path = &self
+            .symbol_index
+            .artifact_info(entry.artifact_id)
+            .artifact_path;
+        let cache = RefCell::new(HashMap::new());
+        load_artifact_functions(artifact_path, functions, &cache)?;
+        Ok(functions
+            .values()
+            .find(|fi| fi.kind == FunctionKind::Constructor && fi.contract_name == entry.name)
+            .map(|fi| fi.id))
+    }
+
     fn load_modifier_body(&self, modifier: &ModifierInvocation) -> Result<Option<Block>> {
         let Some(modifier_id) = modifier.modifier_name.referenced_declaration else {
             return Ok(None);
@@ -1051,6 +1087,14 @@ impl CallGraph {
                             visited,
                             nodes,
                         )?;
+                    }
+                    FunctionCallExpression::NewExpression(ne) => {
+                        if let TypeName::UserDefinedTypeName(udtn) = &ne.type_name
+                            && let Some(id) = self.load_new_contract_constructor(udtn, functions)?
+                        {
+                            let node = self.build_call_node(id, cache, functions, visited)?;
+                            nodes.push(node);
+                        }
                     }
                     _ => {}
                 }

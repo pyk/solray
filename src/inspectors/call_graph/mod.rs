@@ -425,6 +425,19 @@ mod tests {
     }
 
     #[test]
+    fn call_graph_for_new_contract_creation() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("NewContract", "constructor");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_for_new_contract_creation.txt"
+            )
+        );
+    }
+
+    #[test]
     fn call_graph_for_public_getter() {
         let inspector = CallGraphInspector::new(fixture_project());
         let id = make_id("Getter", "project");

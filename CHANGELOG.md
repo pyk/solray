@@ -14,6 +14,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect call-graph` now includes contract creation calls
+  (`new Contract(...)`) in the graph, resolving the created contract's
+  constructor and expanding its own calls. Contract creations were previously
+  dropped because the expression collector did not handle `NewExpression`
+  nodes.
 - `solray inspect function-source` no longer resolves every sibling function
   when a library, contract, or interface is referenced by identifier. The
   whole-declaration range of a container symbol previously pulled in symbols
