@@ -1,0 +1,24 @@
+Contract: ChildInit
+File: src/ChildInit.sol
+
+Summary:
+- 2 externally callable functions
+- 2 mutable functions
+- 0 view functions
+- 0 callback functions
+- 0 special functions
+
+MUTABLE FUNCTIONS
+
+1. initialize(string,uint8)
+   source: src/BaseInit.sol:13
+   visibility: public
+   mutability: nonpayable
+   modifiers: initializer
+
+2. initialize(address,string,uint8)
+   source: src/ChildInit.sol:7
+   visibility: external
+   mutability: nonpayable
+   modifiers: none
+

@@ -478,24 +478,95 @@ impl FunctionIndex {
             .push(info);
     }
 
+    fn ancestor_names<'a>(&'a self, contract_name: &'a str) -> Vec<&'a str> {
+        let mut ancestors: Vec<&str> = vec![contract_name];
+        let mut seen: HashSet<&str> = HashSet::from([contract_name]);
+        let mut head = 0;
+        while let Some(name) = ancestors.get(head).copied() {
+            head += 1;
+            // checkrs: allow(nested_if_let)
+            if let Some(bases) = self.base_contracts.get(name) {
+                for base in bases {
+                    if seen.insert(base.as_str()) {
+                        ancestors.push(base.as_str());
+                    }
+                }
+            }
+        }
+        ancestors
+    }
+
+    fn find_in_ancestors(
+        &self,
+        ancestors: &[&str],
+        name: &str,
+        mut matches: impl FnMut(&FuncInfo) -> bool,
+    ) -> Option<&FuncInfo> {
+        for ancestor in ancestors {
+            if let Some(infos) = self
+                .by_name
+                .get(&((*ancestor).to_string(), name.to_string()))
+                && let Some(info) = infos.iter().find(|info| matches(info))
+            {
+                return Some(info);
+            }
+        }
+        None
+    }
+
     fn resolve_function(
         &self,
         contract_name: &str,
         name: &str,
         signature: &str,
     ) -> Option<&FuncInfo> {
-        // Prefer functions defined in the target contract.
-        if let Some(infos) = self
-            .by_name
-            .get(&(contract_name.to_string(), name.to_string()))
-        {
-            if let Some(info) = infos.iter().find(|info| info.signature == signature) {
-                return Some(info);
-            }
-            if let Some(info) = infos.first() {
-                return Some(info);
-            }
+        let ancestors = self.ancestor_names(contract_name);
+        let prefer_interface = self.interface_contracts.contains(contract_name);
+
+        if let Some(info) = self.find_in_ancestors(&ancestors, name, |info| {
+            info.signature == signature && info.is_interface == prefer_interface
+        }) {
+            debug!(
+                contract = %contract_name,
+                function = %name,
+                signature = %signature,
+                source_file = ?info.file,
+                source_line = ?info.line,
+                "resolved external function on inheritance chain"
+            );
+            return Some(info);
         }
+
+        // Public state-variable getters have an empty AST signature even
+        // though their ABI signature includes the mapping key.
+        if let Some(info) = self.find_in_ancestors(&ancestors, name, |info| {
+            info.signature.is_empty() && info.is_interface == prefer_interface
+        }) {
+            debug!(
+                contract = %contract_name,
+                function = %name,
+                signature = %signature,
+                source_file = ?info.file,
+                source_line = ?info.line,
+                "resolved external function getter on inheritance chain"
+            );
+            return Some(info);
+        }
+
+        if let Some(info) =
+            self.find_in_ancestors(&ancestors, name, |info| info.signature == signature)
+        {
+            debug!(
+                contract = %contract_name,
+                function = %name,
+                signature = %signature,
+                source_file = ?info.file,
+                source_line = ?info.line,
+                "resolved external function from other inheritance kind"
+            );
+            return Some(info);
+        }
+
         // Fall back to any registered contract (inherited functions).
         let candidates: Vec<&FuncInfo> = self
             .by_name
@@ -510,7 +581,6 @@ impl FunctionIndex {
         // file, so prefer the declaration kind that matches the queried
         // contract: concrete implementations for contracts, interface
         // declarations for interfaces.
-        let prefer_interface = self.interface_contracts.contains(contract_name);
         let mut preferred: Vec<&FuncInfo> = candidates
             .iter()
             .copied()
@@ -522,11 +592,16 @@ impl FunctionIndex {
             .copied()
             .find(|info| info.signature == signature)
         {
+            debug!(
+                contract = %contract_name,
+                function = %name,
+                signature = %signature,
+                source_file = ?info.file,
+                source_line = ?info.line,
+                "resolved external function from global fallback"
+            );
             return Some(info);
         }
-        // Public state-variable getters have an empty AST signature even
-        // though their ABI signature includes the mapping key, so prefer any
-        // matching-kind declaration before falling back to the other kind.
         if let Some(info) = preferred.first() {
             return Some(info);
         }
@@ -548,29 +623,8 @@ impl FunctionIndex {
 
     fn resolve_by_kind(&self, contract_name: &str, kind: &FunctionKind) -> Option<&FuncInfo> {
         let kind_name = format!("{kind:?}");
-        if let Some(info) = self
-            .by_kind
-            .get(&(contract_name.to_string(), kind_name.clone()))
-        {
-            return Some(info);
-        }
-        // Inherited fallback/receive nodes are registered under the declaring
-        // contract, so walk the queried contract's base chain and prefer the
-        // closest ancestor that declares this kind.
-        let mut ancestors: Vec<&str> = vec![contract_name];
-        let mut seen: HashSet<&str> = HashSet::from([contract_name]);
-        let mut head = 0;
-        while let Some(name) = ancestors.get(head).copied() {
-            head += 1;
-            // checkrs: allow(nested_if_let)
-            if let Some(bases) = self.base_contracts.get(name) {
-                for base in bases {
-                    if seen.insert(base.as_str()) {
-                        ancestors.push(base.as_str());
-                    }
-                }
-            }
-        }
+        let ancestors = self.ancestor_names(contract_name);
+        let seen: HashSet<&str> = ancestors.iter().copied().collect();
 
         self.by_kind
             .iter()
@@ -1019,6 +1073,32 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../fixtures/inspect-external-functions/expected/inspect_resolves_plain_name_ierc20.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_does_not_attribute_parent_functions_to_child_overrides() {
+        let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("MidToken");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../fixtures/inspect-external-functions/expected/inspect_does_not_attribute_parent_functions_to_child_overrides.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_inherited_initialize_overload() {
+        let inspector = ExternalFunctionInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("ChildInit");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../fixtures/inspect-external-functions/expected/inspect_resolves_inherited_initialize_overload.txt"
             )
         );
     }

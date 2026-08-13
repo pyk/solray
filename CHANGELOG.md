@@ -16,6 +16,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect external-functions` now resolves inherited functions along
+  the queried contract's inheritance chain instead of picking an unrelated
+  child override or same-named function from another contract.
+- `solray inspect external-functions` now maps inherited overloads to their
+  declaring function, so `initialize(string,string,uint8)` keeps the parent
+  `initializer` metadata instead of copying a child overload.
 - `solray scan erc20-transfer-sink` now reports `transfer` and `safeTransfer`
   calls inside single-statement `if`, `while`, and `for` bodies.
 - `solray scan asset-transfers` now reports transfer calls inside

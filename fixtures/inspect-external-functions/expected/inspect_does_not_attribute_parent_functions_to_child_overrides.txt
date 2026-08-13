@@ -1,0 +1,38 @@
+Contract: MidToken
+File: src/MidToken.sol
+
+Summary:
+- 4 externally callable functions
+- 1 mutable functions
+- 3 view functions
+- 0 callback functions
+- 0 special functions
+
+MUTABLE FUNCTIONS
+
+1. transfer(address,uint256)
+   source: src/BaseToken.sol:17
+   visibility: public
+   mutability: nonpayable
+   modifiers: none
+
+VIEW FUNCTIONS
+
+1. decimals()
+   source: src/BaseToken.sol:13
+   visibility: public
+   mutability: pure
+   modifiers: none
+
+2. name()
+   source: src/BaseToken.sol:5
+   visibility: public
+   mutability: pure
+   modifiers: none
+
+3. symbol()
+   source: src/BaseToken.sol:9
+   visibility: public
+   mutability: pure
+   modifiers: none
+
