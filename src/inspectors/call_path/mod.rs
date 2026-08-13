@@ -279,6 +279,19 @@ mod tests {
     }
 
     #[test]
+    fn call_path_for_lib_via_virtual_override() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("HistoryLib", "push");
+        let output = inspector.inspect(&id, "push").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_for_lib_via_virtual_override.txt"
+            )
+        );
+    }
+
+    #[test]
     fn call_path_for_unchecked_block() {
         let inspector = CallPathInspector::new(fixture_call_path_project());
         let id = make_id("UncheckedTarget", "internalWork");

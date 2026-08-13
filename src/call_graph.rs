@@ -144,6 +144,28 @@ impl CallGraphNode {
             .unwrap_or("")
     }
 
+    /// Identity of the linear path from this node to `target`.
+    ///
+    /// Used to drop duplicate roots that come from expanding the same function
+    /// once per inheriting contract.
+    fn path_key_to_target(&self, target: &str) -> Vec<(String, String, String)> {
+        let mut key = vec![(
+            self.contract_name.clone(),
+            self.signature.clone(),
+            self.src.clone(),
+        )];
+        if self.matches_target(target) {
+            return key;
+        }
+        for child in &self.children {
+            if child.reaches_target(target) {
+                key.extend(child.path_key_to_target(target));
+                break;
+            }
+        }
+        key
+    }
+
     /// Find the first descendant node matching the target function.
     pub fn find_matching(&self, target: &str) -> Option<&Self> {
         if self.matches_target(target) {
@@ -534,68 +556,62 @@ impl CallGraph {
         }
 
         let mut matching_roots = Vec::new();
-        let mut target_file = PathBuf::new();
-        let mut target_src = String::new();
-        let mut target_found = false;
+        let mut seen_paths: HashSet<Vec<(String, String, String)>> = HashSet::new();
+        let mut target_file = target_func.file.clone();
+        let mut target_src = format!("{}:{}", target_func.src_offset, target_func.src_length);
 
         for (root_artifact_path, _source) in &source_files {
-            let cache: RefCell<HashMap<PathBuf, Vec<FunctionInfo>>> = RefCell::new(HashMap::new());
-            let mut functions: HashMap<i64, FunctionInfo> = HashMap::new();
-            load_artifact_functions(root_artifact_path, &mut functions, &cache)?;
+            let Some(ast) = parse_artifact_ast(root_artifact_path)? else {
+                continue;
+            };
+            // Expand each concrete/abstract contract with its own inheritance
+            // chain. Virtual hooks such as `_afterTokenTransfer` must dispatch
+            // to that contract's override, not the queried target's chain.
+            // Querying a library (`Checkpoints.push`) would otherwise miss
+            // every path that only exists through a token override.
+            for contract_name in dispatch_contract_names(&ast) {
+                let cache: RefCell<HashMap<PathBuf, Vec<FunctionInfo>>> =
+                    RefCell::new(HashMap::new());
+                let mut functions: HashMap<i64, FunctionInfo> = HashMap::new();
+                load_contract_functions(
+                    root_artifact_path,
+                    &contract_name,
+                    &mut functions,
+                    &cache,
+                )?;
+                self.load_inherited_functions(
+                    root_artifact_path,
+                    &contract_name,
+                    &mut functions,
+                    &cache,
+                )?;
 
-            // Collect external/public function IDs from this source file.
-            let external_ids: Vec<i64> = functions
-                .iter()
-                .filter(|(_, fi)| {
-                    matches!(fi.visibility, Visibility::External | Visibility::Public)
-                })
-                .map(|(id, _)| *id)
-                .collect();
+                let external_ids: Vec<i64> = functions
+                    .iter()
+                    .filter(|(_, fi)| {
+                        matches!(fi.visibility, Visibility::External | Visibility::Public)
+                    })
+                    .map(|(id, _)| *id)
+                    .collect();
 
-            // Load the queried contract's own functions and its inheritance
-            // chain into this file's function map so virtual calls made by
-            // the roots expand to the most-derived overrides (for example
-            // `Proxy.fallback` dispatching to the queried
-            // `TransparentUpgradeableProxy._fallback` instead of the base
-            // `Proxy._fallback`).
-            load_contract_functions(
-                &artifact_path,
-                &id.artifact_id().name,
-                &mut functions,
-                &cache,
-            )?;
-            self.load_inherited_functions(
-                &artifact_path,
-                &id.artifact_id().name,
-                &mut functions,
-                &cache,
-            )?;
+                debug!(
+                    file = ?root_artifact_path,
+                    contract = %contract_name,
+                    roots = ?external_ids,
+                    "call-path: expanding path roots"
+                );
 
-            debug!(
-                file = ?root_artifact_path,
-                roots = ?external_ids,
-                "call-path: expanding path roots"
-            );
-
-            for &func_id in &external_ids {
-                let mut visited: HashSet<i64> = HashSet::new();
-                let root = self.build_call_node(func_id, &cache, &mut functions, &mut visited)?;
-                // Use the scoped target (Contract::function) so we only match
-                // nodes from the specific target contract.
-                if root.reaches_target(&scoped_target) {
-                    matching_roots.push(root);
+                for &func_id in &external_ids {
+                    let mut visited: HashSet<i64> = HashSet::new();
+                    let root =
+                        self.build_call_node(func_id, &cache, &mut functions, &mut visited)?;
+                    if root.reaches_target(&scoped_target) {
+                        let path_key = root.path_key_to_target(&scoped_target);
+                        if seen_paths.insert(path_key) {
+                            matching_roots.push(root);
+                        }
+                    }
                 }
-            }
-
-            // Find target source location from this source file's functions.
-            if !target_found
-                && let Some(fi) = functions
-                    .values()
-                    .find(|fi| function_matches_target(fi, &target))
-            {
-                target_file = fi.file.clone(); // checkrs: allow(clone_in_loops)
-                target_src = format!("{}:{}", fi.src_offset, fi.src_length);
-                target_found = true;
             }
         }
 
@@ -1514,6 +1530,23 @@ fn load_contract_functions(
         }
     }
     Ok(())
+}
+
+/// Contract names in `ast` that can be a runtime dispatch type.
+///
+/// Interfaces and libraries are skipped: they are not inherited as token-style
+/// override contexts. Abstract contracts are included because they still
+/// participate in virtual dispatch.
+fn dispatch_contract_names(ast: &SourceUnit) -> Vec<String> {
+    let mut names = Vec::new();
+    for node in &ast.nodes {
+        if let SourceUnitNode::ContractDefinition(cd) = node
+            && cd.contract_kind == ContractKind::Contract
+        {
+            names.push(cd.name.clone()); // checkrs: allow(clone_in_loops)
+        }
+    }
+    names
 }
 
 /// Extract the source file path from an artifact JSON file.

@@ -1,0 +1,40 @@
+## Call Paths
+
+Target: `push`
+Source: `src/HookLib.sol:9`
+
+3 paths found.
+
+### Path 1
+
+```
+HookBase.transfer
+src/HookLib.sol:21
+└── HookToken._afterTransfer
+    src/HookLib.sol:39
+    └── HistoryLib.push
+        src/HookLib.sol:9
+```
+
+### Path 2
+
+```
+HookToken.adjust
+src/HookLib.sol:35
+└── HistoryLib.push
+    src/HookLib.sol:9
+```
+
+### Path 3
+
+```
+HookToken.mint
+src/HookLib.sol:31
+└── HookBase._mint
+    src/HookLib.sol:15
+    └── HookToken._afterTransfer
+        src/HookLib.sol:39
+        └── HistoryLib.push
+            src/HookLib.sol:9
+```
+
