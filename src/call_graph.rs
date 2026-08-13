@@ -1696,17 +1696,49 @@ fn format_type_name(type_name: &TypeName) -> String {
             solc::ast::ElementaryType::Fixed(m, n) => format!("fixed{}x{}", m, n),
         },
         TypeName::ArrayTypeName(arr) => {
-            format!("{}[]", format_type_name(&arr.base_type))
-        }
-        TypeName::UserDefinedTypeName(udtn) => {
-            if let Some(ref path) = udtn.path_node {
-                path.name.clone()
-            } else {
-                "unknown".into()
+            let base = format_type_name(&arr.base_type);
+            match array_length(arr) {
+                Some(length) => format!("{base}[{length}]"),
+                None => format!("{base}[]"),
             }
         }
+        TypeName::UserDefinedTypeName(udtn) => format_user_defined_type(udtn),
         TypeName::Mapping(_) => "mapping".into(),
         TypeName::FunctionTypeName(_) => "function".into(),
+    }
+}
+
+fn format_user_defined_type(udtn: &UserDefinedTypeName) -> String {
+    if let Some(ref path) = udtn.path_node {
+        return path.name.clone();
+    }
+    debug!(
+        type_string = ?udtn.type_descriptions.type_string,
+        "user-defined type missing pathNode; falling back to typeString"
+    );
+    short_user_defined_name(udtn.type_descriptions.type_string.as_deref())
+        .unwrap_or_else(|| "unknown".into())
+}
+
+fn short_user_defined_name(type_string: Option<&str>) -> Option<String> {
+    let raw = type_string?.trim();
+    let stripped = raw
+        .strip_prefix("struct ")
+        .or_else(|| raw.strip_prefix("enum "))
+        .or_else(|| raw.strip_prefix("contract "))
+        .or_else(|| raw.strip_prefix("interface "))
+        .or_else(|| raw.strip_prefix("library "))
+        .unwrap_or(raw);
+    let token = stripped.split_whitespace().next().unwrap_or(stripped);
+    let token = token.split('[').next().unwrap_or(token);
+    Some(token.rsplit('.').next().unwrap_or(token).to_string())
+}
+
+fn array_length(arr: &solc::ast::ArrayTypeName) -> Option<String> {
+    let expr = arr.length.as_ref()?;
+    match expr.as_ref() {
+        Expression::Literal(lit) => lit.value.clone(),
+        _ => None,
     }
 }
 

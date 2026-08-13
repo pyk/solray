@@ -1,0 +1,6 @@
+Call graph:
+
+LegacyPool.mint() (external) (src/LegacyTypes.sol:28)
+├── LegacyPool._modifyPosition(ModifyPositionParams) (private) (src/LegacyTypes.sol:33)
+└── OracleLike.write(Observation[8],uint16) (internal) (src/LegacyTypes.sol:10)
+    └── OracleLike.transform(Observation) (private) (src/LegacyTypes.sol:14)

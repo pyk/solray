@@ -477,6 +477,19 @@ mod tests {
     }
 
     #[test]
+    fn call_graph_formats_legacy_user_defined_types() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("LegacyPool", "mint");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_formats_legacy_user_defined_types.txt"
+            )
+        );
+    }
+
+    #[test]
     fn call_graph_for_public_getter() {
         let inspector = CallGraphInspector::new(fixture_project());
         let id = make_id("Getter", "project");
