@@ -1063,7 +1063,7 @@ fn resolve_base_constructor(
     results: &mut Vec<ResolvedSymbol>,
     ctx: &RefCtx,
 ) {
-    if modifier.kind != Some(ModifierInvocationKind::BaseConstructorSpecifier) {
+    if !is_base_constructor_specifier(modifier, ctx) {
         return;
     }
     let Some(contract_id) = modifier.modifier_name.referenced_declaration else {
@@ -1071,6 +1071,7 @@ fn resolve_base_constructor(
     };
     debug!(
         name = %modifier.modifier_name.name,
+        kind = ?modifier.kind,
         contract_id,
         "function-source: resolving base constructor specifier"
     );
@@ -1082,6 +1083,26 @@ fn resolve_base_constructor(
     if seen_ids.insert(constructor_id) {
         results.push(symbol);
     }
+}
+
+/// solc >= 0.8 sets `kind`. Older compilers omit it, so a specifier is
+/// inferred when the name points at a `ContractDefinition`.
+fn is_base_constructor_specifier(modifier: &ModifierInvocation, ctx: &RefCtx) -> bool {
+    match modifier.kind {
+        Some(ModifierInvocationKind::BaseConstructorSpecifier) => true,
+        Some(_) => false,
+        None => modifier_name_refers_to_contract(modifier, ctx),
+    }
+}
+
+fn modifier_name_refers_to_contract(modifier: &ModifierInvocation, ctx: &RefCtx) -> bool {
+    let Some(declaration_id) = modifier.modifier_name.referenced_declaration else {
+        return false;
+    };
+    let Some(entry) = ctx.symbol_index.get(ctx.build_info_id, declaration_id) else {
+        return false;
+    };
+    entry.node_type == "ContractDefinition"
 }
 
 fn find_constructor_symbol(
@@ -2062,6 +2083,17 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_resolves_base_constructor_specifier.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_follows_legacy_base_constructor() {
+        let output = inspect("LegacyChild", "constructor").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_follows_legacy_base_constructor.txt"
             )
         );
     }

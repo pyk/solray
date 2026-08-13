@@ -1,0 +1,63 @@
+# LegacyChild - constructor Source Code
+
+Source path: `src/LegacyBaseConstructor.sol:20`
+
+```solidity
+constructor() public LegacyMid(0) {
+}
+```
+
+---
+
+## Contract: `LegacyBase`
+
+Source path: `src/LegacyBaseConstructor.sol:4`
+
+```solidity
+contract LegacyBase
+```
+
+---
+
+## Contract: `LegacyMid`
+
+Source path: `src/LegacyBaseConstructor.sol:14`
+
+```solidity
+contract LegacyMid is LegacyBase
+```
+
+---
+
+## Function: `_mint`
+
+Source path: `src/LegacyBaseConstructor.sol:9`
+
+```solidity
+function _mint(uint256 amount) internal {
+    amount;
+}
+```
+
+---
+
+## Function: `constructor`
+
+Source path: `src/LegacyBaseConstructor.sol:15`
+
+```solidity
+constructor(uint256 amount) public LegacyBase(amount) {
+}
+```
+
+---
+
+## Function: `constructor`
+
+Source path: `src/LegacyBaseConstructor.sol:5`
+
+```solidity
+constructor(uint256 amount) public {
+    _mint(amount);
+}
+```

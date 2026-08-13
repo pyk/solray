@@ -1,0 +1,6 @@
+Call graph:
+
+LegacyChild.constructor() (public) (src/LegacyBaseConstructor.sol:19)
+└── LegacyMid.constructor(uint256) (public) (src/LegacyBaseConstructor.sol:15)
+    └── LegacyBase.constructor(uint256) (public) (src/LegacyBaseConstructor.sol:5)
+        └── LegacyBase._mint(uint256) (internal) (src/LegacyBaseConstructor.sol:9)

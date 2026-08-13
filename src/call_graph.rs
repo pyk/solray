@@ -844,7 +844,12 @@ impl CallGraph {
         visited: &mut HashSet<i64>,
         nodes: &mut Vec<CallGraphNode>,
     ) -> Result<()> {
-        if modifier.kind == Some(ModifierInvocationKind::BaseConstructorSpecifier) {
+        if self.is_base_constructor_specifier(modifier) {
+            debug!(
+                name = %modifier.modifier_name.name,
+                kind = ?modifier.kind,
+                "call-graph: following base constructor specifier"
+            );
             if let Some(constructor_id) = self.load_base_constructor_id(modifier, functions)? {
                 let node = self.build_call_node(constructor_id, cache, functions, visited)?;
                 nodes.push(node);
@@ -856,6 +861,26 @@ impl CallGraph {
             nodes.extend(self.collect_calls(body.statements.clone(), cache, functions, visited)?);
         }
         Ok(())
+    }
+
+    /// solc >= 0.8 sets `kind`. Older compilers omit it, so a specifier is
+    /// inferred when the name points at a `ContractDefinition`.
+    fn is_base_constructor_specifier(&self, modifier: &ModifierInvocation) -> bool {
+        match modifier.kind {
+            Some(ModifierInvocationKind::BaseConstructorSpecifier) => true,
+            Some(_) => false,
+            None => self.modifier_name_refers_to_contract(modifier),
+        }
+    }
+
+    fn modifier_name_refers_to_contract(&self, modifier: &ModifierInvocation) -> bool {
+        let Some(declaration_id) = modifier.modifier_name.referenced_declaration else {
+            return false;
+        };
+        let Some(entry) = self.symbol_index.get_unscoped(declaration_id) else {
+            return false;
+        };
+        entry.node_type == "ContractDefinition"
     }
 
     fn load_base_constructor_id(
