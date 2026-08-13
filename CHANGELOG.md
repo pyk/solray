@@ -12,6 +12,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Changed
 
+- Upgraded solc dependency to v0.1.1
+
 ### Fixed
 
 ## [0.8.0] - 2026-08-12
