@@ -45,6 +45,47 @@ struct RefCtx<'a> {
     current_fn_id: Option<i64>,
     symbol_index: &'a SymbolIndex,
     build_info_id: &'a str,
+    overrides: &'a OverrideTable,
+}
+
+/// Most-derived function overrides for the queried contract.
+///
+/// Unqualified calls such as `_afterTokenTransfer(...)` inside a parent
+/// function point at that parent's declaration. This table redirects those
+/// calls to the most-derived override on the queried contract. Explicitly
+/// qualified calls (`super.fn`, `Base.fn`) are left alone.
+struct OverrideTable {
+    /// Inheritance chain of the queried contract, including itself.
+    chain: HashSet<String>,
+    /// Most-derived implemented function per `(name, params)`.
+    most_derived: HashMap<(String, String), ResolvedSymbol>,
+    /// Virtual or override functions keyed by `(contract, name, params)`.
+    dispatchable: HashSet<(String, String, String)>,
+}
+
+impl OverrideTable {
+    /// Redirect an unqualified call to the most-derived override, if any.
+    fn redirect(&self, referenced: &ResolvedSymbol) -> Option<&ResolvedSymbol> {
+        if referenced.node_type != "FunctionDefinition" {
+            return None;
+        }
+        let contract = extract_contract_name(&referenced.symbol);
+        let on_chain = self.chain.contains(contract);
+        if !on_chain {
+            return None;
+        }
+        let (name, params) = function_sig_parts(&referenced.symbol)?;
+        let dispatch_key = (String::from(contract), name.clone(), params.clone());
+        let is_dispatchable = self.dispatchable.contains(&dispatch_key);
+        if !is_dispatchable {
+            return None;
+        }
+        let best = self.most_derived.get(&(name, params))?;
+        if best.file == referenced.file && best.offset == referenced.offset {
+            return None;
+        }
+        Some(best)
+    }
 }
 
 /// The output of a [`FunctionSourceInspector`] inspection.
@@ -109,6 +150,69 @@ fn is_contract_node_type(node_type: &str) -> bool {
             | "InterfaceDefinition"
             | "LibraryDefinition"
     )
+}
+
+/// Split `Contract.fn(params)` into `(fn, params)`.
+fn function_sig_parts(symbol: &str) -> Option<(String, String)> {
+    let after_dot = symbol.split_once('.').map_or(symbol, |(_, rest)| rest);
+    let paren = after_dot.find('(')?;
+    if !after_dot.ends_with(')') {
+        return None;
+    }
+    Some((
+        after_dot[..paren].to_string(),
+        after_dot[paren + 1..after_dot.len() - 1].to_string(),
+    ))
+}
+
+/// Record implemented functions from `contract_name` for virtual dispatch.
+fn collect_override_entries(
+    ast: &SourceUnit,
+    contract_name: &str,
+    most_derived: &mut HashMap<(String, String), ResolvedSymbol>,
+    dispatchable: &mut HashSet<(String, String, String)>,
+) {
+    let source_file = &ast.absolute_path;
+    for node in &ast.nodes {
+        let SourceUnitNode::ContractDefinition(cd) = node else {
+            continue;
+        };
+        if cd.name != contract_name {
+            continue;
+        }
+        for inner in &cd.nodes {
+            let ContractDefinitionNode::FunctionDefinition(fd) = inner else {
+                continue;
+            };
+            if fd.kind != FunctionKind::Function || fd.visibility == Visibility::Private {
+                continue;
+            }
+            let params = format_params(&fd.parameters.parameters);
+            if fd.r#virtual || fd.overrides.is_some() {
+                dispatchable.insert((
+                    String::from(contract_name),
+                    String::from(&fd.name),
+                    String::from(&params),
+                ));
+            }
+            if !fd.implemented {
+                continue;
+            }
+            let key = (String::from(&fd.name), params);
+            most_derived.entry(key).or_insert_with(|| ResolvedSymbol {
+                symbol: format!(
+                    "{}.{}({})",
+                    contract_name,
+                    fd.name,
+                    format_params(&fd.parameters.parameters)
+                ),
+                file: source_file.clone(),
+                offset: fd.src.offset,
+                length: fd.src.length,
+                node_type: "FunctionDefinition".into(),
+            });
+        }
+    }
 }
 
 /// Extract a display name from a symbol string.
@@ -354,7 +458,8 @@ impl FunctionSourceInspector {
         };
 
         let root_symbol = self.find_function(&id.name, function_name, &artifact_paths)?;
-        let resolved = self.resolve_recursive(root_symbol)?;
+        let overrides = self.build_override_table(&id.name, &artifact_paths)?;
+        let resolved = self.resolve_recursive(root_symbol, &overrides)?;
 
         Ok(FunctionSourceInspectorOutput::new(
             resolved,
@@ -626,8 +731,50 @@ impl FunctionSourceInspector {
         Ok(())
     }
 
+    /// Build the most-derived override table for `contract_name`.
+    fn build_override_table(
+        &self,
+        contract_name: &str,
+        artifact_paths: &[PathBuf],
+    ) -> Result<OverrideTable> {
+        let mut chain = HashSet::new();
+        let mut most_derived: HashMap<(String, String), ResolvedSymbol> = HashMap::new();
+        let mut dispatchable = HashSet::new();
+        chain.insert(contract_name.to_string());
+
+        for artifact_path in artifact_paths {
+            let Some(ast) = parse_artifact(artifact_path)? else {
+                continue;
+            };
+            collect_override_entries(&ast, contract_name, &mut most_derived, &mut dispatchable);
+            let inherited = self.inherited_contracts(artifact_path, contract_name)?;
+            for (base_contract, base_path) in &inherited {
+                chain.insert(base_contract.clone()); // checkrs: allow(clone_in_loops)
+                let Some(base_ast) = parse_artifact(base_path)? else {
+                    continue;
+                };
+                collect_override_entries(
+                    &base_ast,
+                    base_contract,
+                    &mut most_derived,
+                    &mut dispatchable,
+                );
+            }
+        }
+
+        Ok(OverrideTable {
+            chain,
+            most_derived,
+            dispatchable,
+        })
+    }
+
     /// Recursively resolve all referenced declarations.
-    fn resolve_recursive(&self, root: ResolvedSymbol) -> Result<Vec<ResolvedSymbol>> {
+    fn resolve_recursive(
+        &self,
+        root: ResolvedSymbol,
+        overrides: &OverrideTable,
+    ) -> Result<Vec<ResolvedSymbol>> {
         let mut resolved: Vec<ResolvedSymbol> = Vec::new();
         let mut seen: HashSet<(PathBuf, usize)> = HashSet::new();
         let mut queue: Vec<ResolvedSymbol> = vec![root];
@@ -671,6 +818,7 @@ impl FunctionSourceInspector {
                         &symbol.file,
                         &self.symbol_index,
                         build_info_id,
+                        overrides,
                     );
                     for rs in refs {
                         let key = (rs.file.clone(), rs.offset); // checkrs: allow(clone_in_loops)
@@ -871,6 +1019,7 @@ fn collect_referenced_declarations(
     source_file: &Path,
     symbol_index: &SymbolIndex,
     build_info_id: &str,
+    overrides: &OverrideTable,
 ) -> Vec<ResolvedSymbol> {
     let end = target_offset + target_length;
     let mut seen_ids: HashSet<i64> = HashSet::new();
@@ -882,6 +1031,7 @@ fn collect_referenced_declarations(
         current_fn_id: None,
         symbol_index,
         build_info_id,
+        overrides,
     };
 
     for node in &ast.nodes {
@@ -1126,6 +1276,53 @@ fn collect_from_type_name(
         }
         _ => {}
     }
+}
+
+/// Resolve an unqualified call, preferring the queried contract's most-derived
+/// override when the referenced declaration is a virtual base hook.
+fn resolve_identifier_call(
+    id: i64,
+    seen_ids: &mut HashSet<i64>,
+    results: &mut Vec<ResolvedSymbol>,
+    ctx: &RefCtx,
+) {
+    if let Some(referenced) = lookup_symbol(id, ctx)
+        && let Some(best) = ctx.overrides.redirect(&referenced)
+    {
+        debug!(
+            name = %referenced.symbol,
+            redirected = %best.symbol,
+            "function-source: resolved virtual call to most-derived override"
+        );
+        results.push(best.clone());
+        return;
+    }
+    resolve_and_add_symbol(id, seen_ids, results, ctx);
+}
+
+/// Resolve a declaration id to a symbol without recording it as seen.
+fn lookup_symbol(id: i64, ctx: &RefCtx) -> Option<ResolvedSymbol> {
+    if let Some(rs) = resolve_id_in_ast(id, ctx.ast, ctx.source_file) {
+        return Some(rs);
+    }
+    let entry = ctx.symbol_index.get(ctx.build_info_id, id)?;
+    let info = ctx.symbol_index.artifact_info(entry.artifact_id);
+    if info.build_info_id != ctx.build_info_id {
+        return None;
+    }
+    let symbol = match entry.node_type.as_str() {
+        "FunctionDefinition" | "VariableDeclaration" => {
+            format!("{}.{}", entry.contract_name, entry.name)
+        }
+        _ => entry.name.clone(),
+    };
+    Some(ResolvedSymbol {
+        symbol,
+        file: info.source_file.clone(),
+        offset: entry.offset,
+        length: entry.length,
+        node_type: entry.node_type.clone(),
+    })
 }
 
 fn resolve_and_add_symbol(
@@ -1637,7 +1834,7 @@ fn collect_from_function_call(
         }
         FunctionCallExpression::Identifier(id) => {
             if let Some(ref_id) = id.referenced_declaration {
-                resolve_and_add_symbol(ref_id, seen_ids, results, ctx);
+                resolve_identifier_call(ref_id, seen_ids, results, ctx);
             }
         }
         FunctionCallExpression::FunctionCallOptions(fco) => {
@@ -1820,6 +2017,17 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_resolves_inherited_override.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_virtual_hook_override() {
+        let output = inspect("VirtualHookToken", "mint").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_resolves_virtual_hook_override.txt"
             )
         );
     }

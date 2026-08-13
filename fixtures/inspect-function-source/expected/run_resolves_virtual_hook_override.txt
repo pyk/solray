@@ -1,0 +1,117 @@
+# VirtualHookToken - mint Source Code
+
+Source path: `src/VirtualHook.sol:36`
+
+```solidity
+function mint(address to, uint256 amount) external {
+    _mint(to, amount);
+}
+```
+
+---
+
+## Event: `VotesMoved`
+
+Source path: `src/VirtualHook.sol:13`
+
+```solidity
+event VotesMoved(address from, address to, uint256 amount);
+```
+
+---
+
+## Function: `_afterTokenTransfer`
+
+Source path: `src/VirtualHook.sol:40`
+
+```solidity
+function _afterTokenTransfer(address from, address to, uint256 amount) internal override {
+    super._afterTokenTransfer(from, to, amount);
+    _updateDelegation(amount);
+}
+```
+
+---
+
+## Function: `_afterTokenTransfer`
+
+Source path: `src/VirtualHook.sol:19`
+
+```solidity
+function _afterTokenTransfer(address from, address to, uint256 amount)
+    internal
+    virtual
+    override
+{
+    super._afterTokenTransfer(from, to, amount);
+    _moveVotes(from, to, amount);
+}
+```
+
+---
+
+## Function: `_afterTokenTransfer`
+
+Source path: `src/VirtualHook.sol:9`
+
+```solidity
+function _afterTokenTransfer(address from, address to, uint256 amount) internal virtual {}
+```
+
+---
+
+## Function: `_mint`
+
+Source path: `src/VirtualHook.sol:15`
+
+```solidity
+function _mint(address to, uint256 amount) internal virtual override {
+    super._mint(to, amount);
+}
+```
+
+---
+
+## Function: `_mint`
+
+Source path: `src/VirtualHook.sol:5`
+
+```solidity
+function _mint(address to, uint256 amount) internal virtual {
+    _afterTokenTransfer(address(0), to, amount);
+}
+```
+
+---
+
+## Function: `_moveVotes`
+
+Source path: `src/VirtualHook.sol:28`
+
+```solidity
+function _moveVotes(address from, address to, uint256 amount) private {
+    emit VotesMoved(from, to, amount);
+}
+```
+
+---
+
+## Function: `_updateDelegation`
+
+Source path: `src/VirtualHook.sol:45`
+
+```solidity
+function _updateDelegation(uint256 amount) internal {
+    totalDelegation += amount;
+}
+```
+
+---
+
+## Variable: `totalDelegation`
+
+Source path: `src/VirtualHook.sol:34`
+
+```solidity
+uint256 public totalDelegation
+```

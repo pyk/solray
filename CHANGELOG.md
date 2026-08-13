@@ -16,6 +16,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect function-source` now follows unqualified virtual calls to the
+  queried contract's most-derived override, so hooks such as
+  `_afterTokenTransfer` include the child implementation instead of only the
+  empty parent declaration. `super` and explicitly qualified base calls are
+  unchanged.
 - `solray inspect external-functions` now resolves inherited functions along
   the queried contract's inheritance chain instead of picking an unrelated
   child override or same-named function from another contract.
