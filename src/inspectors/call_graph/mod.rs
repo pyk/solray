@@ -162,6 +162,32 @@ mod tests {
     }
 
     #[test]
+    fn call_graph_includes_emit_argument_calls() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("EmitTryCalls", "_changeAdmin");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_includes_emit_argument_calls.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_graph_includes_try_external_call() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("EmitTryCalls", "_upgradeToAndCallUUPS");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_includes_try_external_call.txt"
+            )
+        );
+    }
+
+    #[test]
     fn call_graph_for_readonly() {
         let inspector = CallGraphInspector::new(fixture_project());
         let id = make_id("Main", "readOnly");

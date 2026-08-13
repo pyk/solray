@@ -16,33 +16,29 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect inheritance-graph` now resolves libraries such as `Address`
+  and `StorageSlot`.
+- `solray inspect call-graph` now walks `emit` arguments and `try`/`catch`
+  bodies.
+- `solray inspect function-source` now follows base constructor specifiers into
+  the parent constructor body.
 - `solray inspect call-graph` now prints function-type parameters as
-  `function(uint256,uint256)` instead of the bare word `function`.
-- `solray inspect function-source` now collects types from struct members, so
-  `Checkpoints.History` pulls in `Checkpoint` instead of leaving the nested
-  struct unresolved.
-- `solray inspect call-path` now expands each project contract with that
-  contract's own inheritance chain, so a library target such as
-  `Checkpoints.push` includes paths through child overrides like
-  `L2ArbitrumToken._afterTokenTransfer`. Duplicate inherited roots are dropped.
+  `function(uint256,uint256)`.
+- `solray inspect function-source` now collects types from struct members.
+- `solray inspect call-path` now expands each project contract with its own
+  inheritance chain and drops duplicate inherited roots.
 - `solray inspect function-source` now follows unqualified virtual calls to the
-  queried contract's most-derived override, so hooks such as
-  `_afterTokenTransfer` include the child implementation instead of only the
-  empty parent declaration. `super` and explicitly qualified base calls are
-  unchanged.
+  queried contract's most-derived override.
 - `solray inspect external-functions` now resolves inherited functions along
-  the queried contract's inheritance chain instead of picking an unrelated
-  child override or same-named function from another contract.
+  the queried contract's inheritance chain.
 - `solray inspect external-functions` now maps inherited overloads to their
-  declaring function, so `initialize(string,string,uint8)` keeps the parent
-  `initializer` metadata instead of copying a child overload.
+  declaring function.
 - `solray scan erc20-transfer-sink` now reports `transfer` and `safeTransfer`
   calls inside single-statement `if`, `while`, and `for` bodies.
 - `solray scan asset-transfers` now reports transfer calls inside
   single-statement `if`, `while`, and `for` bodies.
 - `solray inspect call-graph` now prints Solidity 0.7 user-defined types and
-  fixed-size arrays from `typeDescriptions.typeString` and
-  `ArrayTypeName.length` instead of `unknown` / `unknown[]`.
+  fixed-size arrays instead of `unknown`.
 
 ## [0.8.0] - 2026-08-12
 

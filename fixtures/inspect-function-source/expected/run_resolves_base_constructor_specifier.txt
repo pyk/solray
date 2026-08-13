@@ -1,0 +1,98 @@
+# ChildCtor - constructor Source Code
+
+Source path: `src/BaseConstructor.sol:30`
+
+```solidity
+constructor(address logic, address admin_) BaseCtor(logic) {
+    _setAdmin(admin_);
+}
+```
+
+---
+
+## Contract: `BaseCtor`
+
+Source path: `src/BaseConstructor.sol:4`
+
+```solidity
+contract BaseCtor
+```
+
+---
+
+## Event: `Upgraded`
+
+Source path: `src/BaseConstructor.sol:5`
+
+```solidity
+event Upgraded(address implementation);
+```
+
+---
+
+## Function: `_setAdmin`
+
+Source path: `src/BaseConstructor.sol:26`
+
+```solidity
+function _setAdmin(address newAdmin) internal {
+    admin = newAdmin;
+}
+```
+
+---
+
+## Function: `_setImplementation`
+
+Source path: `src/BaseConstructor.sol:9`
+
+```solidity
+function _setImplementation(address newImplementation) internal {
+    impl = newImplementation;
+}
+```
+
+---
+
+## Function: `_upgradeTo`
+
+Source path: `src/BaseConstructor.sol:13`
+
+```solidity
+function _upgradeTo(address newImplementation) internal {
+    _setImplementation(newImplementation);
+    emit Upgraded(newImplementation);
+}
+```
+
+---
+
+## Function: `constructor`
+
+Source path: `src/BaseConstructor.sol:18`
+
+```solidity
+constructor(address logic) {
+    _upgradeTo(logic);
+}
+```
+
+---
+
+## Variable: `admin`
+
+Source path: `src/BaseConstructor.sol:24`
+
+```solidity
+address internal admin
+```
+
+---
+
+## Variable: `impl`
+
+Source path: `src/BaseConstructor.sol:7`
+
+```solidity
+address internal impl
+```

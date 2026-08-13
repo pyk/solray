@@ -1066,6 +1066,35 @@ impl CallGraph {
                     self.collect_calls_from_expression(expr, cache, functions, visited, nodes)?;
                 }
             }
+            solc::ast::Statement::EmitStatement(es) => {
+                debug!(
+                    id = es.id,
+                    args = es.event_call.arguments.len(),
+                    "call-graph: walking EmitStatement"
+                );
+                for arg in &es.event_call.arguments {
+                    self.collect_calls_from_expression(arg, cache, functions, visited, nodes)?;
+                }
+            }
+            solc::ast::Statement::TryStatement(ts) => {
+                debug!(
+                    id = ts.id,
+                    clauses = ts.clauses.len(),
+                    "call-graph: walking TryStatement"
+                );
+                self.collect_calls_from_expression(
+                    &ts.external_call,
+                    cache,
+                    functions,
+                    visited,
+                    nodes,
+                )?;
+                for clause in &ts.clauses {
+                    for stmt in &clause.block.statements {
+                        self.collect_calls_from_statement(stmt, cache, functions, visited, nodes)?;
+                    }
+                }
+            }
             _ => {}
         }
         Ok(())

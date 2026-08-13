@@ -11,7 +11,8 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use solc::ast::{
     ContractDefinition, ContractDefinitionNode, ContractKind, Expression, FunctionCallExpression,
-    FunctionKind, SourceUnit, SourceUnitNode, TypeName, Visibility,
+    FunctionKind, ModifierInvocation, ModifierInvocationKind, SourceUnit, SourceUnitNode, TypeName,
+    Visibility,
 };
 use tracing::debug;
 
@@ -1052,6 +1053,95 @@ fn collect_referenced_declarations(
     results
 }
 
+/// Follow a `Base(args)` constructor specifier to the parent constructor body.
+///
+/// The specifier's `referenced_declaration` is the parent `ContractDefinition`,
+/// which would otherwise be rendered as a header only.
+fn resolve_base_constructor(
+    modifier: &ModifierInvocation,
+    seen_ids: &mut HashSet<i64>,
+    results: &mut Vec<ResolvedSymbol>,
+    ctx: &RefCtx,
+) {
+    if modifier.kind != Some(ModifierInvocationKind::BaseConstructorSpecifier) {
+        return;
+    }
+    let Some(contract_id) = modifier.modifier_name.referenced_declaration else {
+        return;
+    };
+    debug!(
+        name = %modifier.modifier_name.name,
+        contract_id,
+        "function-source: resolving base constructor specifier"
+    );
+    let Some((constructor_id, symbol)) =
+        find_constructor_symbol(contract_id, &modifier.modifier_name.name, ctx)
+    else {
+        return;
+    };
+    if seen_ids.insert(constructor_id) {
+        results.push(symbol);
+    }
+}
+
+fn find_constructor_symbol(
+    contract_id: i64,
+    contract_name: &str,
+    ctx: &RefCtx,
+) -> Option<(i64, ResolvedSymbol)> {
+    if let Some(found) =
+        find_constructor_in_ast(ctx.ast, contract_id, contract_name, ctx.source_file)
+    {
+        return Some(found);
+    }
+    let entry = ctx.symbol_index.get(ctx.build_info_id, contract_id)?;
+    let info = ctx.symbol_index.artifact_info(entry.artifact_id);
+    if info.build_info_id != ctx.build_info_id {
+        return None;
+    }
+    let ast = parse_artifact(&info.artifact_path).ok()??;
+    find_constructor_in_ast(&ast, contract_id, contract_name, &info.source_file)
+}
+
+fn find_constructor_in_ast(
+    ast: &SourceUnit,
+    contract_id: i64,
+    contract_name: &str,
+    source_file: &Path,
+) -> Option<(i64, ResolvedSymbol)> {
+    for node in &ast.nodes {
+        let SourceUnitNode::ContractDefinition(cd) = node else {
+            continue;
+        };
+        if cd.id != contract_id && cd.name != contract_name {
+            continue;
+        }
+        for inner in &cd.nodes {
+            let ContractDefinitionNode::FunctionDefinition(fd) = inner else {
+                continue;
+            };
+            if fd.kind != FunctionKind::Constructor || !fd.implemented {
+                continue;
+            }
+            return Some((
+                fd.id,
+                ResolvedSymbol {
+                    symbol: format!(
+                        "{}.constructor({})",
+                        cd.name,
+                        format_params(&fd.parameters.parameters)
+                    ),
+                    file: source_file.to_path_buf(),
+                    offset: fd.src.offset,
+                    length: fd.src.length,
+                    node_type: "FunctionDefinition".into(),
+                },
+            ));
+        }
+    }
+    None
+}
+
 fn collect_from_contract_node(
     node: &ContractDefinitionNode,
     range_start: usize,
@@ -1079,9 +1169,16 @@ fn collect_from_contract_node(
                     collect_from_type_name(&param.type_name, seen_ids, results, &fn_ctx);
                 }
                 for modifier in &fd.modifiers {
+                    debug!(
+                        kind = ?modifier.kind,
+                        name = %modifier.modifier_name.name,
+                        referenced = ?modifier.modifier_name.referenced_declaration,
+                        "function-source: resolving function modifier"
+                    );
                     if let Some(id) = modifier.modifier_name.referenced_declaration {
                         resolve_and_add_symbol(id, seen_ids, results, &fn_ctx);
                     }
+                    resolve_base_constructor(modifier, seen_ids, results, &fn_ctx);
                     if let Some(ref args) = modifier.arguments {
                         for arg in args {
                             collect_from_expression(arg, seen_ids, results, &fn_ctx);
@@ -1954,6 +2051,17 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_labels_abstract_contract.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_base_constructor_specifier() {
+        let output = inspect("ChildCtor", "constructor").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_resolves_base_constructor_specifier.txt"
             )
         );
     }

@@ -254,9 +254,16 @@ impl ResolutionContext {
 
         for node in &ast.nodes {
             if let SourceUnitNode::ContractDefinition(cd) = node
-                && (cd.contract_kind == ContractKind::Contract
-                    || cd.contract_kind == ContractKind::Interface)
+                && matches!(
+                    cd.contract_kind,
+                    ContractKind::Contract | ContractKind::Interface | ContractKind::Library
+                )
             {
+                debug!(
+                    name = %cd.name,
+                    kind = ?cd.contract_kind,
+                    "inheritance-graph: indexing contract definition"
+                );
                 let bases: Vec<String> = cd
                     .base_contracts
                     .iter()
@@ -374,6 +381,19 @@ mod tests {
 
     fn ambiguous_fixture_path() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inheritance-graph-ambiguous")
+    }
+
+    #[test]
+    fn inspect_shows_inheritance_for_library() {
+        let inspector = InheritanceGraphInspector::new(Project::open(fixture_path()));
+        let id = ArtifactId::new("LibUtil");
+        let output = inspector.inspect(&id).unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../fixtures/inheritance-graph/expected/inspect_shows_inheritance_for_library.txt"
+            )
+        );
     }
 
     #[test]

@@ -1,0 +1,5 @@
+Call graph:
+
+EmitTryCalls._upgradeToAndCallUUPS(address) (internal) (src/EmitTryCalls.sol:26)
+├── IProxiable.proxiableUUID() (external) (src/EmitTryCalls.sol:5)
+└── EmitTryCalls._setAdmin(address) (internal) (src/EmitTryCalls.sol:17)
