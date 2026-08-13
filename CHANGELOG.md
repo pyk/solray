@@ -16,6 +16,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect function-source` now follows symbols referenced in constant
+  and state-variable initializers, such as `FEE_SIZE` via `NEXT_OFFSET` and
+  `DEFAULT_AMOUNT_IN_CACHED` via `amountInCached`.
 - `solray inspect call-graph` now follows Solidity 0.6/0.7 base constructor
   specifiers when the AST omits `ModifierInvocation.kind`.
 - `solray inspect function-source` now follows Solidity 0.6/0.7 base

@@ -1,0 +1,65 @@
+# ConstantInit - hasMultiplePools Source Code
+
+Source path: `src/ConstantInit.sol:19`
+
+```solidity
+/// @notice Returns true iff the path contains two or more pools
+function hasMultiplePools(bytes memory path) internal pure returns (bool) {
+    return path.length >= MULTIPLE_POOLS_MIN_LENGTH;
+}
+```
+
+---
+
+## Variable: `ADDR_SIZE`
+
+Source path: `src/ConstantInit.sol:7`
+
+```solidity
+/// @dev The length of the bytes encoded address
+uint256 private constant ADDR_SIZE = 20
+```
+
+---
+
+## Variable: `FEE_SIZE`
+
+Source path: `src/ConstantInit.sol:9`
+
+```solidity
+/// @dev The length of the bytes encoded fee
+uint256 private constant FEE_SIZE = 3
+```
+
+---
+
+## Variable: `MULTIPLE_POOLS_MIN_LENGTH`
+
+Source path: `src/ConstantInit.sol:16`
+
+```solidity
+/// @dev The minimum length of an encoding that contains 2 or more pools
+uint256 private constant MULTIPLE_POOLS_MIN_LENGTH = POP_OFFSET + NEXT_OFFSET
+```
+
+---
+
+## Variable: `NEXT_OFFSET`
+
+Source path: `src/ConstantInit.sol:12`
+
+```solidity
+/// @dev The offset of a single token address and pool fee
+uint256 private constant NEXT_OFFSET = ADDR_SIZE + FEE_SIZE
+```
+
+---
+
+## Variable: `POP_OFFSET`
+
+Source path: `src/ConstantInit.sol:14`
+
+```solidity
+/// @dev The offset of an encoded pool key
+uint256 private constant POP_OFFSET = NEXT_OFFSET + ADDR_SIZE
+```

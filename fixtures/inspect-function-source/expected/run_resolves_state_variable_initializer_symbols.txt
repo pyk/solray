@@ -1,0 +1,32 @@
+# CachedAmount - cache Source Code
+
+Source path: `src/ConstantInit.sol:33`
+
+```solidity
+/// @notice Overwrite the cached amount
+function cache(uint256 value) external {
+    amountCached = value;
+}
+```
+
+---
+
+## Variable: `amountCached`
+
+Source path: `src/ConstantInit.sol:30`
+
+```solidity
+/// @dev Transient cache of the last amount
+uint256 private amountCached = DEFAULT_AMOUNT
+```
+
+---
+
+## Variable: `DEFAULT_AMOUNT`
+
+Source path: `src/ConstantInit.sol:27`
+
+```solidity
+/// @dev Placeholder used before a real amount is written
+uint256 private constant DEFAULT_AMOUNT = type(uint256).max
+```

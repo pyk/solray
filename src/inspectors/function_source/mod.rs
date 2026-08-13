@@ -1228,6 +1228,13 @@ fn collect_from_contract_node(
             let vd_end = vd_start + vd.src.length;
             if vd_start < range_end && vd_end > range_start {
                 collect_from_type_name(&vd.type_name, seen_ids, results, ctx);
+                if let Some(ref value) = vd.value {
+                    debug!(
+                        name = %vd.name,
+                        "function-source: collecting references from variable initializer"
+                    );
+                    collect_from_expression(value, seen_ids, results, ctx);
+                }
             }
         }
         ContractDefinitionNode::StructDefinition(sd) => {
@@ -2454,6 +2461,28 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_does_not_include_unreferenced_library_symbols.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_constant_initializer_symbols() {
+        let output = inspect("ConstantInit", "hasMultiplePools").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_resolves_constant_initializer_symbols.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_state_variable_initializer_symbols() {
+        let output = inspect("CachedAmount", "cache").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_resolves_state_variable_initializer_symbols.txt"
             )
         );
     }
