@@ -16,6 +16,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect function-source` now collects types from struct members, so
+  `Checkpoints.History` pulls in `Checkpoint` instead of leaving the nested
+  struct unresolved.
 - `solray inspect call-path` now expands each project contract with that
   contract's own inheritance chain, so a library target such as
   `Checkpoints.push` includes paths through child overrides like

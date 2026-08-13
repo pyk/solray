@@ -1,0 +1,59 @@
+# HistoryUser - lookup Source Code
+
+Source path: `src/StructMemberTypes.sol:27`
+
+```solidity
+function lookup(uint256 blockNumber) external view returns (uint256) {
+    return _history.getAtBlock(blockNumber);
+}
+```
+
+---
+
+## Function: `getAtBlock`
+
+Source path: `src/StructMemberTypes.sol:14`
+
+```solidity
+function getAtBlock(History storage self, uint256) internal view returns (uint256) {
+    if (self._checkpoints.length == 0) {
+        return 0;
+    }
+    return self._checkpoints[0].value;
+}
+```
+
+---
+
+## Struct: `Checkpoint`
+
+Source path: `src/StructMemberTypes.sol:5`
+
+```solidity
+struct Checkpoint {
+    uint32 fromBlock;
+    uint224 value;
+}
+```
+
+---
+
+## Struct: `History`
+
+Source path: `src/StructMemberTypes.sol:10`
+
+```solidity
+struct History {
+    Checkpoint[] _checkpoints;
+}
+```
+
+---
+
+## Variable: `_history`
+
+Source path: `src/StructMemberTypes.sol:25`
+
+```solidity
+HistoryLib.History private _history
+```

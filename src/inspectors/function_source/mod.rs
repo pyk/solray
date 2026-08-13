@@ -1112,6 +1112,20 @@ fn collect_from_contract_node(
                 collect_from_type_name(&vd.type_name, seen_ids, results, ctx);
             }
         }
+        ContractDefinitionNode::StructDefinition(sd) => {
+            let sd_start = sd.src.offset;
+            let sd_end = sd_start + sd.src.length;
+            if sd_start < range_end && sd_end > range_start {
+                debug!(
+                    name = %sd.name,
+                    members = sd.members.len(),
+                    "function-source: collecting types from struct members"
+                );
+                for member in &sd.members {
+                    collect_from_type_name(&member.type_name, seen_ids, results, ctx);
+                }
+            }
+        }
         _ => {}
     }
 }
@@ -2028,6 +2042,17 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_resolves_virtual_hook_override.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_struct_member_types() {
+        let output = inspect("HistoryUser", "lookup").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_resolves_struct_member_types.txt"
             )
         );
     }
