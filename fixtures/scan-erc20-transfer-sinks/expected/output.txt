@@ -1,14 +1,16 @@
 ## ERC20 Transfer Sinks
 
-8 ERC20 transfer sinks found.
+10 ERC20 transfer sinks found.
 
 | # | Contract | Function | Transfer | Source Location |
 | - | -------- | -------- | -------- | --------------- |
 | 1 | `CrlfSender` | `sendFirst` | `token.safeTransfer(to, amount)` | `src/Crlf.sol:12` |
 | 2 | `CrlfSender` | `sendSecond` | `token.safeTransfer(to, amount)` | `src/Crlf.sol:17` |
-| 3 | `TokenSender` | `sendToken` | `token.safeTransfer(to, amount)` | `src/TokenTransfer.sol:13` |
-| 4 | `TokenSender` | `sendTokenDirect` | `token.transfer(to, amount)` | `src/TokenTransfer.sol:17` |
-| 5 | `TokenSender` | `sendMultiple` | `token.safeTransfer(to, amount0)` | `src/TokenTransfer.sol:21` |
-| 6 | `TokenSender` | `sendMultiple` | `token.safeTransfer(to, amount1)` | `src/TokenTransfer.sol:22` |
-| 7 | `TokenLib` | `send` | `token_.safeTransfer(to, amount)` | `src/TokenTransfer.sol:28` |
-| 8 | `TokenLib` | `transferDirect` | `token_.transfer(to, amount)` | `src/TokenTransfer.sol:32` |
+| 3 | `SingleStatementIf` | `swap` | `TransferHelper.safeTransfer(token, to, amount)` | `src/SingleStatementIf.sol:19` |
+| 4 | `SingleStatementIf` | `collect` | `TransferHelper.safeTransfer(token, to, amount)` | `src/SingleStatementIf.sol:24` |
+| 5 | `TokenSender` | `sendToken` | `token.safeTransfer(to, amount)` | `src/TokenTransfer.sol:13` |
+| 6 | `TokenSender` | `sendTokenDirect` | `token.transfer(to, amount)` | `src/TokenTransfer.sol:17` |
+| 7 | `TokenSender` | `sendMultiple` | `token.safeTransfer(to, amount0)` | `src/TokenTransfer.sol:21` |
+| 8 | `TokenSender` | `sendMultiple` | `token.safeTransfer(to, amount1)` | `src/TokenTransfer.sol:22` |
+| 9 | `TokenLib` | `send` | `token_.safeTransfer(to, amount)` | `src/TokenTransfer.sol:28` |
+| 10 | `TokenLib` | `transferDirect` | `token_.transfer(to, amount)` | `src/TokenTransfer.sol:32` |

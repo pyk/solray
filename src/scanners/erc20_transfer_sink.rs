@@ -254,13 +254,16 @@ fn find_transfer_calls(
     sinks
 }
 
-/// Process a body statement by recursing into it.
+/// Process a control-flow body by recursing into it.
+///
+/// Solidity `if`/`while`/`for` bodies may be a bare statement, not a block.
 fn process_body(body: &Statement, ctx: &mut ScanContext) {
-    if let Statement::Block(block) = body {
-        for s in &block.statements {
-            collect_from_statement(s, ctx);
-        }
-    }
+    debug!(
+        contract = ctx.contract_name,
+        function = ctx.function_name,
+        "walking control-flow body"
+    );
+    collect_from_statement(body, ctx);
 }
 
 /// Traverse a single statement looking for transfer calls, recursing into
@@ -544,8 +547,9 @@ mod tests {
                 sink.file.display()
             );
         }
-        // We know exactly 8 sinks exist in src/ from the fixture (6 from
-        // TokenTransfer.sol and 2 from the CRLF Crlf.sol).
-        assert_eq!(output.sinks.len(), 8);
+        // We know exactly 10 sinks exist in src/ from the fixture (6 from
+        // TokenTransfer.sol, 2 from the CRLF Crlf.sol, and 2 from
+        // SingleStatementIf.sol).
+        assert_eq!(output.sinks.len(), 10);
     }
 }

@@ -16,6 +16,11 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray scan erc20-transfer-sink` now reports `transfer` and `safeTransfer`
+  calls inside single-statement `if`, `while`, and `for` bodies.
+- `solray scan asset-transfers` now reports transfer calls inside
+  single-statement `if`, `while`, and `for` bodies.
+
 ## [0.8.0] - 2026-08-12
 
 ### Fixed

@@ -1,6 +1,6 @@
 ## Asset Transfers
 
-24 asset transfers found.
+26 asset transfers found.
 
 | # | Contract | Function | Visibility | Expression | Kind | Source Location |
 | - | -------- | -------- | ---------- | ---------- | ---- | --------------- |
@@ -28,3 +28,5 @@
 | 22 | `ETHTransfer` | `ethCall` | external | `to.call{value: msg.value}("")` | Call ETH | `src/ETHTransfer.sol:21` |
 | 23 | `ETHTransfer` | `acceptEth` | external | `function acceptEth() external payable` | Receive ETH | `src/ETHTransfer.sol:26` |
 | 24 | `ETHTransfer` | `acceptEthPublic` | public | `function acceptEthPublic() public payable` | Receive ETH | `src/ETHTransfer.sol:29` |
+| 25 | `SingleStatementIf` | `swap` | external | `SafeERC20.safeTransfer(token, to, amount)` | Safe Transfer ERC20 | `src/SingleStatementIf.sol:11` |
+| 26 | `SingleStatementIf` | `collect` | external | `SafeERC20.safeTransfer(token, to, amount)` | Safe Transfer ERC20 | `src/SingleStatementIf.sol:16` |

@@ -339,13 +339,16 @@ fn find_transfer_calls(
     transfers
 }
 
-/// Process a body statement by recursing into it.
+/// Process a control-flow body by recursing into it.
+///
+/// Solidity `if`/`while`/`for` bodies may be a bare statement, not a block.
 fn process_body(body: &Statement, ctx: &mut ScanContext) {
-    if let Statement::Block(block) = body {
-        for s in &block.statements {
-            collect_from_statement(s, ctx);
-        }
-    }
+    debug!(
+        contract = ctx.contract_name,
+        function = ctx.function_name,
+        "walking control-flow body"
+    );
+    collect_from_statement(body, ctx);
 }
 
 /// Traverse a single statement looking for asset transfer calls, recursing
@@ -736,8 +739,8 @@ mod tests {
     fn scan_finds_correct_number_of_transfers() {
         let scanner = AssetTransferScanner::new(Project::open(fixture_path()));
         let output = scanner.scan().unwrap();
-        // 19 from the LF sources plus 5 from the CRLF CrlfTransfers.sol.
-        assert_eq!(output.transfers.len(), 24);
+        // 21 from the LF sources plus 5 from the CRLF CrlfTransfers.sol.
+        assert_eq!(output.transfers.len(), 26);
     }
 
     #[test]
