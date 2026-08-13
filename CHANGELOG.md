@@ -16,6 +16,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect call-graph` now prints function-type parameters as
+  `function(uint256,uint256)` instead of the bare word `function`.
 - `solray inspect function-source` now collects types from struct members, so
   `Checkpoints.History` pulls in `Checkpoint` instead of leaving the nested
   struct unresolved.

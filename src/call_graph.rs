@@ -1737,7 +1737,11 @@ fn format_type_name(type_name: &TypeName) -> String {
         }
         TypeName::UserDefinedTypeName(udtn) => format_user_defined_type(udtn),
         TypeName::Mapping(_) => "mapping".into(),
-        TypeName::FunctionTypeName(_) => "function".into(),
+        TypeName::FunctionTypeName(ftn) => {
+            let params = format_params(&ftn.parameter_types.parameters);
+            debug!(params = %params, "formatted FunctionTypeName parameter");
+            format!("function({params})")
+        }
     }
 }
 

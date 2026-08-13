@@ -1,0 +1,4 @@
+Call graph:
+
+FunctionTypeParam.run(uint256) (external) (src/FunctionTypeParam.sol:5)
+└── FunctionTypeParam._writeCheckpoint(function(uint256,uint256),uint256) (private) (src/FunctionTypeParam.sol:9)
