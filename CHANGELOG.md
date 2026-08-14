@@ -13,6 +13,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - `solray inspect contracts` now supports solc < 0.6 projects, whose ASTs omit
   the `abstract` flag; implicitly abstract contracts (e.g. the function-only
   `*Like` adapters in MakerDAO DSS) are no longer listed as deployable.
+- `solray inspect abstracts` now supports solc < 0.6 projects, whose ASTs omit
+  the `abstract` flag; implicitly abstract contracts (functions declared
+  without bodies) are now listed.
 
 ### Changed
 
@@ -22,6 +25,15 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray scan erc20-transfer-sink` no longer reports native ETH transfers
+  (`address payable.transfer`) as ERC20 transfer sinks; unresolved members are
+  builtins of elementary types and are skipped.
+- `solray inspect call-graph` now includes native ETH transfers via
+  `address.transfer` and `address.send`, which the AST leaves unresolved.
+- `solray inspect storage-layout` now fails with an explicit error instead of
+  printing nothing when the artifact's storage layout is empty even though the
+  contract declares storage variables (solc < 0.6 does not emit storage layout
+  output).
 - `solray inspect call-path` now reports every call path from an entry function
   to the target, including direct calls that an indirect modifier or helper
   branch would otherwise hide.

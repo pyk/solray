@@ -1,0 +1,4 @@
+Call graph:
+
+NativeTransfer.transferEth(address,uint256) (external) (src/NativeTransfer.sol:5)
+└── (address).transfer() (low-level)

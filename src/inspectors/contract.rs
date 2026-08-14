@@ -368,7 +368,7 @@ mod tests {
         let inspector = ContractInspector::new(Project::open(&root));
         let output = inspector.inspect().unwrap();
         let expected =
-            include_str!("../../fixtures/inspect-contracts-solc-0.5/expected/output.txt");
+            include_str!("../../fixtures/inspect-contracts-solc-0.5/expected/contracts.txt");
         assert_eq!(output.to_string(), expected);
     }
 

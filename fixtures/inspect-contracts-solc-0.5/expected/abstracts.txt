@@ -1,0 +1,7 @@
+summary:
+- 2 abstracts in src directory
+- total 2 abstracts
+
+abstracts in src directory:
+1. GemLike (file: src/Contract.sol)
+2. VatLike (file: src/Contract.sol)

@@ -1844,7 +1844,7 @@ fn resolve_called_function_id_from_fc_expression(expr: &Expression) -> Option<i6
 fn is_low_level_call(member_name: &str) -> bool {
     matches!(
         member_name,
-        "call" | "delegatecall" | "staticcall" | "callcode"
+        "call" | "delegatecall" | "staticcall" | "callcode" | "transfer" | "send"
     )
 }
 

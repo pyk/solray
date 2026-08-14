@@ -3,7 +3,7 @@
 //! [`StorageLayoutInspector`] reads a single artifact file and produces
 //! structured output for the storage layout it defines.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 
@@ -155,6 +155,7 @@ impl StorageLayoutInspector {
         };
 
         let artifact = parse_artifact(&artifact_path)?;
+        ensure_layout_available(&artifact, &artifact_path, name)?;
         artifact.storage_layout.with_context(|| {
             format!(
                 "artifact `{}` is missing the storage layout; rebuild with `extra_output = [\"storageLayout\"]` in foundry.toml",
@@ -174,6 +175,7 @@ impl StorageLayoutInspector {
             }
             1 => {
                 let artifact = parse_artifact(&candidates[0])?;
+                ensure_layout_available(&artifact, &candidates[0], name)?;
                 artifact.storage_layout.with_context(|| {
                     format!(
                         "artifact `{}` is missing the storage layout; rebuild with `extra_output = [\"storageLayout\"]` in foundry.toml",
@@ -197,11 +199,121 @@ impl StorageLayoutInspector {
     }
 }
 
-/// Artifact representation that deserializes only the storage layout.
+/// Error when the artifact carries an empty storage layout even though the
+/// contract declares storage variables. solc < 0.6 does not emit storage
+/// layout output, so this turns a silent empty result into an explicit error.
+fn ensure_layout_available(artifact: &Artifact, path: impl AsRef<Path>, name: &str) -> Result<()> {
+    let path = path.as_ref();
+    let has_entries = match artifact.storage_layout.as_ref() {
+        Some(layout) => !layout.storage.is_empty(),
+        None => false,
+    };
+    if has_entries {
+        return Ok(());
+    }
+    let declares_storage = match artifact.ast.as_ref() {
+        Some(ast) => contract_declares_storage(ast, name),
+        None => false,
+    };
+    if declares_storage {
+        bail!(
+            "artifact `{}` has an empty storage layout even though the contract declares storage variables; storage layout output is not available for solc < 0.6 builds",
+            path.display()
+        );
+    }
+    Ok(())
+}
+
+/// Return true when the contract (including its base contracts) declares at
+/// least one non-constant state variable.
+fn contract_declares_storage(ast: &LightweightSourceUnit, name: &str) -> bool {
+    let by_id: HashMap<i64, &LightweightNode> =
+        ast.nodes.iter().map(|node| (node.id, node)).collect();
+    let Some(contract) = ast
+        .nodes
+        .iter()
+        .find(|node| node.node_type == "ContractDefinition" && node.name.as_deref() == Some(name))
+    else {
+        return false;
+    };
+
+    let mut visited = HashSet::new();
+    let mut pending = vec![contract];
+    while let Some(node) = pending.pop() {
+        if !visited.insert(node.id) {
+            continue;
+        }
+        let declares = node.nodes.iter().any(|child| {
+            child.node_type == "VariableDeclaration" && child.state_variable && !child.constant
+        });
+        if declares {
+            return true;
+        }
+        for base in &node.base_contracts {
+            if let Some(base_id) = base.base_name.referenced_declaration
+                && let Some(base_node) = by_id.get(&base_id)
+            {
+                pending.push(base_node);
+            }
+        }
+    }
+    false
+}
+
+/// Artifact representation that deserializes only the storage layout and the
+/// lightweight AST needed to detect storage-declaring contracts.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Artifact {
     storage_layout: Option<StorageLayout>,
+    ast: Option<LightweightSourceUnit>,
+}
+
+/// Lightweight source unit that only deserializes contract definitions.
+#[derive(Deserialize)]
+struct LightweightSourceUnit {
+    #[serde(default)]
+    nodes: Vec<LightweightNode>,
+}
+
+/// Lightweight contract node that only deserializes the fields needed to
+/// detect storage-declaring contracts.
+#[derive(Deserialize)]
+struct LightweightNode {
+    #[serde(rename = "nodeType")]
+    node_type: String,
+    id: i64,
+    name: Option<String>,
+    #[serde(default)]
+    nodes: Vec<LightweightChild>,
+    #[serde(default, rename = "baseContracts")]
+    base_contracts: Vec<LightweightBase>,
+}
+
+/// Lightweight contract child that only deserializes variable declaration
+/// metadata.
+#[derive(Deserialize)]
+struct LightweightChild {
+    #[serde(rename = "nodeType")]
+    node_type: String,
+    #[serde(default, rename = "stateVariable")]
+    state_variable: bool,
+    #[serde(default)]
+    constant: bool,
+}
+
+/// Lightweight base contract specifier.
+#[derive(Deserialize)]
+struct LightweightBase {
+    #[serde(rename = "baseName")]
+    base_name: LightweightTypeName,
+}
+
+/// Lightweight user-defined type name.
+#[derive(Deserialize)]
+struct LightweightTypeName {
+    #[serde(rename = "referencedDeclaration")]
+    referenced_declaration: Option<i64>,
 }
 
 fn parse_artifact(path: impl AsRef<Path>) -> Result<Artifact> {
@@ -220,7 +332,49 @@ mod tests {
     use crate::project::Project;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/storages")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-storages")
+    }
+
+    fn solc_0_5_fixture_path() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-storages-solc-0.5")
+    }
+
+    #[test]
+    fn inspect_errors_for_empty_layout_with_storage_variables() {
+        let inspector = StorageLayoutInspector::new(Project::open(solc_0_5_fixture_path()));
+        let id = StorageLayoutId::new("Store");
+        let err = inspector.inspect(&id).unwrap_err().to_string();
+        let artifact = solc_0_5_fixture_path().join("out/Contract.sol/Store.json");
+        assert_eq!(
+            err,
+            format!(
+                "artifact `{}` has an empty storage layout even though the contract declares storage variables; storage layout output is not available for solc < 0.6 builds",
+                artifact.display()
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_errors_for_empty_layout_with_inherited_storage() {
+        let inspector = StorageLayoutInspector::new(Project::open(solc_0_5_fixture_path()));
+        let id = StorageLayoutId::new("Child");
+        let err = inspector.inspect(&id).unwrap_err().to_string();
+        let artifact = solc_0_5_fixture_path().join("out/Contract.sol/Child.json");
+        assert_eq!(
+            err,
+            format!(
+                "artifact `{}` has an empty storage layout even though the contract declares storage variables; storage layout output is not available for solc < 0.6 builds",
+                artifact.display()
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_allows_empty_layout_for_storage_less_contract() {
+        let inspector = StorageLayoutInspector::new(Project::open(solc_0_5_fixture_path()));
+        let id = StorageLayoutId::new("Empty");
+        let output = inspector.inspect(&id).unwrap();
+        assert_eq!(output.to_string(), "");
     }
 
     #[test]

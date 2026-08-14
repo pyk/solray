@@ -308,6 +308,32 @@ mod tests {
     }
 
     #[test]
+    fn call_graph_includes_native_transfer() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("NativeTransfer", "transferEth");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_includes_native_transfer.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_graph_includes_native_send() {
+        let inspector = CallGraphInspector::new(fixture_project());
+        let id = make_id("NativeTransfer", "sendEth");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-call-graph/expected/call_graph_includes_native_send.txt"
+            )
+        );
+    }
+
+    #[test]
     fn call_graph_includes_calls_inside_index_access() {
         let inspector = CallGraphInspector::new(fixture_project());
         let id = make_id("IndexAccessCaller", "run");

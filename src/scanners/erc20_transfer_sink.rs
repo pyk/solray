@@ -348,6 +348,9 @@ fn collect_from_expression(expr: &Expression, ctx: &mut ScanContext) {
         Expression::FunctionCall(fc) => {
             if let FunctionCallExpression::MemberAccess(ma) = &*fc.expression
                 && is_transfer_method(&ma.member_name)
+                // Unresolved members are builtins of elementary types such as
+                // `address payable.transfer`, which is a native ETH transfer.
+                && ma.referenced_declaration.is_some()
                 && ctx.visited_src.insert((fc.src.offset, fc.src.length))
                 && let Some(sink) = build_transfer_sink(fc, ctx)
             {

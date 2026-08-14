@@ -207,14 +207,22 @@ impl AbstractInspector {
     }
 }
 
-/// Quick check whether the raw file bytes contain `"abstract":true`.
+/// Quick check whether the raw file bytes contain an abstract-contract
+/// signal: the explicit `"abstract":` field (solc >= 0.6) or an unimplemented
+/// function declaration (the only signal solc < 0.6 emits, where contracts are
+/// implicitly abstract).
 ///
 /// This lets us skip JSON deserialization entirely for the vast majority of
 /// artifacts that contain no abstract contracts.
 fn might_be_abstract(path: impl AsRef<Path>) -> Result<bool> {
     let bytes = fs::read(path)?;
-    let pattern = b"\"abstract\":";
-    Ok(bytes.windows(pattern.len()).any(|w| w == pattern))
+    let patterns = [
+        b"\"abstract\":".as_slice(),
+        b"\"implemented\":false".as_slice(),
+    ];
+    Ok(patterns
+        .iter()
+        .any(|pattern| bytes.windows(pattern.len()).any(|w| w == *pattern)))
 }
 
 /// Parse a single artifact JSON file, returning [`Some(Abstract)`] only if the
@@ -289,6 +297,18 @@ struct LightweightNode {
     abstract_fallback: bool,
     #[serde(rename = "contractKind")]
     contract_kind: Option<String>,
+    #[serde(default)]
+    nodes: Vec<LightweightChild>,
+}
+
+/// Lightweight contract child that only deserializes the fields needed to
+/// detect implicitly abstract contracts (unimplemented functions).
+#[derive(Deserialize)]
+struct LightweightChild {
+    #[serde(rename = "nodeType")]
+    node_type: String,
+    #[serde(default)]
+    implemented: bool,
 }
 
 impl LightweightNode {
@@ -301,13 +321,22 @@ impl LightweightNode {
         if self.contract_kind.as_deref() != Some("contract") {
             return None;
         }
-        if !self.abstract_fallback {
+        if !self.abstract_fallback && !self.has_unimplemented_functions() {
             return None;
         }
         if self.name.as_deref() != Some(target_name) {
             return None;
         }
         self.name.clone()
+    }
+
+    /// Return true when any function is declared without a body, which makes
+    /// the contract implicitly abstract under solc < 0.6 (the `abstract`
+    /// keyword did not exist yet and is absent from the AST).
+    fn has_unimplemented_functions(&self) -> bool {
+        self.nodes
+            .iter()
+            .any(|node| node.node_type == "FunctionDefinition" && !node.implemented)
     }
 }
 
@@ -337,6 +366,17 @@ mod tests {
         let inspector = AbstractInspector::new(Project::open(fixture_path()));
         let output = inspector.inspect().unwrap();
         let expected = include_str!("../../fixtures/abstracts/expected/output.txt");
+        assert_eq!(output.to_string(), expected);
+    }
+
+    #[test]
+    fn inspect_finds_implicitly_abstract_solc_0_5_contracts() {
+        let root =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-contracts-solc-0.5");
+        let inspector = AbstractInspector::new(Project::open(&root));
+        let output = inspector.inspect().unwrap();
+        let expected =
+            include_str!("../../fixtures/inspect-contracts-solc-0.5/expected/abstracts.txt");
         assert_eq!(output.to_string(), expected);
     }
 

@@ -168,6 +168,9 @@ enum InspectSubcommand {
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
+        /// Show debug logs while resolving the storage layout
+        #[arg(long)]
+        debug: bool,
     },
 }
 
@@ -381,7 +384,14 @@ fn main() -> Result<()> {
                 let output = inspector.inspect(&id, &function)?;
                 print_output(&output);
             }
-            InspectSubcommand::StorageLayout { id, project } => {
+            InspectSubcommand::StorageLayout { id, project, debug } => {
+                if debug {
+                    let _ = tracing_subscriber::fmt()
+                        .with_max_level(tracing::Level::DEBUG)
+                        .with_target(true)
+                        .with_writer(std::io::stderr)
+                        .try_init();
+                }
                 let project = Project::open(&project);
                 let inspector = StorageLayoutInspector::new(project);
                 let id = StorageLayoutId::new(&id);
