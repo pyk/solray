@@ -10,6 +10,10 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Added
 
+- `solray inspect contracts` now supports solc < 0.6 projects, whose ASTs omit
+  the `abstract` flag; implicitly abstract contracts (e.g. the function-only
+  `*Like` adapters in MakerDAO DSS) are no longer listed as deployable.
+
 ### Changed
 
 - Upgraded solc dependency to v0.1.1

@@ -522,9 +522,9 @@ mod tests {
 
     #[test]
     fn scan_project_without_transfers_returns_empty_output() {
-        // The contracts fixture has no transfer calls.
+        // The inspect-contracts fixture has no transfer calls.
         let contracts_fixture =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/contracts");
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-contracts");
         let scanner = Erc20TransferSinkScanner::new(Project::open(contracts_fixture));
         let output = scanner.scan().unwrap();
         assert_eq!(

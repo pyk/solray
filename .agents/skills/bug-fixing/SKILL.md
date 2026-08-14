@@ -166,7 +166,7 @@ Match the affected feature's existing test module under `src/inspectors/` or
 
 | Feature                    | Fixture directory                   |
 | :------------------------- | :---------------------------------- |
-| `inspect contracts`        | `fixtures/contracts/`               |
+| `inspect contracts`        | `fixtures/inspect-contracts/`       |
 | `inspect function-source`  | `fixtures/inspect-function-source/` |
 | `scan erc20-transfer-sink` | `fixtures/erc20-transfer-sinks/`    |
 | `scan asset-transfers`     | `fixtures/asset-transfers/`         |

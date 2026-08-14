@@ -1,0 +1,6 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib", "node_modules"]
+ast = true
+solc_version = "0.5.12"

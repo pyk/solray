@@ -289,6 +289,18 @@ struct LightweightNode {
     abstract_fallback: bool,
     #[serde(rename = "contractKind")]
     contract_kind: Option<String>,
+    #[serde(default)]
+    nodes: Vec<LightweightChild>,
+}
+
+/// Lightweight contract child that only deserializes the fields needed to
+/// detect implicitly abstract contracts (unimplemented functions).
+#[derive(Deserialize)]
+struct LightweightChild {
+    #[serde(rename = "nodeType")]
+    node_type: String,
+    #[serde(default)]
+    implemented: bool,
 }
 
 impl LightweightNode {
@@ -301,13 +313,22 @@ impl LightweightNode {
         if self.contract_kind.as_deref() != Some("contract") {
             return None;
         }
-        if self.abstract_fallback {
+        if self.abstract_fallback || self.has_unimplemented_functions() {
             return None;
         }
         if self.name.as_deref() != Some(target_name) {
             return None;
         }
         self.name.clone()
+    }
+
+    /// Return true when any function is declared without a body, which makes
+    /// the contract implicitly abstract under solc < 0.6 (the `abstract`
+    /// keyword did not exist yet and is absent from the AST).
+    fn has_unimplemented_functions(&self) -> bool {
+        self.nodes
+            .iter()
+            .any(|node| node.node_type == "FunctionDefinition" && !node.implemented)
     }
 }
 
@@ -329,14 +350,25 @@ mod tests {
     }
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/contracts")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-contracts")
     }
 
     #[test]
     fn inspect_returns_only_deployable_contracts() {
         let inspector = ContractInspector::new(Project::open(fixture_path()));
         let output = inspector.inspect().unwrap();
-        let expected = include_str!("../../fixtures/contracts/expected/output.txt");
+        let expected = include_str!("../../fixtures/inspect-contracts/expected/output.txt");
+        assert_eq!(output.to_string(), expected);
+    }
+
+    #[test]
+    fn inspect_excludes_implicitly_abstract_solc_0_5_contracts() {
+        let root =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-contracts-solc-0.5");
+        let inspector = ContractInspector::new(Project::open(&root));
+        let output = inspector.inspect().unwrap();
+        let expected =
+            include_str!("../../fixtures/inspect-contracts-solc-0.5/expected/output.txt");
         assert_eq!(output.to_string(), expected);
     }
 

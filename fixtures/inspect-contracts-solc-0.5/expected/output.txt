@@ -1,0 +1,7 @@
+summary:
+- 2 contracts in src directory
+- total 2 contracts
+
+contracts in src directory:
+1. Empty (file: src/Contract.sol)
+2. GemJoin (file: src/Contract.sol)
