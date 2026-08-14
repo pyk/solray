@@ -88,7 +88,7 @@ enum InspectSubcommand {
     CallPath {
         /// The artifact ID (e.g. Name or File.sol:Name)
         contract: String,
-        /// The target function name (or Contract::function for library functions)
+        /// The target function name
         function: String,
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]

@@ -13,6 +13,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 ### Changed
 
 - Upgraded solc dependency to v0.1.1
+- `solray inspect call-path` help text no longer advertises the unsupported
+  `Contract::function` target syntax
 
 ### Fixed
 
