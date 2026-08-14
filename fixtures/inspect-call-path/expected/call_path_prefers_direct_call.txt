@@ -1,0 +1,27 @@
+## Call Paths
+
+Target: `_impl`
+Source: `src/DirectCall.sol:5`
+
+2 paths found.
+
+### Path 1
+
+```
+DirectCall.implementation
+src/DirectCall.sol:27
+└── ImplBase._impl
+    src/DirectCall.sol:5
+```
+
+### Path 2
+
+```
+DirectCall.implementation
+src/DirectCall.sol:27
+└── DirectCall._fallback
+    src/DirectCall.sol:23
+    └── ImplBase._impl
+        src/DirectCall.sol:5
+```
+

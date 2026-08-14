@@ -1,7 +1,7 @@
 //! Call path inspection for Foundry projects.
 //!
 //! [`CallPathInspector`] finds all external/public functions that can reach
-//! a given target function, showing only the linear path to the target.
+//! a given target function, showing every linear path to the target.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -73,17 +73,21 @@ impl std::fmt::Display for CallPathInspectorOutput {
             return Ok(());
         }
 
-        writeln!(f, "\n{} paths found.\n", self.roots.len())?;
+        let paths: Vec<Vec<&CallGraphNode>> = self
+            .roots
+            .iter()
+            .flat_map(|root| extract_paths_to_target(root, &self.scoped_target))
+            .collect();
+
+        writeln!(f, "\n{} paths found.\n", paths.len())?;
 
         let project_abs =
             std::path::absolute(&self.project_root).unwrap_or_else(|_| self.project_root.clone());
 
         let mut line_maps: HashMap<PathBuf, Vec<usize>> = HashMap::new();
 
-        for (i, root) in self.roots.iter().enumerate() {
+        for (i, path) in paths.iter().enumerate() {
             writeln!(f, "### Path {}\n", i + 1)?;
-
-            let path = extract_path_to_target(root, &self.scoped_target);
 
             writeln!(f, "```")?;
             for (j, node) in path.iter().enumerate() {
@@ -139,19 +143,37 @@ fn format_call_path_node(node: &CallGraphNode) -> String {
     format!("{}.{}", node.contract_name, func_name)
 }
 
-/// Extract the linear path from root to the target node.
-fn extract_path_to_target<'a>(root: &'a CallGraphNode, target: &str) -> Vec<&'a CallGraphNode> {
+/// Extract every linear path from root to the target node.
+///
+/// Direct call edges are listed before paths that reach the target through an
+/// intermediate function, such as a modifier's fallback branch.
+fn extract_paths_to_target<'a>(
+    root: &'a CallGraphNode,
+    target: &str,
+) -> Vec<Vec<&'a CallGraphNode>> {
     if root.matches_target(target) {
-        return vec![root];
+        return vec![vec![root]];
     }
+    let mut paths = Vec::new();
+    let mut indirect_children = Vec::new();
     for child in &root.children {
-        if child.reaches_target(target) {
-            let mut path = extract_path_to_target(child, target);
-            path.insert(0, root);
-            return path;
+        if child.matches_target(target) {
+            paths.push(vec![root, child]);
+        } else if child.reaches_target(target) {
+            indirect_children.push(child);
         }
     }
-    vec![root]
+    for child in indirect_children {
+        for mut path in extract_paths_to_target(child, target) {
+            path.insert(0, root);
+            paths.push(path);
+        }
+    }
+    if paths.is_empty() {
+        vec![vec![root]]
+    } else {
+        paths
+    }
 }
 
 /// Inspect a Foundry project for call paths to a target function.
@@ -565,6 +587,32 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-call-path/expected/call_path_for_public_getter.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_path_prefers_direct_call() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("DirectCall", "_impl");
+        let output = inspector.inspect(&id, "_impl").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_prefers_direct_call.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_path_lists_all_branches() {
+        let inspector = CallPathInspector::new(fixture_call_path_project());
+        let id = make_id("Branch", "isContract");
+        let output = inspector.inspect(&id, "isContract").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-call-path/expected/call_path_lists_all_branches.txt"
             )
         );
     }

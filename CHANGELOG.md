@@ -16,6 +16,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect call-path` now reports every call path from an entry function
+  to the target, including direct calls that an indirect modifier or helper
+  branch would otherwise hide.
 - `solray inspect function-source` now follows symbols referenced in constant
   and state-variable initializers, such as `FEE_SIZE` via `NEXT_OFFSET` and
   `DEFAULT_AMOUNT_IN_CACHED` via `amountInCached`.

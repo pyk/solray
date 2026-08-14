@@ -1,0 +1,29 @@
+## Call Paths
+
+Target: `isContract`
+Source: `src/Branch.sol:5`
+
+2 paths found.
+
+### Path 1
+
+```
+Branch.entry
+src/Branch.sol:17
+└── Branch.viaA
+    src/Branch.sol:9
+    └── Branch.isContract
+        src/Branch.sol:5
+```
+
+### Path 2
+
+```
+Branch.entry
+src/Branch.sol:17
+└── Branch.viaB
+    src/Branch.sol:13
+    └── Branch.isContract
+        src/Branch.sol:5
+```
+
