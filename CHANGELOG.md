@@ -10,6 +10,14 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.9.0] - 2026-08-15
+
+### Added
+
 - `solray inspect contracts` now supports solc < 0.6 projects, whose ASTs omit
   the `abstract` flag; implicitly abstract contracts (e.g. the function-only
   `*Like` adapters in MakerDAO DSS) are no longer listed as deployable.
@@ -391,7 +399,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - Support for incremental builds, cross-file references, and NatSpec blocks in
   function source resolution
 
-[unreleased]: https://github.com/pyk/solray/compare/v0.8.0...HEAD
+[unreleased]: https://github.com/pyk/solray/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/pyk/solray/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/pyk/solray/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/pyk/solray/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/pyk/solray/compare/v0.5.0...v0.6.0
