@@ -24,13 +24,13 @@ use crate::project::Project;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssetTransferKind {
     /// ERC20 `transfer`
-    Erc20Transfer,
+    ERC20Transfer,
     /// ERC20 `safeTransfer`
-    Erc20SafeTransfer,
+    ERC20SafeTransfer,
     /// ERC20 `transferFrom`
-    Erc20TransferFrom,
+    ERC20TransferFrom,
     /// ERC20 `safeTransferFrom`
-    Erc20SafeTransferFrom,
+    ERC20SafeTransferFrom,
     /// ETH `send`
     EthSend,
     /// ETH low-level `call{value}`
@@ -44,10 +44,10 @@ pub enum AssetTransferKind {
 impl std::fmt::Display for AssetTransferKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AssetTransferKind::Erc20Transfer => write!(f, "Transfer ERC20"),
-            AssetTransferKind::Erc20SafeTransfer => write!(f, "Safe Transfer ERC20"),
-            AssetTransferKind::Erc20TransferFrom => write!(f, "Transfer From ERC20"),
-            AssetTransferKind::Erc20SafeTransferFrom => write!(f, "Safe Transfer From ERC20"),
+            AssetTransferKind::ERC20Transfer => write!(f, "Transfer ERC20"),
+            AssetTransferKind::ERC20SafeTransfer => write!(f, "Safe Transfer ERC20"),
+            AssetTransferKind::ERC20TransferFrom => write!(f, "Transfer From ERC20"),
+            AssetTransferKind::ERC20SafeTransferFrom => write!(f, "Safe Transfer From ERC20"),
             AssetTransferKind::EthSend => write!(f, "Send ETH"),
             AssetTransferKind::EthCall => write!(f, "Call ETH"),
             AssetTransferKind::EthTransfer => write!(f, "Transfer ETH"),
@@ -516,12 +516,12 @@ fn method_to_kind(member_name: &str, fc: &FunctionCall) -> Option<AssetTransferK
             if fc.arguments.len() == 1 {
                 Some(AssetTransferKind::EthTransfer)
             } else {
-                Some(AssetTransferKind::Erc20Transfer)
+                Some(AssetTransferKind::ERC20Transfer)
             }
         }
-        "safeTransfer" => Some(AssetTransferKind::Erc20SafeTransfer),
-        "transferFrom" => Some(AssetTransferKind::Erc20TransferFrom),
-        "safeTransferFrom" => Some(AssetTransferKind::Erc20SafeTransferFrom),
+        "safeTransfer" => Some(AssetTransferKind::ERC20SafeTransfer),
+        "transferFrom" => Some(AssetTransferKind::ERC20TransferFrom),
+        "safeTransferFrom" => Some(AssetTransferKind::ERC20SafeTransferFrom),
         "send" => Some(AssetTransferKind::EthSend),
         _ => None,
     }
@@ -750,7 +750,7 @@ mod tests {
             function_name: "erc20Transfer".to_string(),
             visibility: "external".to_string(),
             expression: "token.transfer(to, amount)".to_string(),
-            kind: AssetTransferKind::Erc20Transfer,
+            kind: AssetTransferKind::ERC20Transfer,
             file: PathBuf::from("src/AssetTransfers.sol"),
             line: 14,
         };

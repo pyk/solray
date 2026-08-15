@@ -25,6 +25,14 @@ test: # Run tests
 	@echo "Run tests"
 	@cargo test --quiet
 
+.PHONY: doc
+doc: # Build docs and serve them
+	@echo "Run doc build"
+	@cargo doc --no-deps
+	@IP=$$(python3 -c 'import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(("8.8.8.8", 80)); print(s.getsockname()[0])'); \
+	echo "Serving docs on http://$$IP:8000/solray/"; \
+	cd target/doc && python3 -m http.server 8000 --bind 0.0.0.0
+
 FIXTURE_DIRS := $(wildcard fixtures/*)
 
 .PHONY: build-fixtures

@@ -22,6 +22,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 - Upgraded solc dependency to v0.1.1
 - `solray inspect call-path` help text no longer advertises the unsupported
   `Contract::function` target syntax
+- Public types are now re-exported at the crate root instead of through public
+  module paths; internal modules are private
+- `ERC20TransferSink`, `ERC20TransferSinkScanner`, and
+  `ERC20TransferSinkScannerOutput` were renamed from the `Erc20*` spelling, and
+  `AssetTransferKind` variants were renamed from `Erc20Transfer*` to
+  `ERC20Transfer*`
 
 ### Fixed
 

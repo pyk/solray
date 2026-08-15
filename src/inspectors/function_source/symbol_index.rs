@@ -185,27 +185,11 @@ impl SymbolIndex {
         &self.artifacts[artifact_id]
     }
 
-    /// Return the number of indexed declaration IDs.
-    pub fn len(&self) -> usize {
-        self.inner.len()
-    }
-
-    /// Return `true` if the index contains no entries.
-    pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
-    }
-
     /// Look up an entry by build-info ID and declaration ID.
     /// Scoping by build-info prevents collisions when the same AST node ID
     /// is (legitimately) reused across different compilation units.
     pub fn get(&self, bid: &str, id: i64) -> Option<&SymbolIndexEntry> {
         self.inner.get(&(bid.to_string(), id))
-    }
-
-    /// Return `true` if the given AST node ID is indexed for the given
-    /// build-info.
-    pub fn contains(&self, bid: &str, id: i64) -> bool {
-        self.inner.contains_key(&(bid.to_string(), id))
     }
 
     /// Iterate over all entries in the index (across all build-infos).
@@ -422,7 +406,7 @@ mod tests {
         let artifact_index = ArtifactIndex::build(project_root.join("out"));
         let build_infos = BuildInfo::load_all(project_root.join("out"));
         let symbol_index = SymbolIndex::build(&artifact_index, &build_infos);
-        assert!(symbol_index.len() > 0);
+        assert!(symbol_index.values().count() > 0);
     }
 
     #[test]
@@ -432,7 +416,7 @@ mod tests {
         let build_infos = BuildInfo::load_all(project_root.join("out"));
         let symbol_index = SymbolIndex::build(&artifact_index, &build_infos);
         // The Main.sol fixture has a "Data" struct which should be indexed
-        let has_struct = symbol_index.len() > 3; // at least: execute, _processData, _compute, Data
+        let has_struct = symbol_index.values().count() > 3; // at least: execute, _processData, _compute, Data
         assert!(
             has_struct,
             "Expected at least 4 declarations (3 functions + 1 struct)"

@@ -12,7 +12,7 @@ use solray::AssetTransferScanner;
 use solray::CallGraphInspector;
 use solray::CallPathInspector;
 use solray::ContractInspector;
-use solray::Erc20TransferSinkScanner;
+use solray::ERC20TransferSinkScanner;
 use solray::ExternalFunctionInspector;
 use solray::FunctionId;
 use solray::FunctionSourceInspector;
@@ -177,7 +177,7 @@ enum InspectSubcommand {
 #[derive(Subcommand)]
 enum ScanSubcommand {
     /// Scan for ERC20 transfer and safeTransfer calls.
-    Erc20TransferSink {
+    ERC20TransferSink {
         /// Path to the Foundry project
         #[arg(long, default_value = ".")]
         project: PathBuf,
@@ -223,7 +223,7 @@ fn main() -> Result<()> {
             }
         },
         Command::Scan(args) => match args.subcommand {
-            ScanSubcommand::Erc20TransferSink { project, debug } => {
+            ScanSubcommand::ERC20TransferSink { project, debug } => {
                 if debug {
                     let _ = tracing_subscriber::fmt()
                         .with_max_level(tracing::Level::DEBUG)
@@ -232,7 +232,7 @@ fn main() -> Result<()> {
                         .try_init();
                 }
                 let project = Project::open(&project);
-                let scanner = Erc20TransferSinkScanner::new(project);
+                let scanner = ERC20TransferSinkScanner::new(project);
                 let output = scanner.scan()?;
                 print_output(&output);
             }

@@ -1,6 +1,6 @@
 //! ERC20 Transfer Sink scanner.
 //!
-//! [`Erc20TransferSinkScanner`] inspects a Foundry project's AST and reports
+//! [`ERC20TransferSinkScanner`] inspects a Foundry project's AST and reports
 //! all call sites where `.transfer()` or `.safeTransfer()` is invoked on an
 //! ERC20 token.
 
@@ -21,7 +21,7 @@ use crate::project::Project;
 
 /// A single ERC20 transfer or safeTransfer call site.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Erc20TransferSink {
+pub struct ERC20TransferSink {
     /// The contract or library name containing the function that makes the
     /// transfer.
     pub contract_name: String,
@@ -35,7 +35,7 @@ pub struct Erc20TransferSink {
     pub line: usize,
 }
 
-impl std::fmt::Display for Erc20TransferSink {
+impl std::fmt::Display for ERC20TransferSink {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -47,14 +47,14 @@ impl std::fmt::Display for Erc20TransferSink {
     }
 }
 
-/// The output of an [`Erc20TransferSinkScanner`] scan.
-pub struct Erc20TransferSinkScannerOutput {
-    sinks: Vec<Erc20TransferSink>,
+/// The output of an [`ERC20TransferSinkScanner`] scan.
+pub struct ERC20TransferSinkScannerOutput {
+    sinks: Vec<ERC20TransferSink>,
     _project_root: PathBuf,
 }
 
-impl Erc20TransferSinkScannerOutput {
-    pub fn new(sinks: Vec<Erc20TransferSink>, project_root: PathBuf) -> Self {
+impl ERC20TransferSinkScannerOutput {
+    pub fn new(sinks: Vec<ERC20TransferSink>, project_root: PathBuf) -> Self {
         Self {
             sinks,
             _project_root: project_root,
@@ -62,7 +62,7 @@ impl Erc20TransferSinkScannerOutput {
     }
 }
 
-impl std::fmt::Display for Erc20TransferSinkScannerOutput {
+impl std::fmt::Display for ERC20TransferSinkScannerOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut sorted = self.sinks.clone();
         sorted.sort_by(|a, b| {
@@ -115,17 +115,17 @@ impl std::fmt::Display for Erc20TransferSinkScannerOutput {
 }
 
 /// Scan a Foundry project for ERC20 transfer sinks.
-pub struct Erc20TransferSinkScanner {
+pub struct ERC20TransferSinkScanner {
     project: Project,
 }
 
-impl Erc20TransferSinkScanner {
+impl ERC20TransferSinkScanner {
     pub fn new(project: Project) -> Self {
         Self { project }
     }
 
     /// Scan the project and return all ERC20 transfer sinks.
-    pub fn scan(&self) -> Result<Erc20TransferSinkScannerOutput> {
+    pub fn scan(&self) -> Result<ERC20TransferSinkScannerOutput> {
         self.project.validate()?;
         let project_root = std::path::absolute(self.project.path())?;
         let directories = self.project.directories()?;
@@ -146,7 +146,7 @@ impl Erc20TransferSinkScanner {
         // Only report sinks from the project's configured `src` directory.
         sinks.retain(|sink| sink.file.starts_with(&src_dir));
 
-        Ok(Erc20TransferSinkScannerOutput::new(sinks, project_root))
+        Ok(ERC20TransferSinkScannerOutput::new(sinks, project_root))
     }
 
     fn artifact_paths(&self) -> Vec<PathBuf> {
@@ -168,7 +168,7 @@ fn scan_artifact(
     artifact_path: impl AsRef<Path>,
     project_root: &Path,
     visited_src: &mut HashSet<(usize, usize)>,
-) -> Result<Option<Vec<Erc20TransferSink>>> {
+) -> Result<Option<Vec<ERC20TransferSink>>> {
     let artifact_path = artifact_path.as_ref();
     let content = fs::read_to_string(artifact_path)?;
     let artifact: Artifact = serde_json::from_str(&content)
@@ -225,7 +225,7 @@ struct ScanContext<'a> {
     project_root: &'a Path,
     line_cache: &'a LineCache,
     visited_src: &'a mut HashSet<(usize, usize)>,
-    sinks: &'a mut Vec<Erc20TransferSink>,
+    sinks: &'a mut Vec<ERC20TransferSink>,
 }
 
 /// Recursively search a list of statements for token transfer calls.
@@ -237,7 +237,7 @@ fn find_transfer_calls(
     project_root: &Path,
     line_cache: &LineCache,
     visited_src: &mut HashSet<(usize, usize)>,
-) -> Vec<Erc20TransferSink> {
+) -> Vec<ERC20TransferSink> {
     let mut sinks = Vec::new();
     let mut ctx = ScanContext {
         contract_name,
@@ -413,7 +413,7 @@ fn is_transfer_method(member_name: &str) -> bool {
 fn build_transfer_sink(
     fc: &solc::ast::FunctionCall,
     ctx: &ScanContext,
-) -> Option<Erc20TransferSink> {
+) -> Option<ERC20TransferSink> {
     debug!(
         file = %ctx.source_file.display(),
         offset = fc.src.offset,
@@ -430,7 +430,7 @@ fn build_transfer_sink(
         .unwrap_or(ctx.source_file)
         .to_path_buf();
 
-    Some(Erc20TransferSink {
+    Some(ERC20TransferSink {
         contract_name: ctx.contract_name.to_string(),
         function_name: ctx.function_name.to_string(),
         transfer_expression: source_text,
@@ -502,7 +502,7 @@ mod tests {
 
     #[test]
     fn scan_finds_transfer_sinks() {
-        let scanner = Erc20TransferSinkScanner::new(Project::open(fixture_path()));
+        let scanner = ERC20TransferSinkScanner::new(Project::open(fixture_path()));
         let output = scanner.scan().unwrap();
         let expected = include_str!("../../fixtures/scan-erc20-transfer-sinks/expected/output.txt");
         assert_eq!(output.to_string(), expected);
@@ -510,7 +510,7 @@ mod tests {
 
     #[test]
     fn sink_display_formats_as_file_line_expression() {
-        let sink = Erc20TransferSink {
+        let sink = ERC20TransferSink {
             contract_name: "Token".to_string(),
             function_name: "transferToken".to_string(),
             transfer_expression: "IERC20(token).safeTransfer(to, amount)".to_string(),
@@ -528,7 +528,7 @@ mod tests {
         // The inspect-contracts fixture has no transfer calls.
         let contracts_fixture =
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-contracts");
-        let scanner = Erc20TransferSinkScanner::new(Project::open(contracts_fixture));
+        let scanner = ERC20TransferSinkScanner::new(Project::open(contracts_fixture));
         let output = scanner.scan().unwrap();
         assert_eq!(
             output.to_string(),
@@ -541,7 +541,7 @@ mod tests {
         // The fixture has a test contract (test/TestTokenTransfer.sol) with a
         // safeTransfer call. This asserts it is filtered out so only sinks
         // inside the configured `src` directory are reported.
-        let scanner = Erc20TransferSinkScanner::new(Project::open(fixture_path()));
+        let scanner = ERC20TransferSinkScanner::new(Project::open(fixture_path()));
         let output = scanner.scan().unwrap();
         for sink in &output.sinks {
             assert!(

@@ -19,7 +19,7 @@ use crate::artifact_index::ArtifactIndex;
 use crate::inspectors::artifact_id::ArtifactId;
 use crate::project::Project;
 
-/// The output of an [`InterfaceGenerator`] generation.
+/// The output of an [`InterfaceGenerator`] run.
 #[derive(Debug)]
 pub struct InterfaceGeneratorOutput {
     contract_name: String,

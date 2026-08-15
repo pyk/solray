@@ -329,7 +329,7 @@ struct Artifact {
 
 // Call graph engine
 
-/// The core call-graph engine shared by inspectors.
+/// The core call graph engine shared by inspectors.
 ///
 /// Provides high-level methods to build call trees and find call paths
 /// from a project, encapsulating all internal bookkeeping.

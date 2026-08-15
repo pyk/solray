@@ -14,9 +14,8 @@
 </p>
 
 **Solray** is a Solidity source code explorer for Foundry-based projects. It
-helps security reviewers and developers understand contract codebases by
-resolving inheritance hierarchies, external functions, call graphs, storage
-layouts, and more, without leaving the terminal.
+answers questions about contract codebases straight from `forge build`
+artifacts.
 
 ## Features
 
@@ -206,7 +205,7 @@ has its own inspector or scanner type:
 | `CallGraphInspector`        | Show call graph of a function       |
 | `CallPathInspector`         | Show call paths to a function       |
 | `FunctionSourceInspector`   | Show function source code           |
-| `Erc20TransferSinkScanner`  | Scan for ERC20 transfer calls       |
+| `ERC20TransferSinkScanner`  | Scan for ERC20 transfer calls       |
 | `AssetTransferScanner`      | Scan for all asset transfer patterns |
 
 ## Development
