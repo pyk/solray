@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
-use solc::abi::{Abi, AbiItem, Function as AbiFunction, StateMutability};
+use solc::abi::{Abi, Function as AbiFunction, Item, StateMutability};
 use solc::ast::{
     ContractDefinition, ContractDefinitionNode, ContractKind, FunctionDefinition, FunctionKind,
     SourceLocation, SourceUnit, SourceUnitNode, VariableDeclaration, Visibility,
@@ -199,7 +199,7 @@ impl ExternalFunctionInspector {
 
         for item in &abi.items {
             match item {
-                AbiItem::Function(function) => {
+                Item::Function(function) => {
                     let signature = external_function_signature(function);
                     debug!(
                         contract = %contract_name,
@@ -248,7 +248,7 @@ impl ExternalFunctionInspector {
                         state_changing.push(func_info);
                     }
                 }
-                AbiItem::Receive(_) => {
+                Item::Receive(_) => {
                     let info = resolve_special(
                         "receive",
                         &index,
@@ -259,7 +259,7 @@ impl ExternalFunctionInspector {
                     );
                     special.push(info);
                 }
-                AbiItem::Fallback(fallback) => {
+                Item::Fallback(fallback) => {
                     let info = resolve_special(
                         "fallback",
                         &index,
@@ -437,9 +437,9 @@ impl FunctionIndex {
             .as_ref()
             .and_then(|f| self.byte_offset_to_line(f, fn_def.src.offset));
         let info = FuncInfo::from_ast(fn_def, display_file, line, is_interface);
-        match fn_def.kind {
-            FunctionKind::Receive | FunctionKind::Fallback => {
-                let kind_name = format!("{:?}", fn_def.kind);
+        match &fn_def.kind {
+            Some(kind @ (FunctionKind::Receive | FunctionKind::Fallback)) => {
+                let kind_name = format!("{kind:?}");
                 self.by_kind
                     .insert((contract_name.to_string(), kind_name), info);
             }

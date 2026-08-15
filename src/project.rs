@@ -219,7 +219,9 @@ impl Project {
 
 fn classify_contract(cd: &ContractDefinition) -> DeclarationKind {
     match cd.contract_kind {
-        ContractKind::Contract if cd.r#abstract => DeclarationKind::AbstractContract,
+        ContractKind::Contract if cd.r#abstract.unwrap_or(false) => {
+            DeclarationKind::AbstractContract
+        }
         ContractKind::Contract => DeclarationKind::Contract,
         ContractKind::Interface => DeclarationKind::Interface,
         ContractKind::Library => DeclarationKind::Library,

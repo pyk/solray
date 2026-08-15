@@ -278,7 +278,7 @@ struct FunctionInfo {
     is_interface: bool,
     parameters: Vec<VariableDeclaration>,
     visibility: Visibility,
-    kind: FunctionKind,
+    kind: Option<FunctionKind>,
     src_offset: usize,
     src_length: usize,
     body: Option<Block>,
@@ -889,7 +889,8 @@ impl CallGraph {
         functions: &mut HashMap<i64, FunctionInfo>,
     ) -> Result<Option<i64>> {
         if let Some(id) = functions.values().find(|fi| {
-            fi.kind == FunctionKind::Constructor && fi.contract_name == modifier.modifier_name.name
+            fi.kind == Some(FunctionKind::Constructor)
+                && fi.contract_name == modifier.modifier_name.name
         }) {
             return Ok(Some(id.id));
         }
@@ -909,7 +910,7 @@ impl CallGraph {
         Ok(functions
             .values()
             .find(|fi| {
-                fi.kind == FunctionKind::Constructor
+                fi.kind == Some(FunctionKind::Constructor)
                     && fi.contract_name == modifier.modifier_name.name
             })
             .map(|fi| fi.id))
@@ -932,7 +933,7 @@ impl CallGraph {
         if let Some(name) = contract_name
             && let Some(id) = functions
                 .values()
-                .find(|fi| fi.kind == FunctionKind::Constructor && fi.contract_name == name)
+                .find(|fi| fi.kind == Some(FunctionKind::Constructor) && fi.contract_name == name)
         {
             return Ok(Some(id.id));
         }
@@ -947,7 +948,7 @@ impl CallGraph {
         load_artifact_functions(artifact_path, functions, &cache)?;
         Ok(functions
             .values()
-            .find(|fi| fi.kind == FunctionKind::Constructor && fi.contract_name == entry.name)
+            .find(|fi| fi.kind == Some(FunctionKind::Constructor) && fi.contract_name == entry.name)
             .map(|fi| fi.id))
     }
 
@@ -1389,7 +1390,7 @@ impl CallGraph {
         let Some(info) = functions.get(&id) else {
             return Ok(id);
         };
-        if info.kind != FunctionKind::Function {
+        if info.kind != Some(FunctionKind::Function) {
             return Ok(id);
         }
         let inheritance_order = self.inheritance_order.borrow();
@@ -1428,7 +1429,7 @@ impl CallGraph {
         let best = functions
             .values()
             .filter(|candidate| {
-                candidate.kind == FunctionKind::Function
+                candidate.kind == Some(FunctionKind::Function)
                     && candidate.name == info.name
                     && format_params(&candidate.parameters) == signature
                     && inheritance_order
@@ -1670,7 +1671,7 @@ fn extract_contract_functions(cd: ContractDefinition, source_file: &Path) -> Vec
         .filter_map(|inner| match inner {
             ContractDefinitionNode::FunctionDefinition(fd) => Some(FunctionInfo {
                 id: fd.id,
-                name: function_name_for_display(&fd.kind, &fd.name).to_string(),
+                name: function_name_for_display(fd.kind.as_ref(), &fd.name).to_string(),
                 contract_name: contract_name.clone(),
                 file: file.clone(),
                 is_interface,
@@ -1693,7 +1694,7 @@ fn extract_contract_functions(cd: ContractDefinition, source_file: &Path) -> Vec
                     is_interface,
                     parameters: Vec::new(),
                     visibility: Visibility::Public,
-                    kind: FunctionKind::Function,
+                    kind: Some(FunctionKind::Function),
                     src_offset: vd.src.offset,
                     src_length: vd.src.length,
                     body: None,
@@ -1720,17 +1721,17 @@ fn find_modifier_body(ast: &SourceUnit, modifier_id: i64) -> Option<Block> {
     None
 }
 
-fn function_name_for_display<'a>(kind: &FunctionKind, name: &'a str) -> &'a str {
+fn function_name_for_display<'a>(kind: Option<&FunctionKind>, name: &'a str) -> &'a str {
     match kind {
-        FunctionKind::Constructor => "constructor",
-        FunctionKind::Receive => "receive",
-        FunctionKind::Fallback => "fallback",
+        Some(FunctionKind::Constructor) => "constructor",
+        Some(FunctionKind::Receive) => "receive",
+        Some(FunctionKind::Fallback) => "fallback",
         _ => name,
     }
 }
 
 fn build_signature(info: &FunctionInfo) -> String {
-    let name = function_name_for_display(&info.kind, &info.name);
+    let name = function_name_for_display(info.kind.as_ref(), &info.name);
     format!(
         "{}::{}({})",
         info.contract_name,

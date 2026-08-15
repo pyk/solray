@@ -137,7 +137,7 @@ fn contract_node_type(cd: &ContractDefinition) -> &'static str {
     match cd.contract_kind {
         ContractKind::Interface => "InterfaceDefinition",
         ContractKind::Library => "LibraryDefinition",
-        ContractKind::Contract if cd.r#abstract => "AbstractContractDefinition",
+        ContractKind::Contract if cd.r#abstract.unwrap_or(false) => "AbstractContractDefinition",
         ContractKind::Contract => "ContractDefinition",
     }
 }
@@ -185,11 +185,11 @@ fn collect_override_entries(
             let ContractDefinitionNode::FunctionDefinition(fd) = inner else {
                 continue;
             };
-            if fd.kind != FunctionKind::Function || fd.visibility == Visibility::Private {
+            if fd.kind != Some(FunctionKind::Function) || fd.visibility == Visibility::Private {
                 continue;
             }
             let params = format_params(&fd.parameters.parameters);
-            if fd.r#virtual || fd.overrides.is_some() {
+            if fd.r#virtual.unwrap_or(false) || fd.overrides.is_some() {
                 dispatchable.insert((
                     String::from(contract_name),
                     String::from(&fd.name),
@@ -880,11 +880,11 @@ fn find_artifact_for_source(
     None
 }
 
-fn function_name_for_display<'a>(kind: &FunctionKind, name: &'a str) -> &'a str {
+fn function_name_for_display<'a>(kind: Option<&FunctionKind>, name: &'a str) -> &'a str {
     match kind {
-        FunctionKind::Constructor => "constructor",
-        FunctionKind::Receive => "receive",
-        FunctionKind::Fallback => "fallback",
+        Some(FunctionKind::Constructor) => "constructor",
+        Some(FunctionKind::Receive) => "receive",
+        Some(FunctionKind::Fallback) => "fallback",
         _ => name,
     }
 }
@@ -918,22 +918,29 @@ fn extract_function_symbols(
                         || (cd.name == contract_name
                             && include_interface_declarations
                             && cd.contract_kind == ContractKind::Interface))
-                    && function_name_for_display(&fd.kind, &fd.name) == function_name
+                    && function_name_for_display(fd.kind.as_ref(), &fd.name) == function_name
                 {
                     let is_special = matches!(
                         fd.kind,
-                        FunctionKind::Constructor | FunctionKind::Receive | FunctionKind::Fallback
+                        Some(
+                            FunctionKind::Constructor
+                                | FunctionKind::Receive
+                                | FunctionKind::Fallback
+                        )
                     );
                     let include_special = match special {
                         SpecialFunctionFilter::All => true,
                         SpecialFunctionFilter::FallbackReceive => {
-                            matches!(fd.kind, FunctionKind::Receive | FunctionKind::Fallback)
+                            matches!(
+                                fd.kind,
+                                Some(FunctionKind::Receive | FunctionKind::Fallback)
+                            )
                         }
                     };
                     if is_special && !include_special {
                         continue;
                     }
-                    let display_name = function_name_for_display(&fd.kind, &fd.name);
+                    let display_name = function_name_for_display(fd.kind.as_ref(), &fd.name);
                     let sig = format!(
                         "{}.{}({})",
                         contract_name,
@@ -989,18 +996,25 @@ fn collect_contract_functions(
                 {
                     let is_special = matches!(
                         fd.kind,
-                        FunctionKind::Constructor | FunctionKind::Receive | FunctionKind::Fallback
+                        Some(
+                            FunctionKind::Constructor
+                                | FunctionKind::Receive
+                                | FunctionKind::Fallback
+                        )
                     );
                     let include_special = match special {
                         SpecialFunctionFilter::All => true,
                         SpecialFunctionFilter::FallbackReceive => {
-                            matches!(fd.kind, FunctionKind::Receive | FunctionKind::Fallback)
+                            matches!(
+                                fd.kind,
+                                Some(FunctionKind::Receive | FunctionKind::Fallback)
+                            )
                         }
                     };
                     if is_special && !include_special {
                         continue;
                     }
-                    out.push(function_name_for_display(&fd.kind, &fd.name).to_string());
+                    out.push(function_name_for_display(fd.kind.as_ref(), &fd.name).to_string());
                 }
                 if let ContractDefinitionNode::VariableDeclaration(vd) = inner
                     && vd.visibility == Visibility::Public
@@ -1141,7 +1155,7 @@ fn find_constructor_in_ast(
             let ContractDefinitionNode::FunctionDefinition(fd) = inner else {
                 continue;
             };
-            if fd.kind != FunctionKind::Constructor || !fd.implemented {
+            if fd.kind != Some(FunctionKind::Constructor) || !fd.implemented {
                 continue;
             }
             return Some((

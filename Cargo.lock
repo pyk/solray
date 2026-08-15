@@ -377,9 +377,9 @@ checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
 
 [[package]]
 name = "solc"
-version = "0.1.1"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c54332d7583a699a4fa121f8956aa2bcb8b3c7549c363d2a50e0b6b6de0e4a8"
+checksum = "1f2b99932c1ea90f7ae3eaaa81c9e85a0d6ed3a7e829e11dfa41977a943035fe"
 dependencies = [
  "serde",
  "serde_json",

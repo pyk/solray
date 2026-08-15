@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
-use solc::abi::{Abi, AbiItem, Component, Function as AbiFunction, Param, StateMutability};
+use solc::abi::{Abi, Component, Function as AbiFunction, Item, Param, StateMutability};
 use solc::ast::{ContractDefinitionNode, SourceUnit, SourceUnitNode};
 
 use crate::artifact_index::ArtifactIndex;
@@ -349,7 +349,7 @@ fn render_interface(
         .items
         .iter()
         .filter_map(|item| match item {
-            AbiItem::Function(function) => Some(function),
+            Item::Function(function) => Some(function),
             _ => None,
         })
         .collect();

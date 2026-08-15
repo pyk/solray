@@ -241,8 +241,8 @@ fn scan_artifact(
 
             let fn_name = if fn_def.name.is_empty() {
                 match fn_def.kind {
-                    FunctionKind::Receive => "receive",
-                    FunctionKind::Fallback => "fallback",
+                    Some(FunctionKind::Receive) => "receive",
+                    Some(FunctionKind::Fallback) => "fallback",
                     _ => &fn_def.name,
                 }
             } else {
@@ -627,8 +627,8 @@ fn build_receive_sink(
 
     let fn_name = if fd.name.is_empty() {
         match fd.kind {
-            FunctionKind::Receive => "receive",
-            FunctionKind::Fallback => "fallback",
+            Some(FunctionKind::Receive) => "receive",
+            Some(FunctionKind::Fallback) => "fallback",
             _ => &fd.name,
         }
     } else {
