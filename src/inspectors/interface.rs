@@ -324,14 +324,14 @@ mod tests {
     }
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/interfaces")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-interfaces")
     }
 
     #[test]
     fn inspect_returns_only_interface_declarations() {
         let inspector = InterfaceInspector::new(Project::open(fixture_path()));
         let output = inspector.inspect().unwrap();
-        let expected = include_str!("../../fixtures/interfaces/expected/output.txt");
+        let expected = include_str!("../../fixtures/inspect-interfaces/expected/output.txt");
         assert_eq!(output.to_string(), expected);
     }
 

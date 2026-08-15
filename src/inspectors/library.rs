@@ -318,14 +318,14 @@ mod tests {
     }
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/libraries")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-libraries")
     }
 
     #[test]
     fn inspect_returns_only_library_declarations() {
         let inspector = LibraryInspector::new(Project::open(fixture_path()));
         let output = inspector.inspect().unwrap();
-        let expected = include_str!("../../fixtures/libraries/expected/output.txt");
+        let expected = include_str!("../../fixtures/inspect-libraries/expected/output.txt");
         assert_eq!(output.to_string(), expected);
     }
 

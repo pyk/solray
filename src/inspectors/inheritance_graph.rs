@@ -376,11 +376,12 @@ mod tests {
     use crate::project::Project;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inheritance-graph")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-inheritance-graph")
     }
 
     fn ambiguous_fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inheritance-graph-ambiguous")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/inspect-inheritance-graph-ambiguous")
     }
 
     #[test]
@@ -391,7 +392,7 @@ mod tests {
         assert_eq!(
             output.to_string(),
             include_str!(
-                "../../fixtures/inheritance-graph/expected/inspect_shows_inheritance_for_library.txt"
+                "../../fixtures/inspect-inheritance-graph/expected/inspect_shows_inheritance_for_library.txt"
             )
         );
     }

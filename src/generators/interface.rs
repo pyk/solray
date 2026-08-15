@@ -647,7 +647,8 @@ mod tests {
     }
 
     fn ambiguous_fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inheritance-graph-ambiguous")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/inspect-inheritance-graph-ambiguous")
     }
 
     #[test]

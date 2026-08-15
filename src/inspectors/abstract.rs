@@ -358,14 +358,14 @@ mod tests {
     }
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/abstracts")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-abstracts")
     }
 
     #[test]
     fn inspect_returns_only_abstract_declarations() {
         let inspector = AbstractInspector::new(Project::open(fixture_path()));
         let output = inspector.inspect().unwrap();
-        let expected = include_str!("../../fixtures/abstracts/expected/output.txt");
+        let expected = include_str!("../../fixtures/inspect-abstracts/expected/output.txt");
         assert_eq!(output.to_string(), expected);
     }
 

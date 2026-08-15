@@ -151,8 +151,8 @@ mod tests {
     }
 
     fn fixture_ambiguous_project() -> Project {
-        let root =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inheritance-graph-ambiguous");
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/inspect-inheritance-graph-ambiguous");
         Project::open(root)
     }
 
