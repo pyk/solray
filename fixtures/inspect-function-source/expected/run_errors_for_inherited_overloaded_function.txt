@@ -1,0 +1,6 @@
+found 2 "permit"
+
+Select one of the following:
+
+solray inspect function-source ChildOverloaded "permit(address,address,uint256,uint256,bytes)"
+solray inspect function-source ChildOverloaded "permit(address,address,uint256,uint256,uint8,bytes32,bytes32)"

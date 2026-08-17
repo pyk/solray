@@ -18,6 +18,9 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect function-source` overload disambiguation now lists each
+  distinct signature once; an inherited override that redeclares the same
+  signature as a base no longer produces a duplicated suggestion
 - `solray inspect function-source` now resolves cross-file virtual calls to the
   most-derived override on the queried contract instead of the base declaration
 - `solray inspect storage-layout` no longer fails for contracts that declare

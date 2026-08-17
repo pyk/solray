@@ -257,6 +257,11 @@ fn extract_contract_name(symbol: &str) -> &str {
     symbol.split('.').next().unwrap_or("?")
 }
 
+/// Extract the `fn(params)` part of a `Contract.fn(params)` symbol.
+fn signature_part(symbol: &str) -> &str {
+    symbol.split_once('.').map_or(symbol, |(_, sig)| sig)
+}
+
 /// Rank a symbol by how close its declaring contract is to the queried
 /// contract in the inheritance chain. Lower is more-derived.
 fn inheritance_rank(symbol: &ResolvedSymbol, inheritance_order: &[String]) -> (usize, usize) {
@@ -624,43 +629,28 @@ impl FunctionSourceInspector {
         }
 
         if functions.len() > 1 {
-            // When every candidate has the same signature, this is an
-            // inherited override rather than a real overload: prefer the
-            // most-derived declaration.
-            let signatures: HashSet<&str> = functions
-                .values()
-                .map(|s| {
-                    s.symbol
-                        .split_once('.')
-                        .map_or(s.symbol.as_str(), |(_, sig)| sig)
-                })
-                .collect();
-            if signatures.len() == 1 {
-                let best = functions
-                    .values()
-                    .min_by_key(|symbol| inheritance_rank(symbol, &inheritance_order));
-                if let Some(best) = best
-                    && functions
-                        .values()
-                        .filter(|symbol| {
-                            inheritance_rank(symbol, &inheritance_order)
-                                == inheritance_rank(best, &inheritance_order)
-                        })
-                        .count()
-                        == 1
-                {
-                    return Ok(best.clone());
-                }
+            // Overridden declarations can leave multiple candidates with the
+            // same signature because base and derived contracts both declare
+            // it. Keep the most-derived declaration per distinct signature so
+            // the ambiguity error lists each overload exactly once.
+            let mut candidates: Vec<&ResolvedSymbol> = functions.values().collect();
+            candidates.sort_by_key(|symbol| {
+                (
+                    signature_part(&symbol.symbol).to_string(),
+                    inheritance_rank(symbol, &inheritance_order),
+                )
+            });
+            candidates.dedup_by_key(|symbol| signature_part(&symbol.symbol));
+            if candidates.len() == 1 {
+                return Ok(candidates[0].clone());
             }
             let mut msg = format!(
                 "found {} \"{}\"\n\nSelect one of the following:\n",
-                functions.len(),
+                candidates.len(),
                 function_name
             );
-            let mut sorted: Vec<&String> = functions.values().map(|s| &s.symbol).collect();
-            sorted.sort();
-            for sym in sorted {
-                let fn_name = sym.split_once('.').map(|(_, sig)| sig).unwrap_or(sym);
+            for symbol in &candidates {
+                let fn_name = signature_part(&symbol.symbol);
                 msg.push_str(&format!(
                     "\nsolray inspect function-source {} \"{}\"",
                     contract_name, fn_name
@@ -2342,6 +2332,19 @@ mod tests {
             err,
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_errors_for_overloaded_function.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_errors_for_inherited_overloaded_function() {
+        let err = inspect("ChildOverloaded", "permit")
+            .unwrap_err()
+            .to_string();
+        assert_eq!(
+            err,
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_errors_for_inherited_overloaded_function.txt"
             )
         );
     }
