@@ -910,8 +910,11 @@ fn extract_function_symbols(
                 if let ContractDefinitionNode::FunctionDefinition(fd) = inner
                     && (fd.implemented
                         || (cd.name == contract_name
-                            && include_interface_declarations
-                            && cd.contract_kind == ContractKind::Interface))
+                            && match cd.contract_kind {
+                                ContractKind::Interface => include_interface_declarations,
+                                ContractKind::Contract => cd.r#abstract.unwrap_or(false),
+                                ContractKind::Library => false,
+                            }))
                     && function_name_for_display(fd.kind.as_ref(), &fd.name) == function_name
                 {
                     let is_special = matches!(
@@ -985,8 +988,11 @@ fn collect_contract_functions(
                 if let ContractDefinitionNode::FunctionDefinition(fd) = inner
                     && (fd.implemented
                         || (cd.name == contract_name
-                            && include_interface_declarations
-                            && cd.contract_kind == ContractKind::Interface))
+                            && match cd.contract_kind {
+                                ContractKind::Interface => include_interface_declarations,
+                                ContractKind::Contract => cd.r#abstract.unwrap_or(false),
+                                ContractKind::Library => false,
+                            }))
                 {
                     let is_special = matches!(
                         fd.kind,
@@ -2275,6 +2281,39 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_resolves_interface_function_root.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_shows_source_for_abstract_function() {
+        let output = inspect("AbstractFn", "_transfer").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_shows_source_for_abstract_function.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_shows_source_for_inherited_abstract_function() {
+        let output = inspect("AbstractFnChild", "_transfer").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_shows_source_for_abstract_function.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_errors_for_unknown_abstract_function() {
+        let err = inspect("AbstractFn", "notFoundFn").unwrap_err().to_string();
+        assert_eq!(
+            err,
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_errors_for_unknown_abstract_function.txt"
             )
         );
     }

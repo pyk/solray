@@ -1,0 +1,11 @@
+# AbstractFn - _transfer Source Code
+
+Source path: `src/AbstractFn.sol:11`
+
+```solidity
+function _transfer(
+    address from,
+    address to,
+    uint256 value
+) internal virtual;
+```

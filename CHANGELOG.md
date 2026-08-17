@@ -10,6 +10,10 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Added
 
+- `solray inspect function-source` now resolves abstract function declarations
+  declared by the queried abstract contract or its abstract bases, rendering
+  them as declarations instead of reporting "not found"
+
 ### Changed
 
 - Upgraded solc dependency to v0.3.1

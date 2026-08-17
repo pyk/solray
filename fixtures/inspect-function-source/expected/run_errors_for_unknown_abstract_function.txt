@@ -1,0 +1,3 @@
+"notFoundFn" not found in "AbstractFn".
+
+Available functions in "AbstractFn": _approve, _transfer
