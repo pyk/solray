@@ -11,8 +11,9 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use solc::ast::{
     Block, ContractDefinition, ContractDefinitionNode, ContractKind, Expression,
-    FunctionCallExpression, FunctionKind, ModifierInvocation, ModifierInvocationKind, SourceUnit,
-    SourceUnitNode, TypeName, UserDefinedTypeName, VariableDeclaration, Visibility,
+    FunctionCallExpression, FunctionDefinition, FunctionKind, ModifierInvocation,
+    ModifierInvocationKind, SourceUnit, SourceUnitNode, TypeName, UserDefinedTypeName,
+    VariableDeclaration, Visibility,
 };
 use tracing::debug;
 
@@ -1671,13 +1672,14 @@ fn extract_contract_functions(cd: ContractDefinition, source_file: &Path) -> Vec
         .filter_map(|inner| match inner {
             ContractDefinitionNode::FunctionDefinition(fd) => Some(FunctionInfo {
                 id: fd.id,
-                name: function_name_for_display(fd.kind.as_ref(), &fd.name).to_string(),
+                name: function_name_for_display(resolve_function_kind(&fd).as_ref(), &fd.name)
+                    .to_string(),
                 contract_name: contract_name.clone(),
                 file: file.clone(),
                 is_interface,
                 parameters: fd.parameters.parameters.clone(),
                 visibility: fd.visibility.clone(),
-                kind: fd.kind.clone(),
+                kind: resolve_function_kind(&fd),
                 src_offset: fd.src.offset,
                 src_length: fd.src.length,
                 body: fd.body,
@@ -1719,6 +1721,18 @@ fn find_modifier_body(ast: &SourceUnit, modifier_id: i64) -> Option<Block> {
         }
     }
     None
+}
+
+/// Resolve the Solidity function kind, inferring constructor and fallback
+/// from older ASTs where `kind` is absent (e.g. solc 0.4.x).
+fn resolve_function_kind(fd: &FunctionDefinition) -> Option<FunctionKind> {
+    fd.kind.clone().or(if fd.is_constructor {
+        Some(FunctionKind::Constructor)
+    } else if fd.name.is_empty() {
+        Some(FunctionKind::Fallback)
+    } else {
+        Some(FunctionKind::Function)
+    })
 }
 
 fn function_name_for_display<'a>(kind: Option<&FunctionKind>, name: &'a str) -> &'a str {

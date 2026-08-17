@@ -12,8 +12,8 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use solc::ast::{
     ContractDefinition, ContractDefinitionNode, ContractKind, Expression, FunctionCallExpression,
-    FunctionKind, ModifierInvocation, ModifierInvocationKind, SourceUnit, SourceUnitNode, TypeName,
-    Visibility,
+    FunctionDefinition, FunctionKind, ModifierInvocation, ModifierInvocationKind, SourceUnit,
+    SourceUnitNode, TypeName, Visibility,
 };
 use tracing::debug;
 
@@ -189,7 +189,9 @@ fn collect_override_entries(
             let ContractDefinitionNode::FunctionDefinition(fd) = inner else {
                 continue;
             };
-            if fd.kind != Some(FunctionKind::Function) || fd.visibility == Visibility::Private {
+            if resolve_function_kind(fd) != Some(FunctionKind::Function)
+                || fd.visibility == Visibility::Private
+            {
                 continue;
             }
             let params = format_params(&fd.parameters.parameters);
@@ -874,6 +876,18 @@ fn find_artifact_for_source(
     None
 }
 
+/// Resolve the Solidity function kind, inferring constructor and fallback
+/// from older ASTs where `kind` is absent (e.g. solc 0.4.x).
+fn resolve_function_kind(fd: &FunctionDefinition) -> Option<FunctionKind> {
+    fd.kind.clone().or(if fd.is_constructor {
+        Some(FunctionKind::Constructor)
+    } else if fd.name.is_empty() {
+        Some(FunctionKind::Fallback)
+    } else {
+        Some(FunctionKind::Function)
+    })
+}
+
 fn function_name_for_display<'a>(kind: Option<&FunctionKind>, name: &'a str) -> &'a str {
     match kind {
         Some(FunctionKind::Constructor) => "constructor",
@@ -915,10 +929,11 @@ fn extract_function_symbols(
                                 ContractKind::Contract => cd.r#abstract.unwrap_or(false),
                                 ContractKind::Library => false,
                             }))
-                    && function_name_for_display(fd.kind.as_ref(), &fd.name) == function_name
+                    && function_name_for_display(resolve_function_kind(fd).as_ref(), &fd.name)
+                        == function_name
                 {
                     let is_special = matches!(
-                        fd.kind,
+                        resolve_function_kind(fd),
                         Some(
                             FunctionKind::Constructor
                                 | FunctionKind::Receive
@@ -929,7 +944,7 @@ fn extract_function_symbols(
                         SpecialFunctionFilter::All => true,
                         SpecialFunctionFilter::FallbackReceive => {
                             matches!(
-                                fd.kind,
+                                resolve_function_kind(fd),
                                 Some(FunctionKind::Receive | FunctionKind::Fallback)
                             )
                         }
@@ -937,7 +952,8 @@ fn extract_function_symbols(
                     if is_special && !include_special {
                         continue;
                     }
-                    let display_name = function_name_for_display(fd.kind.as_ref(), &fd.name);
+                    let display_name =
+                        function_name_for_display(resolve_function_kind(fd).as_ref(), &fd.name);
                     let sig = format!(
                         "{}.{}({})",
                         contract_name,
@@ -995,7 +1011,7 @@ fn collect_contract_functions(
                             }))
                 {
                     let is_special = matches!(
-                        fd.kind,
+                        resolve_function_kind(fd),
                         Some(
                             FunctionKind::Constructor
                                 | FunctionKind::Receive
@@ -1006,7 +1022,7 @@ fn collect_contract_functions(
                         SpecialFunctionFilter::All => true,
                         SpecialFunctionFilter::FallbackReceive => {
                             matches!(
-                                fd.kind,
+                                resolve_function_kind(fd),
                                 Some(FunctionKind::Receive | FunctionKind::Fallback)
                             )
                         }
@@ -1014,7 +1030,10 @@ fn collect_contract_functions(
                     if is_special && !include_special {
                         continue;
                     }
-                    out.push(function_name_for_display(fd.kind.as_ref(), &fd.name).to_string());
+                    out.push(
+                        function_name_for_display(resolve_function_kind(fd).as_ref(), &fd.name)
+                            .to_string(),
+                    );
                 }
                 if let ContractDefinitionNode::VariableDeclaration(vd) = inner
                     && vd.visibility == Visibility::Public
@@ -1157,7 +1176,7 @@ fn find_constructor_in_ast(
             let ContractDefinitionNode::FunctionDefinition(fd) = inner else {
                 continue;
             };
-            if fd.kind != Some(FunctionKind::Constructor) || !fd.implemented {
+            if resolve_function_kind(fd) != Some(FunctionKind::Constructor) || !fd.implemented {
                 continue;
             }
             return Some((
@@ -2599,6 +2618,23 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_resolves_state_variable_initializer_symbols.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_solc_0_4_constructor() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/inspect-external-functions-solc-0.4");
+        let project = Project::open(root);
+        project.validate().unwrap();
+        let inspector = FunctionSourceInspector::inspect_project(project);
+        let id = ArtifactId::new("FiatTokenProxy");
+        let output = inspector.inspect(&id, "constructor").unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-external-functions-solc-0.4/expected/function_source_constructor.txt"
             )
         );
     }

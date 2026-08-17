@@ -1,0 +1,192 @@
+# FiatTokenProxy - constructor Source Code
+
+Source path: `src/Contract.sol:327`
+
+```solidity
+constructor(address _implementation) public AdminUpgradeabilityProxy(_implementation) {
+}
+```
+
+---
+
+## Contract: `AdminUpgradeabilityProxy`
+
+Source path: `src/Contract.sol:177`
+
+```solidity
+/**
+ * @title AdminUpgradeabilityProxy
+ * @dev This contract combines an upgradeability proxy with an authorization
+ * mechanism for administrative tasks.
+ * All external functions in this contract must be guarded by the
+ * `ifAdmin` modifier. See ethereum/solidity#3864 for a Solidity
+ * feature proposal that would enable this to be done automatically.
+ */
+contract AdminUpgradeabilityProxy is UpgradeabilityProxy
+```
+
+---
+
+## Contract: `UpgradeabilityProxy`
+
+Source path: `src/Contract.sol:108`
+
+```solidity
+/**
+ * @title UpgradeabilityProxy
+ * @dev This contract implements a proxy that allows to change the
+ * implementation address to which it will delegate.
+ * Such a change is called an implementation upgrade.
+ */
+contract UpgradeabilityProxy is Proxy
+```
+
+---
+
+## Function: `_setAdmin`
+
+Source path: `src/Contract.sol:279`
+
+```solidity
+/**
+ * @dev Sets the address of the proxy admin.
+ * @param newAdmin Address of the new proxy admin.
+ */
+function _setAdmin(address newAdmin) internal {
+  bytes32 slot = ADMIN_SLOT;
+
+  assembly {
+    sstore(slot, newAdmin)
+  }
+}
+```
+
+---
+
+## Function: `_setImplementation`
+
+Source path: `src/Contract.sol:156`
+
+```solidity
+/**
+ * @dev Sets the implementation address of the proxy.
+ * @param newImplementation Address of the new implementation.
+ */
+function _setImplementation(address newImplementation) private {
+  require(AddressUtils.isContract(newImplementation), "Cannot set a proxy implementation to a non-contract address");
+
+  bytes32 slot = IMPLEMENTATION_SLOT;
+
+  assembly {
+    sstore(slot, newImplementation)
+  }
+}
+```
+
+---
+
+## Function: `constructor`
+
+Source path: `src/Contract.sol:210`
+
+```solidity
+/**
+ * Contract constructor.
+ * It sets the `msg.sender` as the proxy administrator.
+ * @param _implementation address of the initial implementation.
+ */
+constructor(address _implementation) UpgradeabilityProxy(_implementation) public {
+  assert(ADMIN_SLOT == keccak256("org.zeppelinos.proxy.admin"));
+
+  _setAdmin(msg.sender);
+}
+```
+
+---
+
+## Function: `constructor`
+
+Source path: `src/Contract.sol:126`
+
+```solidity
+/**
+ * @dev Contract constructor.
+ * @param _implementation Address of the initial implementation.
+ */
+constructor(address _implementation) public {
+  assert(IMPLEMENTATION_SLOT == keccak256("org.zeppelinos.proxy.implementation"));
+
+  _setImplementation(_implementation);
+}
+```
+
+---
+
+## Function: `isContract`
+
+Source path: `src/Contract.sol:85`
+
+```solidity
+/**
+ * Returns whether the target address is a contract
+ * @dev This function will return false if invoked during the constructor of a contract,
+ * as the code is not actually created until after the constructor finishes.
+ * @param addr address to check
+ * @return whether the target address is a contract
+ */
+function isContract(address addr) internal view returns (bool) {
+  uint256 size;
+  // XXX Currently there is no better way to check if there is a contract in an address
+  // than to check the size of the code at that address.
+  // See https://ethereum.stackexchange.com/a/14016/36603
+  // for more details about how this works.
+  // TODO Check this again before the Serenity release, because all addresses will be
+  // contracts then.
+  // solium-disable-next-line security/no-inline-assembly
+  assembly { size := extcodesize(addr) }
+  return size > 0;
+}
+```
+
+---
+
+## Library: `AddressUtils`
+
+Source path: `src/Contract.sol:76`
+
+```solidity
+/**
+ * Utility library of inline functions on addresses
+ */
+library AddressUtils
+```
+
+---
+
+## Variable: `ADMIN_SLOT`
+
+Source path: `src/Contract.sol:190`
+
+```solidity
+/**
+ * @dev Storage slot with the admin of the contract.
+ * This is the keccak-256 hash of "org.zeppelinos.proxy.admin", and is
+ * validated in the constructor.
+ */
+bytes32 private constant ADMIN_SLOT = 0x10d6a54a4754c8869d6886b5f5d7fbfa5b4522237ea5c60d11bc4e7a1ff9390b
+```
+
+---
+
+## Variable: `IMPLEMENTATION_SLOT`
+
+Source path: `src/Contract.sol:120`
+
+```solidity
+/**
+ * @dev Storage slot with the address of the current implementation.
+ * This is the keccak-256 hash of "org.zeppelinos.proxy.implementation", and is
+ * validated in the constructor.
+ */
+bytes32 private constant IMPLEMENTATION_SLOT = 0x7050c9e0f4ca769c69bd3a8ef740bc37934f8e2c036e5a723fd8ee048ed3f8c3
+```

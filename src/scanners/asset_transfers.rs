@@ -240,7 +240,7 @@ fn scan_artifact(
             }
 
             let fn_name = if fn_def.name.is_empty() {
-                match fn_def.kind {
+                match resolve_function_kind(fn_def) {
                     Some(FunctionKind::Receive) => "receive",
                     Some(FunctionKind::Fallback) => "fallback",
                     _ => &fn_def.name,
@@ -626,7 +626,7 @@ fn build_receive_sink(
         .map(|text| extract_function_signature(&text));
 
     let fn_name = if fd.name.is_empty() {
-        match fd.kind {
+        match resolve_function_kind(fd) {
             Some(FunctionKind::Receive) => "receive",
             Some(FunctionKind::Fallback) => "fallback",
             _ => &fd.name,
@@ -644,6 +644,18 @@ fn build_receive_sink(
         expression: expression.unwrap_or_default(),
         file: rel_file,
         line,
+    })
+}
+
+/// Resolve the Solidity function kind, inferring constructor and fallback
+/// from older ASTs where `kind` is absent (e.g. solc 0.4.x).
+fn resolve_function_kind(fd: &solc::ast::FunctionDefinition) -> Option<FunctionKind> {
+    fd.kind.clone().or(if fd.is_constructor {
+        Some(FunctionKind::Constructor)
+    } else if fd.name.is_empty() {
+        Some(FunctionKind::Fallback)
+    } else {
+        Some(FunctionKind::Function)
     })
 }
 

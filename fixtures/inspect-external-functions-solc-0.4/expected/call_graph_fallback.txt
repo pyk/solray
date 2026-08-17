@@ -1,0 +1,9 @@
+Call graph:
+
+Proxy.fallback() (external) (src/Contract.sol:17)
+└── Proxy._fallback() (internal) (src/Contract.sol:65)
+    ├── AdminUpgradeabilityProxy._willFallback() (internal) (src/Contract.sol:290)
+    │   ├── AdminUpgradeabilityProxy._admin() (internal) (src/Contract.sol:268)
+    │   └── Proxy._willFallback() (internal) (src/Contract.sol:58)
+    ├── Proxy._delegate(address) (internal) (src/Contract.sol:32)
+    └── UpgradeabilityProxy._implementation() (internal) (src/Contract.sol:136)

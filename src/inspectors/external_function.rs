@@ -190,7 +190,7 @@ impl ExternalFunctionInspector {
                 .map(|r| r.to_string_lossy().to_string())
         });
 
-        let index = build_function_index(&self.project, &artifact)?;
+        let index = build_function_index(&self.project, &artifact, &artifact_path)?;
 
         let mut state_changing = Vec::new();
         let mut callback = Vec::new();
@@ -437,19 +437,48 @@ impl FunctionIndex {
             .as_ref()
             .and_then(|f| self.byte_offset_to_line(f, fn_def.src.offset));
         let info = FuncInfo::from_ast(fn_def, display_file, line, is_interface);
-        match &fn_def.kind {
+        match Self::resolve_function_kind(fn_def) {
             Some(kind @ (FunctionKind::Receive | FunctionKind::Fallback)) => {
                 let kind_name = format!("{kind:?}");
-                self.by_kind
-                    .insert((contract_name.to_string(), kind_name), info);
+                let key = (contract_name.to_string(), kind_name);
+                // Prefer the registration that carries a source file. Artifacts
+                // without metadata (e.g. abstract contracts) register with no
+                // file and must not clobber a resolvable entry.
+                match self.by_kind.get(&key) {
+                    Some(existing) if existing.file.is_none() && info.file.is_some() => {
+                        self.by_kind.insert(key, info);
+                    }
+                    None => {
+                        self.by_kind.insert(key, info);
+                    }
+                    _ => {}
+                }
             }
             _ => {
+                let key_name =
+                    if Self::resolve_function_kind(fn_def) == Some(FunctionKind::Constructor) {
+                        "constructor"
+                    } else {
+                        &fn_def.name
+                    };
                 self.by_name
-                    .entry((contract_name.to_string(), fn_def.name.clone()))
+                    .entry((contract_name.to_string(), key_name.to_string()))
                     .or_default()
                     .push(info);
             }
         }
+    }
+
+    /// Resolve the Solidity function kind, inferring constructor and fallback
+    /// from older ASTs where `kind` is absent (e.g. solc 0.4.x).
+    fn resolve_function_kind(fd: &FunctionDefinition) -> Option<FunctionKind> {
+        fd.kind.clone().or(if fd.is_constructor {
+            Some(FunctionKind::Constructor)
+        } else if fd.name.is_empty() {
+            Some(FunctionKind::Fallback)
+        } else {
+            Some(FunctionKind::Function)
+        })
     }
 
     fn register_variable(
@@ -697,7 +726,11 @@ impl FullArtifact {
 
 /// Build a [`FunctionIndex`] by scanning the target artifact and all
 /// artifacts that could declare functions the contract inherits.
-fn build_function_index(project: &Project, artifact: &FullArtifact) -> Result<FunctionIndex> {
+fn build_function_index(
+    project: &Project,
+    artifact: &FullArtifact,
+    target_artifact_path: impl AsRef<Path>,
+) -> Result<FunctionIndex> {
     let mut index = FunctionIndex::new();
 
     if let Some(ref ast) = artifact.ast {
@@ -712,11 +745,8 @@ fn build_function_index(project: &Project, artifact: &FullArtifact) -> Result<Fu
     }
 
     let artifact_index = ArtifactIndex::build(project.out_dir());
-    let target_path = artifact_path_name(artifact);
     for entry in artifact_index.all_entries() {
-        if let Some(ref tp) = target_path
-            && entry.ends_with(tp)
-        {
+        if entry == target_artifact_path.as_ref() {
             continue;
         }
         let other = match FullArtifact::parse(entry) {
@@ -786,16 +816,6 @@ fn index_contract(
             _ => {}
         }
     }
-}
-
-/// Derive the artifact's JSON filename (e.g. `Foo.sol/ContractA.json`).
-fn artifact_path_name(artifact: &FullArtifact) -> Option<PathBuf> {
-    let raw = artifact.raw_metadata.as_ref()?;
-    let md: serde_json::Value = serde_json::from_str(raw).ok()?;
-    let target = md.get("settings")?.get("compilationTarget")?.as_object()?;
-    let (file, contract) = target.iter().next()?;
-    let contract_name = contract.as_str()?;
-    Some(PathBuf::from(file).join(format!("{contract_name}.json")))
 }
 
 // Helpers
@@ -965,6 +985,21 @@ mod tests {
             output,
             include_str!(
                 "../../fixtures/inspect-external-functions/expected/inspect_lists_inherited_receive_and_fallback.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_lists_solc_0_4_fallback_with_source() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/inspect-external-functions-solc-0.4");
+        let inspector = ExternalFunctionInspector::new(Project::open(root));
+        let id = ArtifactId::new("Proxy");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../fixtures/inspect-external-functions-solc-0.4/expected/external_functions_proxy.txt"
             )
         );
     }

@@ -1,0 +1,62 @@
+## Call Paths
+
+Target: `_setImplementation`
+Source: `src/Contract.sol:156`
+
+5 paths found.
+
+### Path 1
+
+```
+AdminUpgradeabilityProxy.constructor
+src/Contract.sol:210
+└── UpgradeabilityProxy.constructor
+    src/Contract.sol:126
+    └── UpgradeabilityProxy._setImplementation
+        src/Contract.sol:156
+```
+
+### Path 2
+
+```
+AdminUpgradeabilityProxy.upgradeTo
+src/Contract.sol:246
+└── UpgradeabilityProxy._upgradeTo
+    src/Contract.sol:147
+    └── UpgradeabilityProxy._setImplementation
+        src/Contract.sol:156
+```
+
+### Path 3
+
+```
+AdminUpgradeabilityProxy.upgradeToAndCall
+src/Contract.sol:260
+└── UpgradeabilityProxy._upgradeTo
+    src/Contract.sol:147
+    └── UpgradeabilityProxy._setImplementation
+        src/Contract.sol:156
+```
+
+### Path 4
+
+```
+FiatTokenProxy.constructor
+src/Contract.sol:327
+└── AdminUpgradeabilityProxy.constructor
+    src/Contract.sol:210
+    └── UpgradeabilityProxy.constructor
+        src/Contract.sol:126
+        └── UpgradeabilityProxy._setImplementation
+            src/Contract.sol:156
+```
+
+### Path 5
+
+```
+UpgradeabilityProxy.constructor
+src/Contract.sol:126
+└── UpgradeabilityProxy._setImplementation
+    src/Contract.sol:156
+```
+

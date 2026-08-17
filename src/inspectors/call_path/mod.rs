@@ -616,4 +616,19 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn call_path_names_solc_0_4_constructor_root() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/inspect-external-functions-solc-0.4");
+        let inspector = CallPathInspector::new(Project::open(root));
+        let id = make_id("FiatTokenProxy", "_setImplementation");
+        let output = inspector.inspect(&id, "_setImplementation").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-external-functions-solc-0.4/expected/call_path_set_implementation.txt"
+            )
+        );
+    }
 }

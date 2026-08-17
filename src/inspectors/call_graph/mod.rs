@@ -579,4 +579,19 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn call_graph_falls_back_to_named_fallback_in_solc_0_4() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/inspect-external-functions-solc-0.4");
+        let inspector = CallGraphInspector::new(Project::open(root));
+        let id = make_id("FiatTokenProxy", "fallback");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-external-functions-solc-0.4/expected/call_graph_fallback.txt"
+            )
+        );
+    }
 }

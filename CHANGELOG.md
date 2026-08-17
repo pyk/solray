@@ -16,19 +16,29 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Changed
 
-- Upgraded solc dependency to v0.3.1
+- Upgraded solc dependency to v0.3.2, which parses `isConstructor` and
+  `superFunction` on `FunctionDefinition` for solc < 0.5 ASTs
 - `solray inspect storage-layout` now prints `No storage slots found.` for
   contracts with an empty storage layout instead of printing nothing
 
 ### Fixed
 
+- fallback and constructors are now resolvable by name (`fallback` /
+  `constructor`) in `inspect call-graph`, `inspect call-path`, and
+  `inspect function-source` for solc 0.4.x projects, where ASTs omit the `kind`
+  field; `inspect external-functions` and `scan asset-transfers` now report the
+  fallback's real source location and name instead of an empty function name
+
 - `solray inspect function-source` overload disambiguation now lists each
   distinct signature once; an inherited override that redeclares the same
   signature as a base no longer produces a duplicated suggestion
+
 - `solray inspect function-source` now resolves cross-file virtual calls to the
   most-derived override on the queried contract instead of the base declaration
+
 - `solray inspect storage-layout` no longer fails for contracts that declare
   only immutable state variables
+
 - `solray inspect storage-layout` error messages now print artifact paths
   relative to the project root instead of machine-specific absolute paths
 

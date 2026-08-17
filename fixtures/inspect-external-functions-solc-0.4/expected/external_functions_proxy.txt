@@ -1,0 +1,17 @@
+Contract: Proxy
+
+Summary:
+- 1 externally callable functions
+- 0 mutable functions
+- 0 view functions
+- 0 callback functions
+- 1 special functions
+
+SPECIAL FUNCTIONS
+
+1. fallback()
+   source: src/Contract.sol:17
+   visibility: external
+   mutability: payable
+   modifiers: none
+
