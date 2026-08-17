@@ -3,6 +3,7 @@
 //! [`FunctionSourceInspector`] resolves the complete source code for a
 //! function and all symbols it references, recursively.
 
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -19,7 +20,7 @@ use tracing::debug;
 use crate::artifact_index::ArtifactIndex;
 use crate::build_info::BuildInfo;
 use crate::inspectors::artifact_id::ArtifactId;
-use crate::inspectors::function_source::symbol_index::SymbolIndex;
+use crate::inspectors::function_source::symbol_index::{SymbolIndex, SymbolIndexEntry};
 use crate::project::Project;
 
 pub mod symbol_index;
@@ -47,6 +48,9 @@ struct RefCtx<'a> {
     symbol_index: &'a SymbolIndex,
     build_info_id: &'a str,
     overrides: &'a OverrideTable,
+    /// Parsed artifact ASTs by artifact path, shared across a function body's
+    /// reference collection so cross-file lookups parse each artifact once.
+    artifact_cache: &'a RefCell<HashMap<PathBuf, Option<SourceUnit>>>,
 }
 
 /// Most-derived function overrides for the queried contract.
@@ -1039,6 +1043,7 @@ fn collect_referenced_declarations(
     let end = target_offset + target_length;
     let mut seen_ids: HashSet<i64> = HashSet::new();
     let mut results: Vec<ResolvedSymbol> = Vec::new();
+    let artifact_cache = RefCell::new(HashMap::new());
 
     let ctx = RefCtx {
         ast,
@@ -1047,6 +1052,7 @@ fn collect_referenced_declarations(
         symbol_index,
         build_info_id,
         overrides,
+        artifact_cache: &artifact_cache,
     };
 
     for node in &ast.nodes {
@@ -1463,12 +1469,7 @@ fn lookup_symbol(id: i64, ctx: &RefCtx) -> Option<ResolvedSymbol> {
     if info.build_info_id != ctx.build_info_id {
         return None;
     }
-    let symbol = match entry.node_type.as_str() {
-        "FunctionDefinition" | "VariableDeclaration" => {
-            format!("{}.{}", entry.contract_name, entry.name)
-        }
-        _ => entry.name.clone(),
-    };
+    let symbol = symbol_for_entry(entry, ctx);
     Some(ResolvedSymbol {
         symbol,
         file: info.source_file.clone(),
@@ -1511,12 +1512,7 @@ fn resolve_and_add_symbol(
         id, entry.name, info.build_info_id, info.source_file, ctx.build_info_id, ctx.source_file
     );
     if info.build_info_id == ctx.build_info_id && info.source_file != *ctx.source_file {
-        let symbol = match entry.node_type.as_str() {
-            "FunctionDefinition" | "VariableDeclaration" => {
-                format!("{}.{}", entry.contract_name, entry.name)
-            }
-            _ => entry.name.clone(),
-        };
+        let symbol = symbol_for_entry(entry, ctx);
         debug!(
             "[resolve_and_add_symbol] adding {} (id={}) from {:?}",
             symbol, id, info.source_file
@@ -1547,6 +1543,59 @@ fn resolve_and_add_symbol(
             id, info.build_info_id, ctx.build_info_id, info.source_file, ctx.source_file
         );
     }
+}
+
+/// Format a symbol-index entry as a symbol string, matching the
+/// `node_to_symbol` shape so `OverrideTable::redirect` can parse function
+/// names and parameters for cross-file declarations.
+fn symbol_for_entry(entry: &SymbolIndexEntry, ctx: &RefCtx) -> String {
+    match entry.node_type.as_str() {
+        "FunctionDefinition" => cross_file_function_symbol(entry, ctx)
+            .unwrap_or_else(|| format!("{}.{}", entry.contract_name, entry.name)),
+        "VariableDeclaration" => format!("{}.{}", entry.contract_name, entry.name),
+        _ => entry.name.clone(),
+    }
+}
+
+/// Build `Contract.name(params)` for a cross-file function declaration by
+/// parsing its artifact AST. Returns `None` when the artifact cannot be
+/// parsed or the declaration is not found, in which case the caller falls
+/// back to the paren-less symbol.
+fn cross_file_function_symbol(entry: &SymbolIndexEntry, ctx: &RefCtx) -> Option<String> {
+    let info = ctx.symbol_index.artifact_info(entry.artifact_id);
+    let path = &info.artifact_path;
+    if !ctx.artifact_cache.borrow().contains_key(path) {
+        let ast = parse_artifact(path).ok().flatten();
+        ctx.artifact_cache.borrow_mut().insert(path.clone(), ast);
+    }
+    let params = ctx
+        .artifact_cache
+        .borrow()
+        .get(path)?
+        .as_ref()
+        .and_then(|ast| function_params_at(ast, entry.offset, entry.length))?;
+    Some(format!(
+        "{}.{}({})",
+        entry.contract_name, entry.name, params
+    ))
+}
+
+/// Find the formatted parameter list of the function declaration whose source
+/// range starts at `offset` with `length` in `ast`.
+fn function_params_at(ast: &SourceUnit, offset: usize, length: usize) -> Option<String> {
+    for node in &ast.nodes {
+        if let SourceUnitNode::ContractDefinition(cd) = node {
+            for inner in &cd.nodes {
+                if let ContractDefinitionNode::FunctionDefinition(fd) = inner
+                    && fd.src.offset == offset
+                    && fd.src.length == length
+                {
+                    return Some(format_params(&fd.parameters.parameters));
+                }
+            }
+        }
+    }
+    None
 }
 
 fn resolve_id_in_ast(id: i64, ast: &SourceUnit, source_file: &Path) -> Option<ResolvedSymbol> {
@@ -2203,6 +2252,17 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-function-source/expected/run_resolves_virtual_hook_override.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_resolves_cross_file_virtual_override() {
+        let output = inspect("VirtualCrossFile", "run").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-function-source/expected/run_resolves_cross_file_virtual_override.txt"
             )
         );
     }

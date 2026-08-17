@@ -1,0 +1,36 @@
+# HookCaller - run Source Code
+
+Source path: `src/HookCaller.sol:8`
+
+```solidity
+/// @notice Calls the virtual hook declared in another file.
+function run() external view returns (uint256) {
+    return _hook();
+}
+```
+
+---
+
+## Function: `_helper`
+
+Source path: `src/VirtualCrossFile.sol:13`
+
+```solidity
+/// @notice Helper pulled in by the override.
+function _helper() internal pure returns (uint256) {
+    return 42;
+}
+```
+
+---
+
+## Function: `_hook`
+
+Source path: `src/VirtualCrossFile.sol:8`
+
+```solidity
+/// @notice Most-derived override of the virtual hook.
+function _hook() internal view override returns (uint256) {
+    return _helper();
+}
+```

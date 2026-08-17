@@ -13,8 +13,15 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 ### Changed
 
 - Upgraded solc dependency to v0.3.1
+- `solray inspect storage-layout` now prints `No storage slots found.` for
+  contracts with an empty storage layout instead of printing nothing
 
 ### Fixed
+
+- `solray inspect function-source` now resolves cross-file virtual calls to the
+  most-derived override on the queried contract instead of the base declaration
+- `solray inspect storage-layout` no longer fails for contracts that declare
+  only immutable state variables
 
 ## [0.9.0] - 2026-08-15
 

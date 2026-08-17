@@ -86,6 +86,9 @@ impl StorageLayoutInspectorOutput {
 
 impl std::fmt::Display for StorageLayoutInspectorOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.storage_layout.storage.is_empty() {
+            return writeln!(f, "No storage slots found.");
+        }
         let slot_width = self
             .storage_layout
             .storage
@@ -244,7 +247,10 @@ fn contract_declares_storage(ast: &LightweightSourceUnit, name: &str) -> bool {
             continue;
         }
         let declares = node.nodes.iter().any(|child| {
-            child.node_type == "VariableDeclaration" && child.state_variable && !child.constant
+            child.node_type == "VariableDeclaration"
+                && child.state_variable
+                && !child.constant
+                && child.mutability != "immutable"
         });
         if declares {
             return true;
@@ -300,6 +306,8 @@ struct LightweightChild {
     state_variable: bool,
     #[serde(default)]
     constant: bool,
+    #[serde(default)]
+    mutability: String,
 }
 
 /// Lightweight base contract specifier.
@@ -332,11 +340,11 @@ mod tests {
     use crate::project::Project;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-storages")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-storage-layout")
     }
 
     fn solc_0_5_fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-storages-solc-0.5")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/inspect-storage-layout-solc-0.5")
     }
 
     #[test]
@@ -344,12 +352,10 @@ mod tests {
         let inspector = StorageLayoutInspector::new(Project::open(solc_0_5_fixture_path()));
         let id = StorageLayoutId::new("Store");
         let err = inspector.inspect(&id).unwrap_err().to_string();
-        let artifact = solc_0_5_fixture_path().join("out/Contract.sol/Store.json");
         assert_eq!(
             err,
-            format!(
-                "artifact `{}` has an empty storage layout even though the contract declares storage variables; storage layout output is not available for solc < 0.6 builds",
-                artifact.display()
+            include_str!(
+                "../../fixtures/inspect-storage-layout-solc-0.5/expected/inspect_errors_for_empty_layout_with_storage_variables.txt"
             )
         );
     }
@@ -359,22 +365,38 @@ mod tests {
         let inspector = StorageLayoutInspector::new(Project::open(solc_0_5_fixture_path()));
         let id = StorageLayoutId::new("Child");
         let err = inspector.inspect(&id).unwrap_err().to_string();
-        let artifact = solc_0_5_fixture_path().join("out/Contract.sol/Child.json");
         assert_eq!(
             err,
-            format!(
-                "artifact `{}` has an empty storage layout even though the contract declares storage variables; storage layout output is not available for solc < 0.6 builds",
-                artifact.display()
+            include_str!(
+                "../../fixtures/inspect-storage-layout-solc-0.5/expected/inspect_errors_for_empty_layout_with_inherited_storage.txt"
             )
         );
     }
 
     #[test]
-    fn inspect_allows_empty_layout_for_storage_less_contract() {
+    fn inspect_shows_no_storage_message_for_storage_less_contract() {
         let inspector = StorageLayoutInspector::new(Project::open(solc_0_5_fixture_path()));
         let id = StorageLayoutId::new("Empty");
         let output = inspector.inspect(&id).unwrap();
-        assert_eq!(output.to_string(), "");
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../fixtures/inspect-storage-layout-solc-0.5/expected/inspect_shows_no_storage_message_for_storage_less_contract.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_shows_no_storage_message_for_immutable_only_contract() {
+        let inspector = StorageLayoutInspector::new(Project::open(fixture_path()));
+        let id = StorageLayoutId::new("ImmutableOnly");
+        let output = inspector.inspect(&id).unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../fixtures/inspect-storage-layout/expected/inspect_shows_no_storage_message_for_immutable_only_contract.txt"
+            )
+        );
     }
 
     #[test]
@@ -382,7 +404,12 @@ mod tests {
         let inspector = StorageLayoutInspector::new(Project::open(fixture_path()));
         let id = StorageLayoutId::new("ContractB");
         let output = inspector.inspect(&id).unwrap();
-        assert_eq!(output.to_string(), "slot 0 offset 0 active bool\n");
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../fixtures/inspect-storage-layout/expected/inspect_shows_storage_layout_for_a_unique_contract.txt"
+            )
+        );
     }
 
     #[test]
@@ -392,7 +419,9 @@ mod tests {
         let output = inspector.inspect(&id).unwrap();
         assert_eq!(
             output.to_string(),
-            "slot 0 offset 0 count uint256\nslot 1 offset 0 owner address\n"
+            include_str!(
+                "../../fixtures/inspect-storage-layout/expected/inspect_shows_storage_layout_for_path_qualified_contract.txt"
+            )
         );
     }
 
@@ -401,7 +430,12 @@ mod tests {
         let inspector = StorageLayoutInspector::new(Project::open(fixture_path()));
         let id = StorageLayoutId::new("Missing");
         let err = inspector.inspect(&id).unwrap_err().to_string();
-        assert_eq!(err, "\"Missing\" not found.");
+        assert_eq!(
+            err,
+            include_str!(
+                "../../fixtures/inspect-storage-layout/expected/inspect_errors_for_unknown_contract.txt"
+            )
+        );
     }
 
     #[test]
@@ -411,7 +445,9 @@ mod tests {
         let err = inspector.inspect(&id).unwrap_err().to_string();
         assert_eq!(
             err,
-            "found 2 \"ContractA\"\n\nSelect one of the following:\n\nsolray inspect storage-layout src/Bar.sol:ContractA\nsolray inspect storage-layout src/Foo.sol:ContractA\n"
+            include_str!(
+                "../../fixtures/inspect-storage-layout/expected/inspect_errors_for_ambiguous_contract.txt"
+            )
         );
     }
 

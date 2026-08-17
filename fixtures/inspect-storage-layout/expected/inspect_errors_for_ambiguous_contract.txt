@@ -1,0 +1,6 @@
+found 2 "ContractA"
+
+Select one of the following:
+
+solray inspect storage-layout src/Bar.sol:ContractA
+solray inspect storage-layout src/Foo.sol:ContractA
