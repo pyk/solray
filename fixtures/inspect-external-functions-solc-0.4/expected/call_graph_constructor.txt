@@ -1,0 +1,8 @@
+Call graph:
+
+FiatTokenProxy.constructor(address) (public) (src/Contract.sol:327)
+└── AdminUpgradeabilityProxy.constructor(address) (public) (src/Contract.sol:210)
+    ├── UpgradeabilityProxy.constructor(address) (public) (src/Contract.sol:126)
+    │   └── UpgradeabilityProxy._setImplementation(address) (private) (src/Contract.sol:156)
+    │       └── AddressUtils.isContract(address) (internal) (src/Contract.sol:85)
+    └── AdminUpgradeabilityProxy._setAdmin(address) (internal) (src/Contract.sol:279)

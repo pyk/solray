@@ -439,11 +439,9 @@ fn collect_from_expression(expr: &Expression, ctx: &mut ScanContext) {
                 ctx.transfers.push(transfer);
             }
 
-            // Check if this is a call{value: ...} pattern.
-            if let FunctionCallExpression::FunctionCallOptions(fco) = &*fc.expression
-                && fco.names.iter().any(|n| n == "value")
-                && let Expression::MemberAccess(ma) = &*fco.expression
-                && ma.member_name == "call"
+            // Check for a low-level call with value: `addr.call{value: ...}(...)`
+            // (0.8 options) or `addr.call.value(...)(...)` (legacy chained member).
+            if low_level_call_with_value(&fc.expression)
                 && ctx.visited_src.insert((fc.src.offset, fc.src.length))
                 && let Some(transfer) = build_call_with_value(fc, ctx)
             {
@@ -505,6 +503,47 @@ fn is_transfer_method(member_name: &str) -> bool {
         member_name,
         "transfer" | "safeTransfer" | "transferFrom" | "safeTransferFrom" | "send"
     )
+}
+
+/// Check if a method name is a low-level call kind.
+fn is_low_level_call_member(member_name: &str) -> bool {
+    matches!(
+        member_name,
+        "call" | "delegatecall" | "staticcall" | "callcode"
+    )
+}
+
+/// Detect a low-level call that carries a value option, in both the 0.8
+/// `addr.call{value: v}(...)` options form and the legacy
+/// `addr.call.value(v)(...)` chained-member form.
+fn low_level_call_with_value(expr: &FunctionCallExpression) -> bool {
+    match expr {
+        FunctionCallExpression::FunctionCallOptions(fco) => {
+            fco.names.iter().any(|n| n == "value")
+                && chain_low_level_call_member(&fco.expression).is_some()
+        }
+        FunctionCallExpression::MemberAccess(ma) => {
+            ma.member_name == "value" && chain_low_level_call_member(&ma.expression).is_some()
+        }
+        // A parenthesized callee such as `(addr.call.value(v))(args)` parses
+        // the callee as its own call; look through it to the option chain.
+        FunctionCallExpression::FunctionCall(inner) => low_level_call_with_value(&inner.expression),
+        _ => false,
+    }
+}
+
+/// The low-level member behind a legacy `.value(...)` / `.gas(...)` chain,
+/// e.g. `addr.call.value(v)(args)` -> `call`.
+fn chain_low_level_call_member(expr: &Expression) -> Option<&str> {
+    match expr {
+        Expression::MemberAccess(ma) if is_low_level_call_member(&ma.member_name) => {
+            Some(&ma.member_name)
+        }
+        Expression::MemberAccess(ma) if ma.member_name == "value" || ma.member_name == "gas" => {
+            chain_low_level_call_member(&ma.expression)
+        }
+        _ => None,
+    }
 }
 
 /// Convert a method name to an [`AssetTransferKind`].
@@ -745,6 +784,20 @@ mod tests {
         let output = scanner.scan().unwrap();
         let expected = include_str!("../../fixtures/scan-asset-transfers/expected/output.txt");
         assert_eq!(output.to_string(), expected);
+    }
+
+    #[test]
+    fn scan_reports_legacy_low_level_call_with_value() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/inspect-external-functions-solc-0.4");
+        let scanner = AssetTransferScanner::new(Project::open(root));
+        let output = scanner.scan().unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../fixtures/inspect-external-functions-solc-0.4/expected/asset_transfers.txt"
+            )
+        );
     }
 
     #[test]

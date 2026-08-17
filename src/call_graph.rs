@@ -1157,7 +1157,22 @@ impl CallGraph {
                                     vec![],
                                 ));
                             }
-                            None => {}
+                            None => {
+                                // Legacy `.value(...)` / `.gas(...)` chains,
+                                // e.g. `addr.call.value(v)(args)`, surface the
+                                // low-level member through the option chain.
+                                if let Some(member) = legacy_low_level_call_member(&ma.expression) {
+                                    let sig = format!("(address).{member}()");
+                                    nodes.push(CallGraphNode::new(
+                                        &sig,
+                                        "",
+                                        PathBuf::new(),
+                                        "low-level",
+                                        "",
+                                        vec![],
+                                    ));
+                                }
+                            }
                         }
                         self.collect_calls_from_expression(
                             &ma.expression,
@@ -1217,6 +1232,18 @@ impl CallGraph {
                             let node = self.build_call_node(id, cache, functions, visited)?;
                             nodes.push(node);
                         }
+                    }
+                    // A parenthesized callee such as `(addr.call.value(v))(args)`
+                    // parses the callee as its own call; walk it so the option
+                    // chain and low-level member are seen.
+                    FunctionCallExpression::FunctionCall(inner) => {
+                        self.collect_calls_from_expression(
+                            &Expression::FunctionCall((*inner).clone()),
+                            cache,
+                            functions,
+                            visited,
+                            nodes,
+                        )?;
                     }
                     _ => {}
                 }
@@ -1861,6 +1888,23 @@ fn is_low_level_call(member_name: &str) -> bool {
         member_name,
         "call" | "delegatecall" | "staticcall" | "callcode" | "transfer" | "send"
     )
+}
+
+/// The low-level member behind a legacy `.value(...)` / `.gas(...)` option
+/// chain, e.g. `addr.call.value(v)(args)` -> `call`.
+fn legacy_low_level_call_member(expr: &Expression) -> Option<&str> {
+    match expr {
+        Expression::MemberAccess(ma) => {
+            if is_low_level_call(&ma.member_name) {
+                Some(&ma.member_name)
+            } else if ma.member_name == "value" || ma.member_name == "gas" {
+                legacy_low_level_call_member(&ma.expression)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
 }
 
 /// Format an ambiguity error message for call-graph resolution.

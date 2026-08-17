@@ -1,0 +1,130 @@
+## Call Paths
+
+Target: `_admin`
+Source: `src/Contract.sol:268`
+
+11 paths found.
+
+### Path 1
+
+```
+AdminUpgradeabilityProxy.admin
+src/Contract.sol:219
+└── AdminUpgradeabilityProxy._admin
+    src/Contract.sol:268
+```
+
+### Path 2
+
+```
+AdminUpgradeabilityProxy.admin
+src/Contract.sol:219
+└── Proxy._fallback
+    src/Contract.sol:65
+    └── AdminUpgradeabilityProxy._willFallback
+        src/Contract.sol:290
+        └── AdminUpgradeabilityProxy._admin
+            src/Contract.sol:268
+```
+
+### Path 3
+
+```
+AdminUpgradeabilityProxy.changeAdmin
+src/Contract.sol:235
+└── AdminUpgradeabilityProxy._admin
+    src/Contract.sol:268
+```
+
+### Path 4
+
+```
+AdminUpgradeabilityProxy.changeAdmin
+src/Contract.sol:235
+└── Proxy._fallback
+    src/Contract.sol:65
+    └── AdminUpgradeabilityProxy._willFallback
+        src/Contract.sol:290
+        └── AdminUpgradeabilityProxy._admin
+            src/Contract.sol:268
+```
+
+### Path 5
+
+```
+AdminUpgradeabilityProxy.implementation
+src/Contract.sol:226
+└── AdminUpgradeabilityProxy._admin
+    src/Contract.sol:268
+```
+
+### Path 6
+
+```
+AdminUpgradeabilityProxy.implementation
+src/Contract.sol:226
+└── Proxy._fallback
+    src/Contract.sol:65
+    └── AdminUpgradeabilityProxy._willFallback
+        src/Contract.sol:290
+        └── AdminUpgradeabilityProxy._admin
+            src/Contract.sol:268
+```
+
+### Path 7
+
+```
+AdminUpgradeabilityProxy.upgradeTo
+src/Contract.sol:246
+└── AdminUpgradeabilityProxy._admin
+    src/Contract.sol:268
+```
+
+### Path 8
+
+```
+AdminUpgradeabilityProxy.upgradeTo
+src/Contract.sol:246
+└── Proxy._fallback
+    src/Contract.sol:65
+    └── AdminUpgradeabilityProxy._willFallback
+        src/Contract.sol:290
+        └── AdminUpgradeabilityProxy._admin
+            src/Contract.sol:268
+```
+
+### Path 9
+
+```
+AdminUpgradeabilityProxy.upgradeToAndCall
+src/Contract.sol:260
+└── AdminUpgradeabilityProxy._admin
+    src/Contract.sol:268
+```
+
+### Path 10
+
+```
+AdminUpgradeabilityProxy.upgradeToAndCall
+src/Contract.sol:260
+└── Proxy._fallback
+    src/Contract.sol:65
+    └── AdminUpgradeabilityProxy._willFallback
+        src/Contract.sol:290
+        └── AdminUpgradeabilityProxy._admin
+            src/Contract.sol:268
+```
+
+### Path 11
+
+```
+Proxy.fallback
+src/Contract.sol:17
+└── Proxy._fallback
+    src/Contract.sol:65
+    └── AdminUpgradeabilityProxy._willFallback
+        src/Contract.sol:290
+        └── AdminUpgradeabilityProxy._admin
+            src/Contract.sol:268
+```
+

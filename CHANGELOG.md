@@ -10,43 +10,28 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Added
 
-- `solray inspect function-source` now resolves abstract function declarations
-  declared by the queried abstract contract or its abstract bases, rendering
-  them as declarations instead of reporting "not found"
+- `inspect function-source` resolves abstract function declarations instead of
+  reporting "not found"
 
 ### Changed
 
-- Upgraded solc dependency to v0.3.2, which parses `isConstructor` and
-  `superFunction` on `FunctionDefinition` for solc < 0.5 ASTs
-- `solray inspect storage-layout` now prints `No storage slots found.` for
-  contracts with an empty storage layout instead of printing nothing
+- Upgraded solc to v0.3.2 (parses `isConstructor` and `superFunction` on old
+  ASTs)
+- `inspect storage-layout` prints `No storage slots found.` for empty layouts
 
 ### Fixed
 
-- `solray inspect function-source` now dispatches virtual calls to the
-  most-derived override on solc < 0.6 projects, whose ASTs omit the `virtual`
-  flag (functions are implicitly virtual); the override chain, e.g. an admin
-  guard and a storage-slot read, is rendered instead of the base hook or
-  abstract declaration
-
-- fallback and constructors are now resolvable by name (`fallback` /
-  `constructor`) in `inspect call-graph`, `inspect call-path`, and
-  `inspect function-source` for solc 0.4.x projects, where ASTs omit the `kind`
-  field; `inspect external-functions` and `scan asset-transfers` now report the
-  fallback's real source location and name instead of an empty function name
-
-- `solray inspect function-source` overload disambiguation now lists each
-  distinct signature once; an inherited override that redeclares the same
-  signature as a base no longer produces a duplicated suggestion
-
-- `solray inspect function-source` now resolves cross-file virtual calls to the
-  most-derived override on the queried contract instead of the base declaration
-
-- `solray inspect storage-layout` no longer fails for contracts that declare
-  only immutable state variables
-
-- `solray inspect storage-layout` error messages now print artifact paths
-  relative to the project root instead of machine-specific absolute paths
+- `inspect function-source` dispatches virtual calls to the most-derived
+  override on solc < 0.6 projects
+- `inspect call-graph` and `scan asset-transfers` no longer drop low-level
+  calls written as `addr.call.value(v)(args)`
+- `inspect call-path` de-duplicates byte-identical paths
+- fallbacks and constructors are resolvable by name on solc 0.4.x projects,
+  with real source locations
+- constructor call chains are now followed on solc 0.4.x projects
+- overload disambiguation lists each distinct signature once
+- `inspect storage-layout` works for immutable-only contracts and prints
+  project-relative artifact paths
 
 ## [0.9.0] - 2026-08-15
 

@@ -594,4 +594,34 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn call_graph_resolves_solc_0_4_constructor_chain() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/inspect-external-functions-solc-0.4");
+        let inspector = CallGraphInspector::new(Project::open(root));
+        let id = make_id("FiatTokenProxy", "constructor");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-external-functions-solc-0.4/expected/call_graph_constructor.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_graph_shows_legacy_low_level_call_with_value() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/inspect-external-functions-solc-0.4");
+        let inspector = CallGraphInspector::new(Project::open(root));
+        let id = make_id("FiatTokenProxy", "upgradeToAndCall");
+        let output = inspector.inspect(&id).unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-external-functions-solc-0.4/expected/call_graph_upgrade_to_and_call.txt"
+            )
+        );
+    }
 }

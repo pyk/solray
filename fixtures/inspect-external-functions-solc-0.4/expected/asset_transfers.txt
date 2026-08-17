@@ -1,0 +1,9 @@
+## Asset Transfers
+
+3 asset transfers found.
+
+| # | Contract | Function | Visibility | Expression | Kind | Source Location |
+| - | -------- | -------- | ---------- | ---------- | ---- | --------------- |
+| 1 | `Proxy` | `fallback` | external | `function () payable external` | Receive ETH | `src/Contract.sol:17` |
+| 2 | `AdminUpgradeabilityProxy` | `upgradeToAndCall` | external | `function upgradeToAndCall(address newImplementation, bytes data) payable external ifAdmin` | Receive ETH | `src/Contract.sol:260` |
+| 3 | `AdminUpgradeabilityProxy` | `upgradeToAndCall` | external | `address(this).call.value(msg.value)(data)` | Call ETH | `src/Contract.sol:262` |

@@ -3,7 +3,7 @@
 //! [`CallPathInspector`] finds all external/public functions that can reach
 //! a given target function, showing every linear path to the target.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use anyhow::Result;
@@ -77,6 +77,28 @@ impl std::fmt::Display for CallPathInspectorOutput {
             .roots
             .iter()
             .flat_map(|root| extract_paths_to_target(root, &self.scoped_target))
+            .collect();
+
+        // The same root can reach the target through multiple call sites that
+        // render identically (e.g. a modifier guard and the function body),
+        // so collapse byte-identical paths before counting and printing.
+        let mut seen: HashSet<Vec<(String, String, String, String)>> = HashSet::new();
+        let paths: Vec<Vec<&CallGraphNode>> = paths
+            .into_iter()
+            .filter(|path| {
+                let key = path
+                    .iter()
+                    .map(|node| {
+                        (
+                            node.contract_name.clone(),
+                            node.func_name().to_string(),
+                            node.file.display().to_string(),
+                            node.src.clone(),
+                        )
+                    })
+                    .collect();
+                seen.insert(key)
+            })
             .collect();
 
         writeln!(f, "\n{} paths found.\n", paths.len())?;
@@ -628,6 +650,21 @@ mod tests {
             output.to_string(),
             include_str!(
                 "../../../fixtures/inspect-external-functions-solc-0.4/expected/call_path_set_implementation.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn call_path_deduplicates_identical_paths() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/inspect-external-functions-solc-0.4");
+        let inspector = CallPathInspector::new(Project::open(root));
+        let id = make_id("FiatTokenProxy", "_admin");
+        let output = inspector.inspect(&id, "_admin").unwrap();
+        assert_eq!(
+            output.to_string(),
+            include_str!(
+                "../../../fixtures/inspect-external-functions-solc-0.4/expected/call_path_admin.txt"
             )
         );
     }

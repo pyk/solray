@@ -1,0 +1,14 @@
+Call graph:
+
+AdminUpgradeabilityProxy.upgradeToAndCall(address,bytes) (external) (src/Contract.sol:260)
+├── AdminUpgradeabilityProxy._admin() (internal) (src/Contract.sol:268)
+├── Proxy._fallback() (internal) (src/Contract.sol:65)
+│   ├── AdminUpgradeabilityProxy._willFallback() (internal) (src/Contract.sol:290)
+│   │   ├── AdminUpgradeabilityProxy._admin() (internal) (src/Contract.sol:268)
+│   │   └── Proxy._willFallback() (internal) (src/Contract.sol:58)
+│   ├── Proxy._delegate(address) (internal) (src/Contract.sol:32)
+│   └── UpgradeabilityProxy._implementation() (internal) (src/Contract.sol:136)
+├── UpgradeabilityProxy._upgradeTo(address) (internal) (src/Contract.sol:147)
+│   └── UpgradeabilityProxy._setImplementation(address) (private) (src/Contract.sol:156)
+│       └── AddressUtils.isContract(address) (internal) (src/Contract.sol:85)
+└── (address).call() (low-level)
