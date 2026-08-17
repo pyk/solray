@@ -134,6 +134,17 @@ impl StorageLayoutInspector {
         self.project.path()
     }
 
+    /// Return the artifact path relative to the project root for error
+    /// messages, falling back to the full path when it lies outside the
+    /// project.
+    fn display_artifact_path(&self, artifact_path: impl AsRef<Path>) -> String {
+        let path = artifact_path.as_ref();
+        path.strip_prefix(self.project.path())
+            .unwrap_or(path)
+            .display()
+            .to_string()
+    }
+
     /// Inspect the storage layout for the given [`StorageLayoutId`].
     pub fn inspect(&self, id: &StorageLayoutId) -> Result<StorageLayoutInspectorOutput> {
         let storage_layout = match &id.file {
@@ -158,11 +169,11 @@ impl StorageLayoutInspector {
         };
 
         let artifact = parse_artifact(&artifact_path)?;
-        ensure_layout_available(&artifact, &artifact_path, name)?;
+        ensure_layout_available(&artifact, &artifact_path, self.project.path(), name)?;
         artifact.storage_layout.with_context(|| {
             format!(
                 "artifact `{}` is missing the storage layout; rebuild with `extra_output = [\"storageLayout\"]` in foundry.toml",
-                artifact_path.display()
+                self.display_artifact_path(&artifact_path)
             )
         })
     }
@@ -178,11 +189,11 @@ impl StorageLayoutInspector {
             }
             1 => {
                 let artifact = parse_artifact(&candidates[0])?;
-                ensure_layout_available(&artifact, &candidates[0], name)?;
+                ensure_layout_available(&artifact, &candidates[0], self.project.path(), name)?;
                 artifact.storage_layout.with_context(|| {
                     format!(
                         "artifact `{}` is missing the storage layout; rebuild with `extra_output = [\"storageLayout\"]` in foundry.toml",
-                        candidates[0].display()
+                        self.display_artifact_path(&candidates[0])
                     )
                 })
             }
@@ -205,8 +216,14 @@ impl StorageLayoutInspector {
 /// Error when the artifact carries an empty storage layout even though the
 /// contract declares storage variables. solc < 0.6 does not emit storage
 /// layout output, so this turns a silent empty result into an explicit error.
-fn ensure_layout_available(artifact: &Artifact, path: impl AsRef<Path>, name: &str) -> Result<()> {
+fn ensure_layout_available(
+    artifact: &Artifact,
+    path: impl AsRef<Path>,
+    base: &Path,
+    name: &str,
+) -> Result<()> {
     let path = path.as_ref();
+    let display = path.strip_prefix(base).unwrap_or(path);
     let has_entries = match artifact.storage_layout.as_ref() {
         Some(layout) => !layout.storage.is_empty(),
         None => false,
@@ -221,7 +238,7 @@ fn ensure_layout_available(artifact: &Artifact, path: impl AsRef<Path>, name: &s
     if declares_storage {
         bail!(
             "artifact `{}` has an empty storage layout even though the contract declares storage variables; storage layout output is not available for solc < 0.6 builds",
-            path.display()
+            display.display()
         );
     }
     Ok(())

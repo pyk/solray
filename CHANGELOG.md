@@ -22,6 +22,8 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
   most-derived override on the queried contract instead of the base declaration
 - `solray inspect storage-layout` no longer fails for contracts that declare
   only immutable state variables
+- `solray inspect storage-layout` error messages now print artifact paths
+  relative to the project root instead of machine-specific absolute paths
 
 ## [0.9.0] - 2026-08-15
 

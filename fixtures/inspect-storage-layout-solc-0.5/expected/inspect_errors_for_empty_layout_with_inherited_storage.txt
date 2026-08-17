@@ -1,1 +1,1 @@
-artifact `/home/pyk/github/pyk/solray/fixtures/inspect-storage-layout-solc-0.5/out/Contract.sol/Child.json` has an empty storage layout even though the contract declares storage variables; storage layout output is not available for solc < 0.6 builds
+artifact `out/Contract.sol/Child.json` has an empty storage layout even though the contract declares storage variables; storage layout output is not available for solc < 0.6 builds
