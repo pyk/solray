@@ -23,6 +23,12 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Fixed
 
+- `solray inspect function-source` now dispatches virtual calls to the
+  most-derived override on solc < 0.6 projects, whose ASTs omit the `virtual`
+  flag (functions are implicitly virtual); the override chain, e.g. an admin
+  guard and a storage-slot read, is rendered instead of the base hook or
+  abstract declaration
+
 - fallback and constructors are now resolvable by name (`fallback` /
   `constructor`) in `inspect call-graph`, `inspect call-path`, and
   `inspect function-source` for solc 0.4.x projects, where ASTs omit the `kind`

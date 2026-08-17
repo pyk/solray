@@ -195,7 +195,9 @@ fn collect_override_entries(
                 continue;
             }
             let params = format_params(&fd.parameters.parameters);
-            if fd.r#virtual.unwrap_or(false) || fd.overrides.is_some() {
+            // solc < 0.6 omits `virtual`; functions are implicitly virtual and
+            // dispatch to the most-derived override on the queried contract.
+            if fd.r#virtual.unwrap_or(true) || fd.overrides.is_some() {
                 dispatchable.insert((
                     String::from(contract_name),
                     String::from(&fd.name),
@@ -2635,6 +2637,23 @@ mod tests {
             output,
             include_str!(
                 "../../../fixtures/inspect-external-functions-solc-0.4/expected/function_source_constructor.txt"
+            )
+        );
+    }
+
+    #[test]
+    fn inspect_dispatches_solc_0_4_virtual_calls_to_most_derived_override() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/inspect-external-functions-solc-0.4");
+        let project = Project::open(root);
+        project.validate().unwrap();
+        let inspector = FunctionSourceInspector::inspect_project(project);
+        let id = ArtifactId::new("FiatTokenProxy");
+        let output = inspector.inspect(&id, "admin").unwrap().to_string();
+        assert_eq!(
+            output,
+            include_str!(
+                "../../../fixtures/inspect-external-functions-solc-0.4/expected/function_source_admin.txt"
             )
         );
     }

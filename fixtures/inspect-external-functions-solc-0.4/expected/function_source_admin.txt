@@ -1,0 +1,184 @@
+# AdminUpgradeabilityProxy - admin Source Code
+
+Source path: `src/Contract.sol:219`
+
+```solidity
+/**
+ * @return The address of the proxy admin.
+ */
+function admin() external view ifAdmin returns (address) {
+  return _admin();
+}
+```
+
+---
+
+## Function: `_admin`
+
+Source path: `src/Contract.sol:268`
+
+```solidity
+/**
+ * @return The admin slot.
+ */
+function _admin() internal view returns (address adm) {
+  bytes32 slot = ADMIN_SLOT;
+  assembly {
+    adm := sload(slot)
+  }
+}
+```
+
+---
+
+## Function: `_delegate`
+
+Source path: `src/Contract.sol:32`
+
+```solidity
+/**
+ * @dev Delegates execution to an implementation contract.
+ * This is a low level function that doesn't return to its internal call site.
+ * It will return to the external caller whatever the implementation returns.
+ * @param implementation Address to delegate.
+ */
+function _delegate(address implementation) internal {
+  assembly {
+    // Copy msg.data. We take full control of memory in this inline assembly
+    // block because it will not return to Solidity code. We overwrite the
+    // Solidity scratch pad at memory position 0.
+    calldatacopy(0, 0, calldatasize)
+
+    // Call the implementation.
+    // out and outsize are 0 because we don't know the size yet.
+    let result := delegatecall(gas, implementation, 0, calldatasize, 0, 0)
+
+    // Copy the returned data.
+    returndatacopy(0, 0, returndatasize)
+
+    switch result
+    // delegatecall returns 0 on error.
+    case 0 { revert(0, returndatasize) }
+    default { return(0, returndatasize) }
+  }
+}
+```
+
+---
+
+## Function: `_fallback`
+
+Source path: `src/Contract.sol:65`
+
+```solidity
+/**
+ * @dev fallback implementation.
+ * Extracted to enable manual triggering.
+ */
+function _fallback() internal {
+  _willFallback();
+  _delegate(_implementation());
+}
+```
+
+---
+
+## Function: `_implementation`
+
+Source path: `src/Contract.sol:136`
+
+```solidity
+/**
+ * @dev Returns the current implementation.
+ * @return Address of the current implementation
+ */
+function _implementation() internal view returns (address impl) {
+  bytes32 slot = IMPLEMENTATION_SLOT;
+  assembly {
+    impl := sload(slot)
+  }
+}
+```
+
+---
+
+## Function: `_willFallback`
+
+Source path: `src/Contract.sol:290`
+
+```solidity
+/**
+ * @dev Only fall back when the sender is not the admin.
+ */
+function _willFallback() internal {
+  require(msg.sender != _admin(), "Cannot call fallback function from the proxy admin");
+  super._willFallback();
+}
+```
+
+---
+
+## Function: `_willFallback`
+
+Source path: `src/Contract.sol:58`
+
+```solidity
+/**
+ * @dev Function that is run as the first thing in the fallback function.
+ * Can be redefined in derived contracts to add functionality.
+ * Redefinitions must call super._willFallback().
+ */
+function _willFallback() internal {
+}
+```
+
+---
+
+## Modifier: `ifAdmin`
+
+Source path: `src/Contract.sol:197`
+
+```solidity
+/**
+ * @dev Modifier to check whether the `msg.sender` is the admin.
+ * If it is, it will run the function. Otherwise, it will delegate the call
+ * to the implementation.
+ */
+modifier ifAdmin() {
+  if (msg.sender == _admin()) {
+    _;
+  } else {
+    _fallback();
+  }
+}
+```
+
+---
+
+## Variable: `ADMIN_SLOT`
+
+Source path: `src/Contract.sol:190`
+
+```solidity
+/**
+ * @dev Storage slot with the admin of the contract.
+ * This is the keccak-256 hash of "org.zeppelinos.proxy.admin", and is
+ * validated in the constructor.
+ */
+bytes32 private constant ADMIN_SLOT = 0x10d6a54a4754c8869d6886b5f5d7fbfa5b4522237ea5c60d11bc4e7a1ff9390b
+```
+
+---
+
+## Variable: `IMPLEMENTATION_SLOT`
+
+Source path: `src/Contract.sol:120`
+
+```solidity
+/**
+ * @dev Storage slot with the address of the current implementation.
+ * This is the keccak-256 hash of "org.zeppelinos.proxy.implementation", and is
+ * validated in the constructor.
+ */
+bytes32 private constant IMPLEMENTATION_SLOT = 0x7050c9e0f4ca769c69bd3a8ef740bc37934f8e2c036e5a723fd8ee048ed3f8c3
+```
